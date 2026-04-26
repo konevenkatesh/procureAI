@@ -1,0 +1,82 @@
+@prefix ap:    <https://procurement.ap.gov.in/ontology#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+
+ap:        a owl:Ontology ;
+    rdfs:label "AP Procurement Ontology" ;
+    rdfs:comment "Base ontology for AP Government procurement rules-as-code." ;
+    owl:versionInfo "0.1.0" .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tender hierarchy
+# ─────────────────────────────────────────────────────────────────────────────
+
+ap:Tender a owl:Class ;
+    rdfs:label "Tender" ;
+    rdfs:comment "Any procurement tender published by an AP government entity." .
+
+ap:WorksTender       a owl:Class ; rdfs:subClassOf ap:Tender ; rdfs:label "Works Tender" .
+ap:GoodsTender       a owl:Class ; rdfs:subClassOf ap:Tender ; rdfs:label "Goods Tender" .
+ap:ConsultancyTender a owl:Class ; rdfs:subClassOf ap:Tender ; rdfs:label "Consultancy Tender" .
+ap:ServicesTender    a owl:Class ; rdfs:subClassOf ap:Tender ; rdfs:label "Services Tender" .
+ap:EPCTender         a owl:Class ; rdfs:subClassOf ap:Tender ; rdfs:label "EPC / Turnkey Tender" .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tender attributes (sh:path targets used in shapes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+ap:tenderId            a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .
+ap:department          a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .
+ap:estimatedValue      a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:emdAmount           a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:emdPercentage       a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:pbgPercentage       a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:bidValidityDays     a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:integer .
+ap:bgValidityDays      a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:integer .
+ap:dlpMonths           a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:integer .
+ap:reverseTenderFlag   a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:judicialPreviewFlag a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:integrityPactFlag   a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:eProcurementFlag    a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:noticePeriodDays    a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:integer .
+ap:coverSystem         a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .   # "Single" | "Two" | "Three"
+ap:procurementMode     a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .   # "Open" | "Limited" | "Single" | "Two-Stage" | "Reverse"
+ap:contractForm        a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .   # "Lump-sum" | "Rate" | "BOT" | etc.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Eligibility & evaluation
+# ─────────────────────────────────────────────────────────────────────────────
+
+ap:turnoverRequired       a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:experienceRequired     a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:decimal .
+ap:msePreferenceFlag      a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:makeInIndiaFlag        a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:evaluationMethod       a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .   # "QCBS" | "LCS" | "FBS" | "QBS" | "L1"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Compliance / governance
+# ─────────────────────────────────────────────────────────────────────────────
+
+ap:adminSanctionRef       a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .
+ap:techSanctionRef        a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .
+ap:approvalAuthority      a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:string  .
+ap:dpdpClauseFlag         a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+ap:conflictOfInterestFlag a owl:DatatypeProperty ; rdfs:domain ap:Tender ; rdfs:range xsd:boolean .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bid (used for evaluation-stage shapes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+ap:Bid a owl:Class ;
+    rdfs:label "Bid" .
+
+ap:bidId             a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:string  .
+ap:tender            a owl:ObjectProperty   ; rdfs:domain ap:Bid ; rdfs:range ap:Tender   .
+ap:bidder            a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:string  .
+ap:financialBid      a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:decimal .
+ap:technicalScore    a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:decimal .
+ap:emdSubmitted      a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:decimal .
+ap:emdInstrumentType a owl:DatatypeProperty ; rdfs:domain ap:Bid ; rdfs:range xsd:string  .   # "DD" | "BG" | "BC" | etc.

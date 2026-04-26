@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ap_postgres
+    environment:
+      POSTGRES_DB: ap_knowledge
+      POSTGRES_USER: apuser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apuser -d ap_knowledge"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ap_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  fuseki:
+    image: secoresearch/fuseki
+    container_name: ap_fuseki
+    environment:
+      ADMIN_PASSWORD: ${FUSEKI_PASSWORD:-admin}
+      FUSEKI_DATASET_1: ${FUSEKI_DATASET:-ap_procurement}
+    ports:
+      - "3030:3030"
+    volumes:
+      - fuseki_data:/fuseki/databases
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  fuseki_data:

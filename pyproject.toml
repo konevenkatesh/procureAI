@@ -1,0 +1,64 @@
+[project]
+name = "ap-procurement-knowledge"
+version = "0.1.0"
+description = "Knowledge layer for AP government procurement rules-as-code"
+requires-python = ">=3.11"
+
+dependencies = [
+    # Document processing
+    "docling>=2.0.0",
+    "python-docx>=1.1.0",
+
+    # Embeddings + vector store
+    "sentence-transformers>=3.0.0",
+    "qdrant-client>=1.9.0",
+
+    # SHACL / RDF
+    "rdflib>=7.0.0",
+    "pyshacl>=0.25.0",
+    "sparqlwrapper>=2.0.0",
+
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary>=2.9.0",
+
+    # Schemas & config
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+
+    # Templating
+    "jinja2>=3.1.0",
+
+    # CLI + UX
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "loguru>=0.7.0",
+    "tqdm>=4.66.0",
+    "tenacity>=8.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["builder*", "knowledge_layer*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]

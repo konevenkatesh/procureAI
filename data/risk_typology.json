@@ -1,0 +1,362 @@
+[
+  {
+    "code": "EMD-Shortfall",
+    "name": "EMD shortfall or missing",
+    "definition": "Earnest Money Deposit (EMD) below mandated percentage, missing entirely, or in non-acceptable form (cheque instead of DD/BG/BC).",
+    "severity": "HARD_BLOCK",
+    "category": "Financial",
+    "alice_equivalent": "Garantia insuficiente"
+  },
+  {
+    "code": "EMD-Cap-Violation",
+    "name": "EMD exceeds prescribed cap",
+    "definition": "EMD demanded exceeds maximum cap (typically Rs. 1 crore) thereby unduly restricting bidder participation.",
+    "severity": "WARNING",
+    "category": "Financial",
+    "alice_equivalent": "Garantia excessiva"
+  },
+  {
+    "code": "PBG-Shortfall",
+    "name": "Performance Bank Guarantee shortfall",
+    "definition": "PBG below mandated percentage of contract value or with insufficient validity period beyond DLP.",
+    "severity": "HARD_BLOCK",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Bid-Validity-Short",
+    "name": "Bid validity period below minimum",
+    "definition": "Bid validity period specified is shorter than the mandated minimum (typically 90 days for Works, 120 for Goods).",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "BG-Validity-Short",
+    "name": "Bank Guarantee validity below required",
+    "definition": "BG validity (EMD or PBG) does not extend at least 60 days beyond bid validity / DLP as required.",
+    "severity": "HARD_BLOCK",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Reverse-Tender-Missing",
+    "name": "Reverse tendering not invoked above threshold",
+    "definition": "Procurement value ≥ Rs. 1 crore (per AP GO.Ms.79/2020) but reverse tendering provision not included.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Judicial-Preview-Missing",
+    "name": "Judicial Preview not invoked for high-value infra",
+    "definition": "Infrastructure tender ≥ Rs. 100 crore not submitted for retired HC judge preview as required by AP Infrastructure (Transparency) Act 2019.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Integrity-Pact-Missing",
+    "name": "Integrity Pact clause absent",
+    "definition": "Tender value above CVC threshold but Integrity Pact clause and Independent External Monitor (IEM) provisions are absent.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": "Pacto de integridade ausente"
+  },
+  {
+    "code": "EProc-Bypass",
+    "name": "e-Procurement portal not used",
+    "definition": "Procurement value ≥ Rs. 2 lakh routed outside the e-procurement portal in violation of CVC/AP mandate.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": "Modalidade indevida"
+  },
+  {
+    "code": "Splitting-Suspected",
+    "name": "Suspected splitting of works to avoid threshold",
+    "definition": "Multiple smaller tenders by same authority within short window, summing above a threshold that would have triggered higher approval or different procedure.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": "Fracionamento"
+  },
+  {
+    "code": "Restrictive-Specs",
+    "name": "Unduly restrictive specifications",
+    "definition": "Technical specifications written narrowly enough that only one or two suppliers can qualify (brand-specific, OEM-locked, unusual combination of features).",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": "Direcionamento técnico"
+  },
+  {
+    "code": "Brand-Specific",
+    "name": "Brand-specific procurement without justification",
+    "definition": "Tender names a specific brand/model without 'or equivalent' clause and without recorded technical justification.",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Single-Source-Unjustified",
+    "name": "Single-source procurement without recorded justification",
+    "definition": "Single-source / proprietary procurement without the written justification mandated by GFR Rule 166.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": "Inexigibilidade indevida"
+  },
+  {
+    "code": "Limited-Tender-Misuse",
+    "name": "Limited tender used outside permitted conditions",
+    "definition": "Limited tender invoked when value/conditions require open tender per GFR Rule 162.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": "Modalidade indevida"
+  },
+  {
+    "code": "Notice-Period-Short",
+    "name": "Bid notice period below minimum",
+    "definition": "Time between publication and bid submission deadline shorter than mandated minimum (typically 21–30 days).",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": "Prazo insuficiente"
+  },
+  {
+    "code": "Publication-Insufficient",
+    "name": "Tender not published in mandated channels",
+    "definition": "Tender not published in CPP Portal, AP eProcurement, departmental website, and (for ≥ Rs. 25 lakh works) at least one newspaper.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Eligibility-Discriminatory",
+    "name": "Discriminatory eligibility criteria",
+    "definition": "Eligibility requirements (turnover, experience, geographic) set higher than necessary for the work, restricting competition.",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": "Habilitação restritiva"
+  },
+  {
+    "code": "Turnover-Excessive",
+    "name": "Annual turnover requirement excessive",
+    "definition": "Required annual average turnover exceeds typical multiplier (CVC norm: ≤ 2× estimated annual contract value).",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Experience-Excessive",
+    "name": "Similar work experience requirement excessive",
+    "definition": "Similar work value/quantity requirement exceeds CVC norms (typically 1× value of single similar work or 2× of two similar works).",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": null
+  },
+  {
+    "code": "MSE-Preference-Missing",
+    "name": "MSE/Startup preference clauses missing",
+    "definition": "Tender does not include the price preference, EMD relaxation, and turnover relaxation clauses required for MSEs and Startups.",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": null
+  },
+  {
+    "code": "MakeInIndia-Missing",
+    "name": "Make-in-India preference clauses missing",
+    "definition": "Class-I / Class-II local supplier preference clauses absent though tender qualifies under PPP-MII Order 2017.",
+    "severity": "WARNING",
+    "category": "Eligibility",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Cover-System-Wrong",
+    "name": "Wrong cover system for tender type",
+    "definition": "Single/two/three-cover system used inconsistently with tender type, value, and procurement type rules.",
+    "severity": "WARNING",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Evaluation-Criteria-Vague",
+    "name": "Evaluation criteria vague or non-quantifiable",
+    "definition": "Technical and financial evaluation criteria not stated with explicit weights, formulae, and pass/fail thresholds.",
+    "severity": "WARNING",
+    "category": "Process",
+    "alice_equivalent": "Critério subjetivo"
+  },
+  {
+    "code": "Marking-Scheme-Missing",
+    "name": "Technical scoring scheme not disclosed",
+    "definition": "QCBS / LCS / FBS / QBS scoring formula not disclosed in tender document.",
+    "severity": "WARNING",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Price-Adjustment-Wrong",
+    "name": "Price adjustment formula incorrect or absent",
+    "definition": "For long-duration works, price adjustment formula (escalation) is missing, incorrect index used, or contradicts CPWD/MoSPI norms.",
+    "severity": "WARNING",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Variation-Cap-Missing",
+    "name": "Variation/extra-item cap not specified",
+    "definition": "Permissible variation in quantities/value (typically ±25%) not stated.",
+    "severity": "WARNING",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "DLP-Missing",
+    "name": "Defects Liability Period not specified",
+    "definition": "DLP duration and PBG release schedule not specified, or DLP shorter than mandated minimum (typically 12 months).",
+    "severity": "HARD_BLOCK",
+    "category": "Completeness",
+    "alice_equivalent": null
+  },
+  {
+    "code": "LD-Clause-Missing",
+    "name": "Liquidated Damages clause missing or capped wrong",
+    "definition": "LD percentage per week of delay, and overall LD cap (typically 10% of contract value) not specified.",
+    "severity": "HARD_BLOCK",
+    "category": "Completeness",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Arbitration-Clause-Wrong",
+    "name": "Arbitration clause non-compliant with DoE June 2024",
+    "definition": "Arbitration clause does not follow DoE June 2024 guidelines (govt arbitration only ≤ Rs. 10 cr; mediation mandatory).",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Jurisdiction-Wrong",
+    "name": "Dispute jurisdiction clause incorrect",
+    "definition": "Jurisdiction clause names wrong court or fails to vest jurisdiction in AP courts as required.",
+    "severity": "WARNING",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Payment-Terms-Vague",
+    "name": "Payment terms vague or non-compliant",
+    "definition": "Milestones, RA bill schedule, retention percentage, mobilisation advance terms not clearly specified.",
+    "severity": "WARNING",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Mobilisation-Advance-Excess",
+    "name": "Mobilisation advance exceeds permissible cap",
+    "definition": "Mobilisation advance > 10% of contract value (CPWD norm) without recorded justification.",
+    "severity": "WARNING",
+    "category": "Financial",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Insurance-Missing",
+    "name": "Insurance requirements missing",
+    "definition": "CAR/EAR, workmen compensation, third-party liability insurance requirements not specified or inadequate.",
+    "severity": "WARNING",
+    "category": "Completeness",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Safety-Clauses-Missing",
+    "name": "Safety / labour-law clauses missing",
+    "definition": "Compliance with BoCW, Minimum Wages Act, EPF, ESI not made contractor's responsibility.",
+    "severity": "WARNING",
+    "category": "Completeness",
+    "alice_equivalent": null
+  },
+  {
+    "code": "DPDP-Compliance-Missing",
+    "name": "DPDP Act 2023 compliance clauses missing",
+    "definition": "Data handling clauses absent though tender involves personal/sensitive data processing.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Conflict-Of-Interest-Missing",
+    "name": "Conflict of interest declaration not required",
+    "definition": "Bidders not required to declare conflict of interest with department officials / evaluation committee members.",
+    "severity": "WARNING",
+    "category": "Governance",
+    "alice_equivalent": "Conflito de interesses"
+  },
+  {
+    "code": "Bidder-Repeated-Winner",
+    "name": "Repeated winner / collusion signal",
+    "definition": "Same bidder winning ≥ 60% of department's tenders over preceding 12 months — flag for vigilance review.",
+    "severity": "WARNING",
+    "category": "Governance",
+    "alice_equivalent": "Conluio recorrente"
+  },
+  {
+    "code": "Bid-Cluster-Suspicious",
+    "name": "Bids clustered suspiciously close",
+    "definition": "Top 3 financial bids within 1% of each other AND within 0.5% of estimated cost — possible cover bidding.",
+    "severity": "WARNING",
+    "category": "Governance",
+    "alice_equivalent": "Conluio (cover bidding)"
+  },
+  {
+    "code": "Single-Bid-Acceptance",
+    "name": "Single bid accepted without re-tender",
+    "definition": "Only one bid received and accepted without re-tender, in cases where re-tender is mandated.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "L1-Negotiation",
+    "name": "Post-tender negotiation with L1 (banned)",
+    "definition": "Price negotiation with L1 bidder after technical opening — explicitly banned by CVC except in defined exceptional cases.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": "Negociação indevida"
+  },
+  {
+    "code": "Corrigendum-Material-LateRelease",
+    "name": "Material corrigendum issued without bid extension",
+    "definition": "Corrigendum changing eligibility, scope, or BoQ issued without proportionate extension of bid submission deadline.",
+    "severity": "HARD_BLOCK",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Rate-Reasonableness-Missing",
+    "name": "Rate reasonableness assessment missing",
+    "definition": "No documented comparison of L1 rates against estimated cost, market rates, or last similar tender.",
+    "severity": "WARNING",
+    "category": "Process",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Approval-Authority-Wrong",
+    "name": "Tender approved below required authority level",
+    "definition": "Approval authority does not match value-band threshold for the department per AP Financial Code.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Sanction-Order-Missing",
+    "name": "Administrative + Technical sanction not on record",
+    "definition": "AS + TS orders not referenced in tender document or not on record before publication.",
+    "severity": "HARD_BLOCK",
+    "category": "Governance",
+    "alice_equivalent": null
+  },
+  {
+    "code": "Telugu-Translation-Missing",
+    "name": "Telugu translation of tender notice missing",
+    "definition": "Tender notice (NIT) not published in Telugu though required for state-funded tenders.",
+    "severity": "WARNING",
+    "category": "Completeness",
+    "alice_equivalent": null
+  }
+]

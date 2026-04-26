@@ -1,0 +1,55 @@
+# Secrets
+.env
+.env.local
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+**/.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Source PDFs are large — track presence via .gitkeep, not the files themselves
+source_documents/**/raw_pdf/*.pdf
+source_documents/**/raw_pdf/*.PDF
+source_documents/**/raw/*.pdf
+source_documents/**/raw/*.PDF
+source_documents/**/raw/*.docx
+source_documents/**/raw/*.DOCX
+
+# Processed Markdown CAN be committed (it's text, useful for reproducibility)
+# Comment out the next two lines if you want to commit them:
+source_documents/**/processed_md/*.md
+
+# Docker volumes (if mounted locally)
+postgres_data/
+qdrant_data/
+fuseki_data/
+
+# Logs
+*.log
+logs/
+
+# Failed-section retry files
+data/failed_sections.json
