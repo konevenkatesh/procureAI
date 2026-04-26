@@ -1,25 +1,28 @@
 """
-Rule extraction pipeline (batch-prep + loader).
+Rule + clause extraction pipeline (batch-prep + result loaders).
 
-ARCHITECTURE: There is no LLM SDK call here. Instead:
-  1. `prepare_extraction_batches()` writes batch JSON files into
-     data/extraction_batches/ — each contains the SYSTEM prompt and a list of
-     sections to extract from.
-  2. The operator (Claude Code) opens a batch file, performs the extraction
-     work in conversation, and writes a JSON result file into
-     data/extraction_results/ with the same batch_id.
-  3. `load_extraction_results()` reads result files and saves CandidateRules
-     into Postgres via knowledge_layer.rule_store.
+ARCHITECTURE: there is no LLM SDK call in this module. Instead, batch JSON
+files are prepared into data/extraction_batches/{rules,clauses}/ — each file
+contains the system prompt (from builder/extractor_prompts.py) and the source
+sections to extract from. The operator (Claude Code) reads each batch in
+conversation, performs the extraction, and writes a flat JSON array result
+into data/extraction_results/{rules,clauses}/. The loader reads result files,
+cross-references batch metadata to inject `source_doc`, infers `category` from
+typology code, and saves CandidateRule / ClauseTemplate rows to Postgres.
 
-This separation means: no API keys, no per-section LLM round-trip cost, and
-the operator can apply judgment + cross-section consistency that a stateless
-SDK call cannot.
+Two modes:
+  rules    → all 9 source documents, ~4 sections per batch, RULE_EXTRACTION_SYSTEM
+  clauses  → MPW_2022 / MPG_2022 / MPS_2017 / MPS_2022 only,
+             ~2 sections per batch (clause text is denser),
+             intro/definition/appendix sections excluded,
+             CLAUSE_EXTRACTION_SYSTEM
 """
 from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date
+from collections import defaultdict
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -27,175 +30,395 @@ from loguru import logger
 from pydantic import ValidationError
 
 from builder.config import settings
-from builder.section_splitter import get_all_sections
+from builder.extractor_prompts import (
+    CLAUSE_EXTRACTION_SYSTEM,
+    RULE_EXTRACTION_SYSTEM,
+)
+from builder.section_splitter import get_all_sections, get_clause_sections
 from knowledge_layer.rule_store import save_candidate_rules
-from knowledge_layer.schemas import CandidateRule
+from knowledge_layer.schemas import CandidateRule, ClauseTemplate
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# The extraction prompt — embedded into every batch file so the operator
-# (Claude Code) has the spec inline. Any change here affects future batches
-# only — already-prepared batches keep their original prompt.
+# Typology → category mapping (loader uses this to set CandidateRule.category)
 # ─────────────────────────────────────────────────────────────────────────────
 
-EXTRACTION_SYSTEM_PROMPT = """\
-You are an expert in Indian government procurement law (GFR 2017, CVC circulars,
-AP state GOs, and central procurement manuals).
+_TYPOLOGY_PREFIX_TO_CATEGORY: list[tuple[str, str]] = [
+    # Order matters: longest / most-specific prefixes first.
+    ("Bid-Validity",      "Financial"),
+    ("BG-Validity",       "Financial"),
+    ("Available-Bid",     "Financial"),
+    ("Mobilisation",      "Financial"),
+    ("EMD",               "Financial"),
+    ("PBG",               "Financial"),
+    ("Solvency",          "Financial"),
 
-For each SECTION provided below, extract ALL verifiable compliance rules.
-A verifiable rule = something a reviewer can check YES/NO against a tender document.
-Skip definitions, interpretive statements, and non-verifiable guidance.
+    ("Missing",           "Completeness"),
+    ("Duplicate",         "Completeness"),
 
-For every rule, output ONE JSON object with these fields:
+    ("Corrigendum",       "Process"),
+    ("Stale",             "Process"),
+    ("Jurisdiction",      "Process"),
+    ("Pre-Bid",           "Process"),
+    ("Financial-Proposal","Process"),
+    ("Technical-In",      "Process"),
 
-{
-  "rule_id":              "stable ID — see ID rules below",
-  "source_doc":           "doc filename without extension (e.g. 'GFR_2017')",
-  "source_chapter":       "chapter / part identifier from the doc",
-  "source_clause":        "specific clause/rule number (e.g. 'Rule 170(iii)')",
-  "source_url":           null or canonical URL,
-  "layer":                "Central | CVC | AP-State | Dept",
-  "category":             "Financial | Completeness | Governance | Eligibility | Process",
-  "pattern_type":         "P1 | P2 | P3 | P4",
-  "natural_language":     "ONE sentence. Plain English. What MUST be true.",
-  "verification_method":  "How to check: extract X from doc, compare to Y.",
-  "condition_when":       "When this rule applies (e.g. 'TenderType=Works AND EstimatedValue>=2500000')",
-  "severity":             "HARD_BLOCK | WARNING | ADVISORY",
-  "typology_code":        "code from data/risk_typology.json (e.g. 'EMD-Shortfall')",
-  "generates_clause":     true/false,
-  "defeats":              [],   // rule_ids this overrides
-  "defeated_by":          [],   // rule_ids that override this
-  "valid_from":           "YYYY-MM-DD effective date of source",
-  "valid_until":          null or "YYYY-MM-DD",
-  "extracted_from":       "{section_reference} — copy verbatim from input",
-  "extraction_confidence":0.0-1.0,
-  "critic_verified":      false,   // gets set true by critic pass
-  "critic_note":          null,
-  "human_status":         "pending"
-}
+    ("Judicial",          "Governance"),
+    ("Reverse-Tender",    "Governance"),
+    ("E-Procurement",     "Governance"),
+    ("Post-Tender",       "Governance"),
+    ("Single-Source",     "Governance"),
+    ("COI",               "Governance"),
+    ("GeM",               "Governance"),
+    ("Blacklist",         "Governance"),
 
-Pattern types:
-  P1 = exact formula or threshold        (EMD = 2%, validity = 90 days)
-  P2 = clause must exist                 (Integrity Pact clause must be present)
-  P3 = exception/override applies        (Limited tender IF single-source justified)
-  P4 = semantic judgment                 (specs must not be unduly restrictive)
+    ("Spec-Tailoring",    "Eligibility"),
+    ("Criteria",          "Eligibility"),
+    ("Turnover",          "Eligibility"),
+    ("Geographic",        "Eligibility"),
+    ("Certification",     "Eligibility"),
+    ("Startup",           "Eligibility"),
+    ("Key-Personnel",     "Eligibility"),
+    ("Multiple-CVs",      "Eligibility"),
 
-ID rules:
-  Format: {SOURCE_CODE}-{SHORT_TOPIC}-{NUMBER}
-  Examples: GFR-EMD-001, CVC-INT-PACT-003, AP-GOMS79-RT-001
-  Make IDs stable: same rule re-extracted later should produce the same ID.
+    ("Bid-Splitting",     "Collusion"),
+    ("Cover-Bidding",     "Collusion"),
 
-Severity guide:
-  HARD_BLOCK = legal/financial mandate, missing this stops publication
-  WARNING    = best-practice/protective, missing this is risky
-  ADVISORY   = recommendation, missing this is acceptable
-
-Output FORMAT: a single JSON object with one key per section reference, mapping
-to a list of rule objects. Example:
-
-{
-  "GFR_2017/Chapter 6 Rule 170": [ {...rule1...}, {...rule2...} ],
-  "GFR_2017/Chapter 6 Rule 171": [ {...rule3...} ]
-}
-
-If a section has NO verifiable rules, emit an empty list `[]` for that section.
-Output JSON ONLY. No markdown, no commentary.
-"""
+    ("MSE",               "Compliance"),
+    ("MakeInIndia",       "Compliance"),
+    ("Sub-Consultant",    "Compliance"),
+    ("Arbitration",       "Compliance"),
+    ("DLP",               "Compliance"),
+]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Batch preparation
-# ─────────────────────────────────────────────────────────────────────────────
+def _category_from_typology(typology_code: str) -> str:
+    """Best-effort category inference from typology code prefix.
 
-def prepare_extraction_batches(
-    sections_per_batch: int = 15,
-    only_doc: Optional[str] = None,
-) -> list[Path]:
-    """Split all sections into batch files for the operator to process.
-
-    Args:
-        sections_per_batch: roughly how many sections per batch file.
-        only_doc: if given, only build batches for sections from this doc.
-
-    Returns: list of batch file paths created.
+    Falls back to 'Process' if no prefix matches — operator can override at
+    review time. (Was 'General' in the original draft, but that isn't in the
+    RuleCategory enum.)
     """
-    settings.extraction_batches_dir.mkdir(parents=True, exist_ok=True)
+    for prefix, category in _TYPOLOGY_PREFIX_TO_CATEGORY:
+        if typology_code.startswith(prefix):
+            return category
+    return "Process"
 
-    sections = get_all_sections()
-    if only_doc:
-        sections = [(ref, txt) for ref, txt in sections if ref.startswith(f"{only_doc}/")]
 
-    if not sections:
-        logger.warning("No sections found. Did you run process_all_documents.py?")
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch-payload builders
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _word_count(sections: list[tuple[str, str]]) -> int:
+    return sum(len(text.split()) for _, text in sections)
+
+
+def _group_by_doc(sections: list[tuple[str, str]]) -> dict[str, list[tuple[str, str]]]:
+    by_doc: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for ref, text in sections:
+        by_doc[ref.split("/", 1)[0]].append((ref, text))
+    return by_doc
+
+
+def _write_batch(
+    out_dir: Path,
+    batch_id: str,
+    kind: str,
+    source_doc: str,
+    system_prompt: str,
+    instructions: str,
+    chunk: list[tuple[str, str]],
+) -> Path:
+    payload = {
+        "batch_id": batch_id,
+        "kind": kind,
+        "source_doc": source_doc,
+        "section_count": len(chunk),
+        "word_count": _word_count(chunk),
+        "system_prompt": system_prompt,
+        "instructions_for_operator": instructions,
+        "sections": [{"reference": ref, "text": text} for ref, text in chunk],
+    }
+    out_path = out_dir / f"{batch_id}.json"
+    out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    return out_path
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public: prepare RULE batches (all 9 docs, ~4 sections each)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def prepare_rule_batches(sections_per_batch: int = 4) -> list[Path]:
+    """Build per-document rule-extraction batches.
+
+    Each batch is single-doc so the loader can inject `source_doc` from
+    batch metadata into every CandidateRule.
+    """
+    rules_dir = settings.extraction_batches_dir / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+
+    by_doc = _group_by_doc(get_all_sections())
+    if not by_doc:
+        logger.warning("No sections found. Did you run scripts/process_all_documents.py?")
         return []
 
-    created: list[Path] = []
-    for batch_idx, start in enumerate(range(0, len(sections), sections_per_batch), 1):
-        chunk = sections[start : start + sections_per_batch]
-        batch_id = f"batch_{batch_idx:04d}"
-        payload = {
-            "batch_id": batch_id,
-            "system_prompt": EXTRACTION_SYSTEM_PROMPT,
-            "instructions_for_operator": (
-                "Read every section below. For each, extract verifiable rules per the "
-                "system_prompt schema. Write results to "
-                f"data/extraction_results/{batch_id}.json — same shape as the example "
-                "in the system_prompt."
-            ),
-            "section_count": len(chunk),
-            "sections": [
-                {"reference": ref, "text": txt} for ref, txt in chunk
-            ],
+    batches: list[Path] = []
+    batch_idx = 0
+    for doc_name in sorted(by_doc):
+        sections = by_doc[doc_name]
+        for start in range(0, len(sections), sections_per_batch):
+            batch_idx += 1
+            batch_id = f"batch_{batch_idx:04d}"
+            chunk = sections[start : start + sections_per_batch]
+            instructions = (
+                f"Extract every verifiable compliance rule from each section below. "
+                f"Follow the system_prompt schema exactly. Write the result as a flat "
+                f"JSON array (no markdown) to "
+                f"data/extraction_results/rules/{batch_id}.json"
+            )
+            path = _write_batch(
+                out_dir=rules_dir,
+                batch_id=batch_id,
+                kind="rules",
+                source_doc=doc_name,
+                system_prompt=RULE_EXTRACTION_SYSTEM,
+                instructions=instructions,
+                chunk=chunk,
+            )
+            batches.append(path)
+
+    logger.info(
+        f"Prepared {len(batches)} rule batches across {len(by_doc)} document(s) "
+        f"in {rules_dir}"
+    )
+    return batches
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public: prepare CLAUSE batches (MPW/MPG/MPS only, ~2 sections each, filtered)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def prepare_clause_batches(sections_per_batch: int = 2) -> list[Path]:
+    """Build per-document clause-extraction batches.
+
+    Only sections from MPW_2022 / MPG_2022 / MPS_2017 / MPS_2022, with intro /
+    definition / appendix sections filtered out by section_splitter.get_clause_sections().
+    """
+    clauses_dir = settings.extraction_batches_dir / "clauses"
+    clauses_dir.mkdir(parents=True, exist_ok=True)
+
+    by_doc = _group_by_doc(get_clause_sections())
+    if not by_doc:
+        logger.warning(
+            "No clause-eligible sections found. Either no MPW/MPG/MPS documents "
+            "have been processed, or every section was filtered out."
+        )
+        return []
+
+    batches: list[Path] = []
+    batch_idx = 0
+    for doc_name in sorted(by_doc):
+        sections = by_doc[doc_name]
+        for start in range(0, len(sections), sections_per_batch):
+            batch_idx += 1
+            batch_id = f"batch_{batch_idx:04d}"
+            chunk = sections[start : start + sections_per_batch]
+            instructions = (
+                f"Extract complete clause templates with {{parameter}} placeholders. "
+                f"Follow the system_prompt schema exactly. Write the result as a flat "
+                f"JSON array (no markdown) to "
+                f"data/extraction_results/clauses/{batch_id}.json"
+            )
+            path = _write_batch(
+                out_dir=clauses_dir,
+                batch_id=batch_id,
+                kind="clauses",
+                source_doc=doc_name,
+                system_prompt=CLAUSE_EXTRACTION_SYSTEM,
+                instructions=instructions,
+                chunk=chunk,
+            )
+            batches.append(path)
+
+    logger.info(
+        f"Prepared {len(batches)} clause batches across {len(by_doc)} document(s) "
+        f"in {clauses_dir}"
+    )
+    return batches
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Manifest writer (data/extraction_batches/manifest.json)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def write_manifest(rules_batches: list[Path], clauses_batches: list[Path]) -> Path:
+    """Summarise batch inventory + per-doc / per-batch stats."""
+    def summarise(paths: list[Path]) -> dict:
+        per_doc_count: dict[str, int] = defaultdict(int)
+        per_doc_sections: dict[str, int] = defaultdict(int)
+        per_doc_words: dict[str, int] = defaultdict(int)
+        batches: list[dict] = []
+        total_sections = 0
+        total_words = 0
+        for p in paths:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            doc = data["source_doc"]
+            per_doc_count[doc] += 1
+            per_doc_sections[doc] += data["section_count"]
+            per_doc_words[doc] += data["word_count"]
+            total_sections += data["section_count"]
+            total_words += data["word_count"]
+            batches.append({
+                "batch_id": data["batch_id"],
+                "source_doc": doc,
+                "section_count": data["section_count"],
+                "word_count": data["word_count"],
+                "status": "pending",
+            })
+        return {
+            "total_batches": len(paths),
+            "total_sections": total_sections,
+            "total_words": total_words,
+            "per_document": {
+                doc: {
+                    "batches": per_doc_count[doc],
+                    "sections": per_doc_sections[doc],
+                    "words": per_doc_words[doc],
+                }
+                for doc in sorted(per_doc_count)
+            },
+            "batches": batches,
         }
-        out_path = settings.extraction_batches_dir / f"{batch_id}.json"
-        out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
-        created.append(out_path)
 
-    logger.info(f"Prepared {len(created)} extraction batches in {settings.extraction_batches_dir}")
-    return created
+    settings.extraction_batches_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "rules": summarise(rules_batches),
+        "clauses": summarise(clauses_batches),
+    }
+    out = settings.extraction_batches_dir / "manifest.json"
+    out.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Result loading
+# Loader: data/extraction_results/{kind}/*.json → Postgres
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_extraction_results(batch_glob: str = "*.json") -> dict:
-    """Read extraction result files and save valid CandidateRules to Postgres."""
-    settings.extraction_results_dir.mkdir(parents=True, exist_ok=True)
+def load_extraction_results(kind: str = "rules", batch_glob: str = "*.json") -> dict:
+    """Load extraction results into Postgres.
 
-    summary = {"files_read": 0, "rules_loaded": 0, "validation_errors": 0, "errors": []}
+    Looks up the corresponding batch metadata file (in data/extraction_batches/{kind}/)
+    to inject `source_doc` per rule.
+    """
+    if kind not in ("rules", "clauses"):
+        raise ValueError(f"kind must be 'rules' or 'clauses', got {kind!r}")
+
+    results_dir = settings.extraction_results_dir / kind
+    batches_dir = settings.extraction_batches_dir / kind
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    if kind == "rules":
+        return _load_rule_results(results_dir, batches_dir, batch_glob)
+    return _load_clause_results(results_dir, batches_dir, batch_glob)
+
+
+def _load_rule_results(results_dir: Path, batches_dir: Path, batch_glob: str) -> dict:
+    summary = {
+        "files_read": 0,
+        "rules_loaded": 0,
+        "validation_errors": 0,
+        "errors": [],
+    }
     candidates: list[CandidateRule] = []
 
-    for result_file in sorted(settings.extraction_results_dir.glob(batch_glob)):
+    for result_file in sorted(results_dir.glob(batch_glob)):
         summary["files_read"] += 1
         try:
             data = json.loads(result_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
             summary["errors"].append((result_file.name, f"invalid JSON: {e}"))
             continue
+        if not isinstance(data, list):
+            summary["errors"].append((result_file.name, "expected JSON array at top level"))
+            continue
 
-        for section_ref, rules in data.items():
-            if not isinstance(rules, list):
-                summary["errors"].append((result_file.name, f"{section_ref}: not a list"))
-                continue
-            for raw in rules:
-                # Inject defaults if operator omitted them
-                raw.setdefault("extracted_from", section_ref)
-                raw.setdefault("human_status", "pending")
-                raw.setdefault("critic_verified", False)
-                raw.setdefault("valid_from", date.today().isoformat())
-                try:
-                    candidates.append(CandidateRule(**raw))
-                except ValidationError as e:
-                    summary["validation_errors"] += 1
-                    summary["errors"].append((result_file.name, f"validation: {e.errors()[0]['msg']}"))
+        # Cross-reference batch file for source_doc
+        source_doc = "unknown"
+        batch_meta = batches_dir / result_file.name
+        if batch_meta.exists():
+            try:
+                source_doc = json.loads(batch_meta.read_text())["source_doc"]
+            except Exception:
+                pass
+
+        for raw in data:
+            raw.setdefault("source_doc", source_doc)
+            raw.setdefault("source_chapter", "")
+            raw.setdefault(
+                "category",
+                _category_from_typology(raw.get("typology_code", "")),
+            )
+            raw.setdefault("valid_from", date.today().isoformat())
+            raw.setdefault("extracted_from", result_file.stem)
+            raw.setdefault("extraction_confidence", 0.85)
+            raw.setdefault("human_status", "pending")
+            raw.setdefault("critic_verified", False)
+            try:
+                candidates.append(CandidateRule(**raw))
+            except ValidationError as e:
+                summary["validation_errors"] += 1
+                msg = e.errors()[0]["msg"] if e.errors() else str(e)
+                summary["errors"].append((result_file.name, f"validation: {msg}"))
 
     if candidates:
         summary["rules_loaded"] = save_candidate_rules(candidates)
     return summary
 
 
+def _load_clause_results(results_dir: Path, batches_dir: Path, batch_glob: str) -> dict:
+    from knowledge_layer.clause_store import save_clause_templates
+
+    summary = {
+        "files_read": 0,
+        "clauses_loaded": 0,
+        "validation_errors": 0,
+        "errors": [],
+    }
+    clauses: list[ClauseTemplate] = []
+
+    for result_file in sorted(results_dir.glob(batch_glob)):
+        summary["files_read"] += 1
+        try:
+            data = json.loads(result_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            summary["errors"].append((result_file.name, f"invalid JSON: {e}"))
+            continue
+        if not isinstance(data, list):
+            summary["errors"].append((result_file.name, "expected JSON array at top level"))
+            continue
+
+        for raw in data:
+            raw.setdefault("valid_from", date.today().isoformat())
+            raw.setdefault("text_telugu", None)
+            raw.setdefault("human_verified", False)
+            try:
+                clauses.append(ClauseTemplate(**raw))
+            except ValidationError as e:
+                summary["validation_errors"] += 1
+                msg = e.errors()[0]["msg"] if e.errors() else str(e)
+                summary["errors"].append((result_file.name, f"validation: {msg}"))
+
+    if clauses:
+        summary["clauses_loaded"] = save_clause_templates(clauses)
+    return summary
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper for novel rule IDs (operator may use)
+# ─────────────────────────────────────────────────────────────────────────────
+
 def stable_rule_id(source_doc: str, short_topic: str, raw_text: str) -> str:
-    """Generate a deterministic rule_id. Operator may use this for novel rules."""
+    """Generate a deterministic rule_id from a stable digest of the rule text."""
     digest = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()[:6].upper()
     return f"{source_doc.upper()}-{short_topic.upper()}-{digest}"

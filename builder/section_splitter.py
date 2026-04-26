@@ -21,6 +21,32 @@ from builder.document_processor import list_processed_documents
 MIN_SECTION_CHARS = 150          # below this → drop (likely fragment)
 MAX_SECTION_CHARS = 8_000        # ~2K tokens; above this → split further
 
+# Documents that contain actual tender clause text (used by clause extraction).
+# Other docs (GFR, CVC circulars) describe rules but don't contain clause templates.
+CLAUSE_SOURCE_DOCS: set[str] = {"MPW_2022", "MPG_2022", "MPS_2017", "MPS_2022"}
+
+# Heading keywords that mark sections to skip during clause extraction.
+# These sections are intros, definitions, appendices — no usable clause text.
+EXCLUDE_HEADING_KEYWORDS_FOR_CLAUSES: tuple[str, ...] = (
+    "introduction",
+    "objective",
+    "preamble",
+    "preface",
+    "foreword",
+    "definitions",
+    "definition of",
+    "scope of manual",
+    "table of contents",
+    "appendix",
+    "annexure",
+    "annex ",
+    "abbreviation",
+    "glossary",
+    "acknowledgement",
+    "list of figures",
+    "list of tables",
+)
+
 
 def split_into_sections(markdown_text: str, doc_name: str) -> list[tuple[str, str]]:
     """Split a single Markdown document into (reference, text) pairs."""
@@ -86,3 +112,22 @@ def sections_for_document(md_path: Path) -> list[tuple[str, str]]:
     """Return sections for a single processed Markdown file."""
     text = md_path.read_text(encoding="utf-8")
     return split_into_sections(text, md_path.stem)
+
+
+def get_clause_sections() -> list[tuple[str, str]]:
+    """Sections suitable for clause extraction.
+
+    Filters get_all_sections() to:
+      - documents in CLAUSE_SOURCE_DOCS only (MPW/MPG/MPS)
+      - sections whose heading does NOT match any EXCLUDE_HEADING_KEYWORDS_FOR_CLAUSES
+    """
+    out: list[tuple[str, str]] = []
+    for ref, text in get_all_sections():
+        doc_name = ref.split("/", 1)[0]
+        if doc_name not in CLAUSE_SOURCE_DOCS:
+            continue
+        heading = ref.split("/", 1)[1].lower() if "/" in ref else ""
+        if any(kw in heading for kw in EXCLUDE_HEADING_KEYWORDS_FOR_CLAUSES):
+            continue
+        out.append((ref, text))
+    return out

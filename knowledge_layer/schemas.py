@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +57,8 @@ class RuleCategory(str, Enum):
     GOVERNANCE = "Governance"
     ELIGIBILITY = "Eligibility"
     PROCESS = "Process"
+    COLLUSION = "Collusion"
+    COMPLIANCE = "Compliance"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +66,14 @@ class RuleCategory(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Rule(BaseModel):
-    """An approved, production rule. Used at runtime by Validator/Drafter."""
+    """An approved, production rule. Used at runtime by Validator/Drafter.
+
+    `natural_language` accepts either field name on input ("natural_language" or
+    "rule_text") so the extraction prompt can output `rule_text` directly and
+    Pydantic will normalise it. Always serialises as `natural_language`.
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
     rule_id: str
     source_doc: str
     source_chapter: str
@@ -73,7 +82,9 @@ class Rule(BaseModel):
     layer: SourceLayer
     category: RuleCategory
     pattern_type: PatternType
-    natural_language: str
+    natural_language: str = Field(
+        validation_alias=AliasChoices("natural_language", "rule_text")
+    )
     verification_method: str
     condition_when: str
     severity: Severity
@@ -103,7 +114,10 @@ class CandidateRule(Rule):
 
 class ClauseParameter(BaseModel):
     name: str
-    param_type: Literal["currency", "percentage", "days", "text", "boolean", "date", "integer"]
+    param_type: Literal[
+        "currency", "percentage", "days", "months",
+        "text", "boolean", "date", "integer",
+    ]
     formula: Optional[str] = None        # e.g. "estimated_value * 0.02"
     cap: Optional[float] = None          # e.g. EMD capped at Rs. 1 crore
     label: str
