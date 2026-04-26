@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
 from loguru import logger
 
 from builder.config import settings
@@ -24,6 +23,10 @@ PATTERNS = ("*.pdf", "*.PDF", "*.docx", "*.DOCX")
 
 def process_all() -> dict:
     """Process every raw document into Markdown. Returns summary stats."""
+    # Lazy-imported so the rest of the package can be used without the heavy
+    # docling/torch ML stack installed (e.g. for prepare_extraction_batches).
+    from docling.document_converter import DocumentConverter
+
     converter = DocumentConverter()
     summary = {"processed": 0, "skipped": 0, "failed": [], "by_doc": {}}
 
