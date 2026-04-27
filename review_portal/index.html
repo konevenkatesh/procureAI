@@ -146,6 +146,26 @@
       border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
     dialog .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
+    /* ── Voice toolbar inside dialogs ─────────────────────────────────── */
+    .voice-bar { display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin: 6px 0 8px; }
+    .voice-bar .left { display: flex; align-items: center; gap: 8px; }
+    .voice-btn { font-size: 13px; padding: 6px 12px; border-radius: 999px;
+      border: 1px solid var(--border); background: #fff; color: var(--ink); cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; transition: background .12s, color .12s; }
+    .voice-btn:hover:not(:disabled) { background: var(--border-soft); }
+    .voice-btn[disabled] { opacity: .5; cursor: not-allowed; }
+    .voice-btn.recording { background: var(--err); color: #fff; border-color: var(--err);
+      animation: voice-pulse 1.4s infinite; }
+    .voice-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+    .voice-lang { font-size: 12px; padding: 5px 8px; border: 1px solid var(--border);
+      border-radius: 6px; background: #fff; color: var(--ink-soft); }
+    .voice-status { font-size: 12px; color: var(--ink-faint); min-height: 16px; }
+    @keyframes voice-pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(167,32,32,.6); }
+      100% { box-shadow: 0 0 0 14px rgba(167,32,32,0); }
+    }
+
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px;
       box-shadow: var(--shadow); opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -306,7 +326,21 @@
     <form method="dialog" class="dlg-body">
       <h3>Reject reason</h3>
       <p>Briefly explain why this rule should be rejected.</p>
-      <textarea id="reject-reason" required></textarea>
+      <div class="voice-bar">
+        <div class="left">
+          <button type="button" class="voice-btn" id="reject-mic" aria-label="Record voice">
+            <span class="dot"></span> 🎤 Speak
+          </button>
+          <select class="voice-lang" id="reject-lang" aria-label="Language">
+            <option value="en-IN">English (India)</option>
+            <option value="te-IN">తెలుగు (Telugu)</option>
+            <option value="hi-IN">हिन्दी (Hindi)</option>
+            <option value="en-US">English (US)</option>
+          </select>
+        </div>
+        <div class="voice-status" id="reject-status"></div>
+      </div>
+      <textarea id="reject-reason" required placeholder="Type or speak your reason…"></textarea>
       <div class="dlg-actions">
         <button value="cancel" class="btn-skip">Cancel</button>
         <button value="confirm" class="btn-reject">Reject rule</button>
@@ -319,7 +353,21 @@
     <form method="dialog" class="dlg-body">
       <h3>Suggest change</h3>
       <p>Edit the rule text. Your edit replaces the original and the rule is marked approved-with-modification.</p>
-      <textarea id="modify-text" required></textarea>
+      <div class="voice-bar">
+        <div class="left">
+          <button type="button" class="voice-btn" id="modify-mic" aria-label="Record voice">
+            <span class="dot"></span> 🎤 Speak
+          </button>
+          <select class="voice-lang" id="modify-lang" aria-label="Language">
+            <option value="en-IN">English (India)</option>
+            <option value="te-IN">తెలుగు (Telugu)</option>
+            <option value="hi-IN">हिन्दी (Hindi)</option>
+            <option value="en-US">English (US)</option>
+          </select>
+        </div>
+        <div class="voice-status" id="modify-status"></div>
+      </div>
+      <textarea id="modify-text" required placeholder="Type or speak the new rule text…"></textarea>
       <div class="dlg-actions">
         <button value="cancel" class="btn-skip">Cancel</button>
         <button value="confirm" class="btn-modify">Save change</button>
@@ -359,6 +407,86 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Voice input (Web Speech API) — wires a mic button + language select to
+  // a textarea. Speech is appended to the textarea's existing value so the
+  // reviewer can type and dictate in any order.
+  // ─────────────────────────────────────────────────────────────────────────
+  function attachVoiceInput({ button, lang, status, textarea }) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      button.disabled = true;
+      button.title = "Voice input not supported in this browser. Try Chrome / Edge / Safari.";
+      status.textContent = "Voice unsupported in this browser";
+      return;
+    }
+    // remember language preference per-user
+    const savedLang = localStorage.getItem("voice_lang");
+    if (savedLang) lang.value = savedLang;
+    lang.addEventListener("change", () => localStorage.setItem("voice_lang", lang.value));
+
+    let recog = null;
+    let recording = false;
+    let baseline = "";          // textarea content at the moment recording started
+
+    button.addEventListener("click", () => {
+      if (recording) { recog && recog.stop(); return; }
+      recog = new SR();
+      recog.lang = lang.value;
+      recog.continuous = true;
+      recog.interimResults = true;
+
+      baseline = textarea.value.trimEnd();
+      let finalChunk = "";
+
+      recog.onstart = () => {
+        recording = true;
+        button.classList.add("recording");
+        button.innerHTML = '<span class="dot"></span> ⏹ Stop';
+        status.textContent = `Listening (${lang.value})…`;
+      };
+      recog.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) finalChunk += r[0].transcript + " ";
+          else           interim    += r[0].transcript;
+        }
+        const sep = baseline ? " " : "";
+        textarea.value = (baseline + sep + finalChunk + interim).trimStart();
+      };
+      recog.onerror = (e) => {
+        status.textContent = `Error: ${e.error}`;
+        if (e.error === "not-allowed") {
+          status.textContent = "Microphone permission denied. Allow it in browser settings.";
+        }
+      };
+      recog.onend = () => {
+        recording = false;
+        button.classList.remove("recording");
+        button.innerHTML = '<span class="dot"></span> 🎤 Speak';
+        if (!status.textContent.startsWith("Error") && !status.textContent.startsWith("Mic")) {
+          status.textContent = finalChunk.trim() ? "Captured. Edit if needed." : "No speech detected.";
+        }
+      };
+      recog.start();
+    });
+  }
+
+  // Wire voice input to the two review dialogs (only after DOM ready).
+  attachVoiceInput({
+    button:   $("reject-mic"),
+    lang:     $("reject-lang"),
+    status:   $("reject-status"),
+    textarea: $("reject-reason"),
+  });
+  attachVoiceInput({
+    button:   $("modify-mic"),
+    lang:     $("modify-lang"),
+    status:   $("modify-status"),
+    textarea: $("modify-text"),
+  });
 
   const state = {
     reviewer: null,
@@ -671,6 +799,7 @@
   });
   $("b-reject").addEventListener("click", () => {
     $("reject-reason").value = "";
+    $("reject-status").textContent = "";
     const dlg = $("dlg-reject"); dlg.returnValue = ""; dlg.showModal();
     dlg.addEventListener("close", async function once() {
       dlg.removeEventListener("close", once);
@@ -686,6 +815,7 @@
   });
   $("b-modify").addEventListener("click", () => {
     $("modify-text").value = $("rule-text").textContent;
+    $("modify-status").textContent = "";
     const dlg = $("dlg-modify"); dlg.returnValue = ""; dlg.showModal();
     dlg.addEventListener("close", async function once() {
       dlg.removeEventListener("close", once);
