@@ -10,25 +10,32 @@
       --panel: #fff;
       --ink: #1a2236;
       --ink-soft: #4a5572;
+      --ink-faint: #7d869b;
       --accent: #1c3d72;
       --accent-soft: #4779b8;
       --ok: #2a7a3d;
       --warn: #b76200;
       --err: #a72020;
       --border: #d9d4c5;
+      --border-soft: #ece8da;
       --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.08);
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", sans-serif;
       font-size: 16px; line-height: 1.5; }
-    .wrap { max-width: 760px; margin: 0 auto; padding: 24px 20px 80px; }
-    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+    a { color: var(--accent); }
+
+    .wrap { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
     header h1 { margin: 0; font-size: 22px; color: var(--accent); font-weight: 600; letter-spacing: -.2px; }
-    header .progress { font-size: 14px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+    header h1 small { font-size: 13px; color: var(--ink-faint); font-weight: 500; margin-left: 8px; }
+    header .who { font-size: 13px; color: var(--ink-soft); }
+    header .who strong { color: var(--ink); }
 
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
       padding: 22px 24px; box-shadow: var(--shadow); }
+
     .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
       text-transform: uppercase; letter-spacing: .5px; margin-right: 6px; }
     .b-hard { background: #fae3e3; color: var(--err); }
@@ -36,6 +43,7 @@
     .b-adv  { background: #e1ecf7; color: var(--accent); }
     .b-pat  { background: #ebe7d6; color: #6a5b1c; }
     .b-typ  { background: #efeae0; color: #555; }
+    .b-cat  { background: #eaf3ec; color: var(--ok); }
 
     .rule-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--ink-soft); }
     .rule-text { font-size: 18px; line-height: 1.55; margin: 14px 0 18px; color: var(--ink); }
@@ -48,30 +56,86 @@
     button { font-family: inherit; font-size: 14px; font-weight: 500; padding: 10px 18px;
       border-radius: 8px; border: 1px solid transparent; cursor: pointer; transition: transform .05s, background .12s; }
     button:active { transform: translateY(1px); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
     .btn-approve { background: var(--ok); color: #fff; }
-    .btn-approve:hover { background: #1f5f30; }
+    .btn-approve:hover:not(:disabled) { background: #1f5f30; }
     .btn-reject  { background: var(--err); color: #fff; }
-    .btn-reject:hover  { background: #861919; }
+    .btn-reject:hover:not(:disabled)  { background: #861919; }
     .btn-modify  { background: var(--accent); color: #fff; }
-    .btn-modify:hover  { background: #142a4f; }
+    .btn-modify:hover:not(:disabled)  { background: #142a4f; }
     .btn-skip    { background: transparent; color: var(--ink-soft); border-color: var(--border); }
-    .btn-skip:hover { background: #efece4; }
+    .btn-skip:hover:not(:disabled) { background: #efece4; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #142a4f; }
+    .btn-ghost   { background: transparent; color: var(--accent); border-color: var(--accent); }
+    .btn-ghost:hover:not(:disabled) { background: #eaf0f9; }
 
-    .gate { max-width: 380px; margin: 80px auto; padding: 28px; background: var(--panel);
+    /* ── Password gate ────────────────────────────────────────────────── */
+    .gate, .signup { max-width: 440px; margin: 60px auto; padding: 28px; background: var(--panel);
       border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
-    .gate h2 { margin: 0 0 8px; font-size: 18px; color: var(--accent); }
-    .gate p { margin: 0 0 18px; font-size: 14px; color: var(--ink-soft); }
-    .gate input { width: 100%; padding: 10px 12px; font-size: 16px; font-family: inherit;
-      border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--ink); }
-    .gate input:focus { outline: none; border-color: var(--accent-soft); }
-    .gate button { width: 100%; margin-top: 12px; background: var(--accent); color: #fff; padding: 11px; }
-    .gate .err { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .gate h2, .signup h2 { margin: 0 0 8px; font-size: 18px; color: var(--accent); }
+    .gate p, .signup p { margin: 0 0 18px; font-size: 14px; color: var(--ink-soft); }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .form-row .hint { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+    .form-row input, .form-row select, .form-row textarea {
+      width: 100%; padding: 9px 12px; font-size: 15px; font-family: inherit;
+      border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--ink); }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: var(--accent-soft); }
+    .gate button, .signup button[type="submit"] { width: 100%; margin-top: 6px; background: var(--accent); color: #fff; padding: 11px; }
+    .gate .err, .signup .err { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 18px; }
 
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-block; font-size: 13px; padding: 5px 12px; border-radius: 999px;
+      border: 1px solid var(--border); background: #fff; cursor: pointer; user-select: none; }
+    .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Dashboard ────────────────────────────────────────────────────── */
+    .stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+    .stat { flex: 1 1 150px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; box-shadow: var(--shadow); }
+    .stat .num { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+    .stat .lab { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+
+    .section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--ink-faint); margin: 28px 0 12px; }
+
+    .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .cat-card { padding: 16px 18px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; transition: border-color .12s, transform .05s; box-shadow: var(--shadow); }
+    .cat-card:hover { border-color: var(--accent-soft); }
+    .cat-card:active { transform: translateY(1px); }
+    .cat-card.your-expertise { border-color: var(--ok); }
+    .cat-card .cat-name { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+    .cat-card .cat-counts { font-size: 13px; color: var(--ink-soft); display: flex; gap: 8px; flex-wrap: wrap; }
+    .cat-card .cat-counts span { white-space: nowrap; }
+    .cat-card .cat-pending { color: var(--ink); font-weight: 600; }
+    .cat-card .yours-tag { display: inline-block; font-size: 11px; color: var(--ok); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px; margin-left: 6px; }
+
+    .mode-row { display: flex; gap: 10px; margin: 16px 0 8px; }
+
+    /* ── List view ────────────────────────────────────────────────────── */
+    .list-card { padding: 14px 16px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .list-card .lc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .list-card .lc-text { font-size: 15px; margin: 8px 0 6px; color: var(--ink); line-height: 1.5; }
+    .list-card .lc-source { font-size: 12px; color: var(--ink-faint); margin-bottom: 8px; }
+    .list-card .lc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .list-card .lc-actions button { padding: 6px 12px; font-size: 13px; }
+    .list-card.reviewed { opacity: .55; }
+    .reviewed-tag { font-size: 12px; color: var(--ok); font-weight: 600; }
+    .reviewed-rejected { color: var(--err); }
+    .reviewed-modified { color: var(--warn); }
+
+    /* ── Misc ─────────────────────────────────────────────────────────── */
     .empty, .loading { text-align: center; padding: 60px 20px; color: var(--ink-soft); }
     .empty h3 { color: var(--ink); margin: 0 0 6px; }
-
-    .stats-bar { display: flex; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
+    .stats-bar { display: flex; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); flex-wrap: wrap; }
     .stats-bar span strong { color: var(--ink); }
+    .breadcrumb { font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
+    .breadcrumb a { text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
 
     dialog { border: 1px solid var(--border); border-radius: 10px; padding: 0; max-width: 480px; width: 90%; }
     dialog::backdrop { background: rgba(20,30,50,.4); }
@@ -92,12 +156,14 @@
       .card { padding: 18px 16px; }
       .rule-text { font-size: 16px; }
       header h1 { font-size: 18px; }
+      .stat .num { font-size: 22px; }
     }
   </style>
 </head>
 <body>
+
   <!-- ─── Password gate ───────────────────────────────────────────────────── -->
-  <div id="gate" class="gate" hidden>
+  <div id="screen-gate" class="gate" hidden>
     <h2>AP Procurement — Reviewer Access</h2>
     <p>Enter the reviewer password to begin.</p>
     <input id="gate-pw" type="password" autocomplete="current-password" placeholder="Password">
@@ -105,24 +171,100 @@
     <div id="gate-err" class="err"></div>
   </div>
 
-  <!-- ─── Main app ────────────────────────────────────────────────────────── -->
-  <div id="app" class="wrap" hidden>
+  <!-- ─── Reviewer signup ─────────────────────────────────────────────────── -->
+  <div id="screen-signup" class="signup" hidden>
+    <h2>Tell us who you are</h2>
+    <p>Your name and affiliation are recorded with each review for audit purposes.
+       This is a one-time form per browser.</p>
+    <form id="signup-form">
+      <div class="form-row">
+        <label>Full name</label>
+        <input id="sf-name" type="text" required autocomplete="name">
+      </div>
+      <div class="form-row">
+        <label>Email</label>
+        <input id="sf-email" type="email" required autocomplete="email">
+        <div class="hint">Used only for audit and to recognise you on return visits.</div>
+      </div>
+      <div class="form-row">
+        <label>Organisation</label>
+        <input id="sf-org" type="text" placeholder="e.g. AP Government — Finance Dept" autocomplete="organization">
+      </div>
+      <div class="form-row">
+        <label>Role</label>
+        <select id="sf-role">
+          <option value="">—</option>
+          <option>Dealing Officer</option>
+          <option>Department Engineer</option>
+          <option>Legal Section</option>
+          <option>Vigilance</option>
+          <option>Evaluation Committee</option>
+          <option>Academic / Researcher</option>
+          <option>Independent Expert</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Areas of expertise <span style="font-weight:400;color:var(--ink-faint)">(optional, click to toggle)</span></label>
+        <div class="chips" id="sf-expertise">
+          <span class="chip" data-v="Financial">Financial</span>
+          <span class="chip" data-v="Completeness">Completeness</span>
+          <span class="chip" data-v="Governance">Governance</span>
+          <span class="chip" data-v="Eligibility">Eligibility</span>
+          <span class="chip" data-v="Process">Process</span>
+          <span class="chip" data-v="Collusion">Collusion</span>
+          <span class="chip" data-v="Compliance">Compliance</span>
+        </div>
+      </div>
+      <button type="submit">Begin reviewing</button>
+      <div id="sf-err" class="err"></div>
+    </form>
+  </div>
+
+  <!-- ─── Dashboard ───────────────────────────────────────────────────────── -->
+  <div id="screen-dashboard" class="wrap" hidden>
     <header>
-      <h1>Rule Review</h1>
-      <div class="progress" id="progress">—</div>
+      <h1>Rule Review <small>India's first procurement rules-as-code</small></h1>
+      <div class="who">Signed in as <strong id="dash-who">—</strong> · <a href="#" id="dash-signout">switch reviewer</a></div>
     </header>
 
-    <div id="loading" class="loading">Loading rules…</div>
-
-    <div id="empty" class="empty" hidden>
-      <h3>No more pending rules</h3>
-      <p>All rules in the review queue have been processed. Refresh after the next batch is loaded.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="stat-total">—</div><div class="lab">Rules in corpus</div></div>
+      <div class="stat"><div class="num" id="stat-pending">—</div><div class="lab">Pending review</div></div>
+      <div class="stat"><div class="num" id="stat-mine">—</div><div class="lab">Reviewed by you</div></div>
+      <div class="stat"><div class="num" id="stat-others">—</div><div class="lab">Reviewed by others</div></div>
     </div>
 
-    <div id="card" class="card" hidden>
+    <div class="section-title">Categories</div>
+    <div class="cat-grid" id="cat-grid">Loading…</div>
+
+    <div class="section-title">Or jump straight in</div>
+    <div class="mode-row">
+      <button class="btn-primary" id="dash-focus-all">▶ Focus mode — all categories</button>
+      <button class="btn-ghost"   id="dash-list-all">≡ List view — all categories</button>
+    </div>
+  </div>
+
+  <!-- ─── Focus review (one rule at a time) ───────────────────────────────── -->
+  <div id="screen-focus" class="wrap" hidden>
+    <header>
+      <h1>Rule Review</h1>
+      <div class="progress" id="focus-progress">—</div>
+    </header>
+    <div class="breadcrumb"><a href="#" id="focus-back">← Dashboard</a> · <span id="focus-cat-label">All categories</span></div>
+
+    <div id="focus-loading" class="loading">Loading…</div>
+    <div id="focus-empty" class="empty" hidden>
+      <h3>No more pending rules in this category</h3>
+      <p>You're all caught up. Head back to the dashboard to pick another category.</p>
+      <p style="margin-top:14px"><button class="btn-primary" onclick="screen('dashboard')">Back to dashboard</button></p>
+    </div>
+
+    <div id="focus-card" class="card" hidden>
       <div>
         <span class="badge b-hard"   id="b-sev"  hidden></span>
         <span class="badge b-pat"    id="b-pat"  hidden></span>
+        <span class="badge b-cat"    id="b-cat"  hidden></span>
         <span class="badge b-typ"    id="b-typ"  hidden></span>
         <div class="rule-id" id="rule-id"></div>
       </div>
@@ -143,9 +285,20 @@
         <span>Approved <strong id="s-approved">0</strong></span>
         <span>Rejected <strong id="s-rejected">0</strong></span>
         <span>Modified <strong id="s-modified">0</strong></span>
-        <span>Pending <strong id="s-pending">—</strong></span>
+        <span>Skipped <strong id="s-skipped">0</strong></span>
       </div>
     </div>
+  </div>
+
+  <!-- ─── List view ───────────────────────────────────────────────────────── -->
+  <div id="screen-list" class="wrap" hidden>
+    <header>
+      <h1>Rule Review — list view</h1>
+      <div class="progress" id="list-count">—</div>
+    </header>
+    <div class="breadcrumb"><a href="#" id="list-back">← Dashboard</a> · <span id="list-cat-label">All categories</span></div>
+    <div id="list-loading" class="loading">Loading…</div>
+    <div id="list-rules"></div>
   </div>
 
   <!-- Reject reason dialog -->
@@ -177,51 +330,53 @@
   <div id="toast" class="toast">Saved</div>
 
   <script>
-  // ────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   // Configuration
-  // ────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   const SUPABASE_PROJECT_URL = "https://hjhxcmfuivpsbhlagunr.supabase.co";
   const SUPABASE_ANON_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaHhjbWZ1aXZwc2JobGFndW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjIwOTksImV4cCI6MjA5MjgzODA5OX0.iLazMpShscsF7NUwfus9U23R1guQhMGKl8S_UwXUPYA";
-  const SUPABASE_URL         = SUPABASE_PROJECT_URL;   // alias kept for compatibility
+  const REVIEWER_PASSWORD    = "4eKvys4y3znliH68";
 
-  // Reviewer gate password (kept here for the demo — see security note in README).
-  const REVIEWER_PASSWORD = "4eKvys4y3znliH68";
+  const CATEGORIES = ["Financial","Completeness","Governance","Eligibility","Process","Collusion","Compliance"];
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Boot
-  // ────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tiny helpers
+  // ─────────────────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const restUrl = (path) => `${SUPABASE_URL}/rest/v1/${path}`;
-  const restHeaders = () => ({
+  const restUrl = (path) => `${SUPABASE_PROJECT_URL}/rest/v1/${path}`;
+  const baseHeaders = () => ({
     "apikey":        SUPABASE_ANON_KEY,
     "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
     "Content-Type":  "application/json",
-    "Prefer":        "return=representation",
   });
+  function screen(name) {
+    ["gate","signup","dashboard","focus","list"].forEach(s => $(`screen-${s}`).hidden = (s !== name));
+  }
+  let toastTimer;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg; el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
 
   const state = {
-    queue: [],         // pending rule IDs in original order
-    cursor: 0,
-    total: 0,
-    counts: { approved: 0, rejected: 0, modified: 0 },
+    reviewer: null,
+    rules:    [],         // all rules cached after first dashboard load
+    reviews:  [],         // all rule_reviews cached
+    queue:    [],         // current review queue (filtered)
+    cursor:   0,
+    counts:   { approved: 0, rejected: 0, modified: 0, skipped: 0 },
+    selectedCategory: null,  // null = all
   };
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   // Password gate (sessionStorage so it persists across reloads in same tab)
-  // ────────────────────────────────────────────────────────────────────────
-  function checkGate() {
-    if (sessionStorage.getItem("portal_unlocked") === "yes") {
-      $("gate").hidden = true; $("app").hidden = false;
-      bootApp();
-    } else {
-      $("gate").hidden = false; $("app").hidden = true;
-      $("gate-pw").focus();
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────
   $("gate-go").addEventListener("click", () => {
     if ($("gate-pw").value === REVIEWER_PASSWORD) {
       sessionStorage.setItem("portal_unlocked", "yes");
-      checkGate();
+      bootAfterPassword();
     } else {
       $("gate-err").textContent = "Wrong password.";
       $("gate-pw").value = ""; $("gate-pw").focus();
@@ -229,52 +384,207 @@
   });
   $("gate-pw").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gate-go").click(); });
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Data loading
-  // ────────────────────────────────────────────────────────────────────────
-  async function bootApp() {
-    if (SUPABASE_ANON_KEY === "REPLACE_WITH_ANON_KEY") {
-      $("loading").innerHTML =
-        "<strong>Configuration needed.</strong><br>" +
-        "Edit <code>review_portal/index.html</code> and replace " +
-        "<code>SUPABASE_ANON_KEY</code> with your project's anon key " +
-        "(Supabase → Settings → API → anon public).";
-      return;
+  function bootAfterPassword() {
+    const saved = localStorage.getItem("reviewer");
+    if (saved) {
+      try { state.reviewer = JSON.parse(saved); }
+      catch { localStorage.removeItem("reviewer"); }
     }
-    try {
-      const url = restUrl("rules?select=rule_id&human_status=eq.pending&order=created_at.asc");
-      const res = await fetch(url, { headers: restHeaders() });
-      if (!res.ok) throw new Error(`Supabase REST: ${res.status} ${await res.text()}`);
-      const ids = await res.json();
-      state.queue = ids.map(r => r.rule_id);
-      state.total = state.queue.length;
-      $("loading").hidden = true;
-      if (state.total === 0) { $("empty").hidden = false; updateProgress(); return; }
-      await showRule(0);
-    } catch (e) {
-      $("loading").innerHTML = `<strong>Could not load rules.</strong><br><code>${e.message}</code>`;
+    if (state.reviewer && state.reviewer.id) {
+      enterDashboard();
+    } else {
+      screen("signup");
+      $("sf-name").focus();
     }
   }
 
-  async function showRule(idx) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Signup
+  // ─────────────────────────────────────────────────────────────────────────
+  $("sf-expertise").addEventListener("click", (e) => {
+    if (e.target.classList.contains("chip")) e.target.classList.toggle("on");
+  });
+  $("signup-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("sf-err").textContent = "";
+    const expertise = [...$("sf-expertise").querySelectorAll(".chip.on")].map(c => c.dataset.v);
+    const payload = {
+      full_name:    $("sf-name").value.trim(),
+      email:        $("sf-email").value.trim().toLowerCase(),
+      organization: $("sf-org").value.trim() || null,
+      role:         $("sf-role").value || null,
+      expertise,
+    };
+    if (!payload.full_name || !payload.email) {
+      $("sf-err").textContent = "Name and email are required.";
+      return;
+    }
+    try {
+      // Upsert by email (so re-signup with same email returns same id)
+      const url = restUrl("reviewers?on_conflict=email");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { ...baseHeaders(),
+          "Prefer": "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const rows = await res.json();
+      if (!rows.length) throw new Error("Empty response from server");
+      state.reviewer = rows[0];
+      localStorage.setItem("reviewer", JSON.stringify(state.reviewer));
+      enterDashboard();
+    } catch (err) {
+      $("sf-err").textContent = `Could not sign up: ${err.message}`;
+    }
+  });
+
+  $("dash-signout").addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!confirm("Switch reviewer? This clears your saved profile from this browser.")) return;
+    localStorage.removeItem("reviewer");
+    state.reviewer = null;
+    screen("signup");
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Dashboard
+  // ─────────────────────────────────────────────────────────────────────────
+  async function enterDashboard() {
+    screen("dashboard");
+    $("dash-who").textContent = state.reviewer.full_name;
+    await loadAllForDashboard();
+    renderDashboard();
+  }
+
+  async function loadAllForDashboard() {
+    // 1) all rules (cached for the session)
+    const rUrl = restUrl("rules?select=rule_id,severity,pattern_type,category,human_status&order=created_at.asc");
+    const rRes = await fetch(rUrl, { headers: baseHeaders() });
+    state.rules = rRes.ok ? await rRes.json() : [];
+
+    // 2) all reviews
+    const revUrl = restUrl("rule_reviews?select=rule_id,reviewer_id,action&order=created_at.desc");
+    const revRes = await fetch(revUrl, { headers: baseHeaders() });
+    state.reviews = revRes.ok ? await revRes.json() : [];
+  }
+
+  function renderDashboard() {
+    const total = state.rules.length;
+    const pending = state.rules.filter(r => r.human_status === "pending").length;
+    const myReviews = new Set(
+      state.reviews.filter(r => r.reviewer_id === state.reviewer.id).map(r => r.rule_id)
+    );
+    const otherReviews = new Set(
+      state.reviews.filter(r => r.reviewer_id !== state.reviewer.id).map(r => r.rule_id)
+    );
+    $("stat-total").textContent   = total;
+    $("stat-pending").textContent = pending;
+    $("stat-mine").textContent    = myReviews.size;
+    $("stat-others").textContent  = otherReviews.size;
+
+    // Category cards
+    const myExp = new Set(state.reviewer.expertise || []);
+    const counts = {};
+    CATEGORIES.forEach(c => { counts[c] = { total: 0, pending: 0, hard: 0 }; });
+    state.rules.forEach(r => {
+      const c = r.category in counts ? r.category : null;
+      if (!c) return;
+      counts[c].total++;
+      if (r.human_status === "pending") counts[c].pending++;
+      if (r.severity === "HARD_BLOCK")  counts[c].hard++;
+    });
+    // sort: expertise first, then by pending desc
+    const sortedCats = CATEGORIES.slice().sort((a, b) => {
+      const aExp = myExp.has(a) ? 1 : 0;
+      const bExp = myExp.has(b) ? 1 : 0;
+      if (aExp !== bExp) return bExp - aExp;
+      return counts[b].pending - counts[a].pending;
+    });
+
+    const grid = $("cat-grid");
+    grid.innerHTML = "";
+    sortedCats.forEach(cat => {
+      const c = counts[cat];
+      const isMy = myExp.has(cat);
+      const div = document.createElement("div");
+      div.className = "cat-card" + (isMy ? " your-expertise" : "");
+      div.innerHTML = `
+        <div class="cat-name">${cat}${isMy ? '<span class="yours-tag">your area</span>' : ""}</div>
+        <div class="cat-counts">
+          <span class="cat-pending">${c.pending} pending</span>
+          <span>· ${c.total} total</span>
+          ${c.hard ? `<span style="color:var(--err)">· ${c.hard} hard-block</span>` : ""}
+        </div>
+        <div class="mode-row" style="margin-top:12px">
+          <button class="btn-primary cat-focus" data-cat="${cat}">▶ Focus</button>
+          <button class="btn-ghost   cat-list"  data-cat="${cat}">≡ List</button>
+        </div>
+      `;
+      grid.appendChild(div);
+    });
+
+    // wire category buttons
+    grid.querySelectorAll(".cat-focus").forEach(btn => {
+      btn.addEventListener("click", () => startFocus(btn.dataset.cat));
+    });
+    grid.querySelectorAll(".cat-list").forEach(btn => {
+      btn.addEventListener("click", () => startList(btn.dataset.cat));
+    });
+  }
+
+  $("dash-focus-all").addEventListener("click", () => startFocus(null));
+  $("dash-list-all").addEventListener("click", () => startList(null));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Focus mode (one rule at a time)
+  // ─────────────────────────────────────────────────────────────────────────
+  function startFocus(category) {
+    state.selectedCategory = category;
+    state.cursor = 0;
+    state.counts = { approved: 0, rejected: 0, modified: 0, skipped: 0 };
+    const myReviews = new Set(
+      state.reviews.filter(r => r.reviewer_id === state.reviewer.id).map(r => r.rule_id)
+    );
+    state.queue = state.rules
+      .filter(r => r.human_status === "pending")
+      .filter(r => !category || r.category === category)
+      .filter(r => !myReviews.has(r.rule_id))
+      .map(r => r.rule_id);
+    screen("focus");
+    $("focus-cat-label").textContent = category || "All categories";
+    $("focus-loading").hidden = true;
+    if (!state.queue.length) {
+      $("focus-card").hidden = true;
+      $("focus-empty").hidden = false;
+      $("focus-progress").textContent = "0 of 0";
+      return;
+    }
+    $("focus-empty").hidden = true;
+    showFocusRule(0);
+  }
+
+  $("focus-back").addEventListener("click", (e) => { e.preventDefault(); enterDashboard(); });
+
+  async function showFocusRule(idx) {
     if (idx >= state.queue.length) {
-      $("card").hidden = true;
-      $("empty").hidden = false;
-      updateProgress();
+      $("focus-card").hidden = true;
+      $("focus-empty").hidden = false;
+      updateFocusProgress();
       return;
     }
     state.cursor = idx;
     const ruleId = state.queue[idx];
     const url = restUrl(`rules?rule_id=eq.${encodeURIComponent(ruleId)}`);
-    const res = await fetch(url, { headers: restHeaders() });
+    const res = await fetch(url, { headers: baseHeaders() });
     if (!res.ok) { toast(`Load failed: ${res.status}`); return; }
     const rows = await res.json();
-    if (!rows.length) { showRule(idx + 1); return; }   // disappeared → skip
-    renderRule(rows[0]);
+    if (!rows.length) return showFocusRule(idx + 1);
+    renderFocusRule(rows[0]);
   }
 
-  function renderRule(r) {
-    $("card").hidden = false;
+  function renderFocusRule(r) {
+    $("focus-card").hidden = false;
     $("rule-id").textContent = r.rule_id;
     $("rule-text").textContent = r.natural_language;
     $("m-doc").textContent    = r.source_doc || "—";
@@ -284,18 +594,15 @@
 
     setBadge("b-sev", severityLabel(r.severity), severityClass(r.severity));
     setBadge("b-pat", `${r.pattern_type} — ${patternLabel(r.pattern_type)}`, "b-pat");
+    setBadge("b-cat", r.category, "b-cat");
     setBadge("b-typ", r.typology_code || "—", "b-typ");
 
-    updateProgress();
+    updateFocusProgress();
   }
-
   function setBadge(id, text, cls) {
     const el = $(id);
-    el.hidden = !text;
-    el.textContent = text || "";
-    el.className = `badge ${cls}`;
+    el.hidden = !text; el.textContent = text || ""; el.className = `badge ${cls}`;
   }
-
   function severityLabel(s) {
     return ({ HARD_BLOCK: "Hard block", WARNING: "Warning", ADVISORY: "Advisory" })[s] || s;
   }
@@ -303,123 +610,217 @@
     return ({ HARD_BLOCK: "b-hard", WARNING: "b-warn", ADVISORY: "b-adv" })[s] || "b-typ";
   }
   function patternLabel(p) {
-    return ({
-      P1: "exact threshold",
-      P2: "clause must exist",
-      P3: "exception/override",
-      P4: "semantic judgment",
-    })[p] || "";
+    return ({ P1: "exact threshold", P2: "clause must exist", P3: "exception/override", P4: "semantic judgment" })[p] || "";
   }
-
-  function updateProgress() {
+  function updateFocusProgress() {
     const n = state.cursor + 1;
-    $("progress").textContent = state.total ? `Rule ${Math.min(n, state.total)} of ${state.total}` : "";
+    $("focus-progress").textContent = state.queue.length ? `Rule ${Math.min(n, state.queue.length)} of ${state.queue.length}` : "";
     $("s-approved").textContent = state.counts.approved;
     $("s-rejected").textContent = state.counts.rejected;
     $("s-modified").textContent = state.counts.modified;
-    const remaining = state.total - state.cursor - 1;
-    $("s-pending").textContent = Math.max(remaining, 0);
+    $("s-skipped").textContent  = state.counts.skipped;
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Actions
-  // ────────────────────────────────────────────────────────────────────────
-  async function patchRule(ruleId, body) {
-    const url = restUrl(`rules?rule_id=eq.${encodeURIComponent(ruleId)}`);
-    const res = await fetch(url, {
-      method: "PATCH",
-      headers: restHeaders(),
-      body: JSON.stringify(body),
+  // ─────────────────────────────────────────────────────────────────────────
+  // Action handlers — write to rule_reviews AND update rules.human_status
+  // ─────────────────────────────────────────────────────────────────────────
+  async function recordReview(ruleId, action, note = null, suggestedText = null) {
+    // 1) insert into rule_reviews (audit trail)
+    const reviewBody = {
+      rule_id:        ruleId,
+      reviewer_id:    state.reviewer.id,
+      action,
+      note,
+      suggested_text: suggestedText,
+    };
+    const r1 = await fetch(restUrl("rule_reviews"), {
+      method: "POST",
+      headers: { ...baseHeaders(), "Prefer": "return=minimal" },
+      body: JSON.stringify(reviewBody),
     });
-    if (!res.ok) {
-      const txt = await res.text();
-      toast(`Save failed: ${res.status}`);
-      throw new Error(txt);
+    if (!r1.ok) { toast(`Save failed: ${r1.status}`); throw new Error(await r1.text()); }
+
+    // 2) update rules.human_status (latest action wins)
+    if (action !== "skipped") {
+      const patchBody = { human_status: action };
+      if (action === "rejected" && note) patchBody.human_note = note;
+      if (action === "modified") {
+        if (suggestedText) patchBody.natural_language = suggestedText;
+        if (note)          patchBody.human_note = note;
+      }
+      const r2 = await fetch(restUrl(`rules?rule_id=eq.${encodeURIComponent(ruleId)}`), {
+        method: "PATCH",
+        headers: { ...baseHeaders(), "Prefer": "return=minimal" },
+        body: JSON.stringify(patchBody),
+      });
+      if (!r2.ok) { toast(`Status update failed: ${r2.status}`); throw new Error(await r2.text()); }
     }
+
+    // Update local cache so dashboard counts are fresh
+    state.reviews.unshift({ rule_id: ruleId, reviewer_id: state.reviewer.id, action });
+    const cached = state.rules.find(r => r.rule_id === ruleId);
+    if (cached && action !== "skipped") cached.human_status = action;
   }
 
   $("b-approve").addEventListener("click", async () => {
-    const id = state.queue[state.cursor];
     try {
-      await patchRule(id, { human_status: "approved" });
+      await recordReview(state.queue[state.cursor], "approved");
       state.counts.approved++; toast("Approved");
-      await showRule(state.cursor + 1);
+      await showFocusRule(state.cursor + 1);
     } catch (_) {}
   });
-
   $("b-reject").addEventListener("click", () => {
     $("reject-reason").value = "";
-    const dlg = $("dlg-reject");
-    dlg.returnValue = "";
-    dlg.showModal();
-    dlg.addEventListener("close", async function onClose() {
-      dlg.removeEventListener("close", onClose);
+    const dlg = $("dlg-reject"); dlg.returnValue = ""; dlg.showModal();
+    dlg.addEventListener("close", async function once() {
+      dlg.removeEventListener("close", once);
       if (dlg.returnValue !== "confirm") return;
       const reason = $("reject-reason").value.trim();
       if (!reason) { toast("Reason required"); return; }
-      const id = state.queue[state.cursor];
       try {
-        await patchRule(id, { human_status: "rejected", human_note: reason });
+        await recordReview(state.queue[state.cursor], "rejected", reason);
         state.counts.rejected++; toast("Rejected");
-        await showRule(state.cursor + 1);
+        await showFocusRule(state.cursor + 1);
       } catch (_) {}
     });
   });
-
   $("b-modify").addEventListener("click", () => {
     $("modify-text").value = $("rule-text").textContent;
-    const dlg = $("dlg-modify");
-    dlg.returnValue = "";
-    dlg.showModal();
-    dlg.addEventListener("close", async function onClose() {
-      dlg.removeEventListener("close", onClose);
+    const dlg = $("dlg-modify"); dlg.returnValue = ""; dlg.showModal();
+    dlg.addEventListener("close", async function once() {
+      dlg.removeEventListener("close", once);
       if (dlg.returnValue !== "confirm") return;
       const newText = $("modify-text").value.trim();
       if (!newText) { toast("Text required"); return; }
-      const id = state.queue[state.cursor];
       try {
-        await patchRule(id, {
-          human_status:   "modified",
-          natural_language: newText,
-          human_note:     "Modified by reviewer in portal",
-        });
+        await recordReview(state.queue[state.cursor], "modified", "Modified by reviewer in portal", newText);
         state.counts.modified++; toast("Saved change");
-        await showRule(state.cursor + 1);
+        await showFocusRule(state.cursor + 1);
       } catch (_) {}
     });
   });
-
   $("b-skip").addEventListener("click", async () => {
-    toast("Skipped");
-    await showRule(state.cursor + 1);
+    try {
+      await recordReview(state.queue[state.cursor], "skipped");
+      state.counts.skipped++; toast("Skipped");
+      await showFocusRule(state.cursor + 1);
+    } catch (_) {}
   });
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Keyboard shortcuts
-  // ────────────────────────────────────────────────────────────────────────
-  document.addEventListener("keydown", (e) => {
-    if ($("app").hidden) return;
-    if (document.querySelector("dialog[open]")) return;
-    if (e.key === "a") $("b-approve").click();
-    if (e.key === "r") $("b-reject").click();
-    if (e.key === "m") $("b-modify").click();
-    if (e.key === "s") $("b-skip").click();
-  });
+  // ─────────────────────────────────────────────────────────────────────────
+  // List view
+  // ─────────────────────────────────────────────────────────────────────────
+  async function startList(category) {
+    state.selectedCategory = category;
+    screen("list");
+    $("list-cat-label").textContent = category || "All categories";
+    $("list-loading").hidden = false;
+    $("list-rules").innerHTML = "";
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Toast
-  // ────────────────────────────────────────────────────────────────────────
-  let toastTimer;
-  function toast(msg) {
-    const el = $("toast");
-    el.textContent = msg;
-    el.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+    const myReviewMap = {};
+    state.reviews
+      .filter(r => r.reviewer_id === state.reviewer.id)
+      .forEach(r => { if (!myReviewMap[r.rule_id]) myReviewMap[r.rule_id] = r.action; });
+
+    // Fetch full rule objects matching filter
+    let url = restUrl("rules?select=*&order=rule_id.asc");
+    if (category) url += `&category=eq.${encodeURIComponent(category)}`;
+    const res = await fetch(url, { headers: baseHeaders() });
+    const rules = res.ok ? await res.json() : [];
+    $("list-loading").hidden = true;
+    $("list-count").textContent = `${rules.length} rule${rules.length !== 1 ? "s" : ""}`;
+
+    if (!rules.length) {
+      $("list-rules").innerHTML = '<div class="empty"><h3>No rules in this category</h3></div>';
+      return;
+    }
+
+    rules.forEach(r => {
+      const myAction = myReviewMap[r.rule_id];
+      const card = document.createElement("div");
+      card.className = "list-card" + (myAction ? " reviewed" : "");
+      card.innerHTML = `
+        <div class="lc-head">
+          <span class="badge ${severityClass(r.severity)}">${severityLabel(r.severity)}</span>
+          <span class="badge b-cat">${r.category}</span>
+          <span class="badge b-pat">${r.pattern_type}</span>
+          <span class="rule-id">${r.rule_id}</span>
+          ${myAction ? `<span class="reviewed-tag reviewed-${myAction}">you ${myAction}</span>` : ""}
+        </div>
+        <div class="lc-text">${escapeHtml(r.natural_language)}</div>
+        <div class="lc-source">${escapeHtml(r.source_doc || "")} — ${escapeHtml(r.source_clause || "")}</div>
+        <div class="lc-actions">
+          <button class="btn-approve" data-id="${r.rule_id}" data-act="approved" ${myAction === "approved" ? "disabled" : ""}>✓ Approve</button>
+          <button class="btn-reject"  data-id="${r.rule_id}" data-act="rejected"  ${myAction === "rejected" ? "disabled" : ""}>✗ Reject</button>
+          <button class="btn-modify"  data-id="${r.rule_id}" data-act="modified"  ${myAction === "modified" ? "disabled" : ""}>✎ Modify</button>
+        </div>
+      `;
+      $("list-rules").appendChild(card);
+    });
+
+    // wire actions
+    $("list-rules").querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id  = btn.dataset.id;
+        const act = btn.dataset.act;
+        if (act === "approved") {
+          try { await recordReview(id, "approved"); toast("Approved"); markReviewedInList(id, "approved"); }
+          catch (_) {}
+        } else if (act === "rejected") {
+          const reason = prompt("Reject reason:");
+          if (!reason) return;
+          try { await recordReview(id, "rejected", reason); toast("Rejected"); markReviewedInList(id, "rejected"); }
+          catch (_) {}
+        } else if (act === "modified") {
+          const cur = btn.closest(".list-card").querySelector(".lc-text").textContent;
+          const nu  = prompt("New rule text:", cur);
+          if (!nu || nu.trim() === cur) return;
+          try { await recordReview(id, "modified", "Modified by reviewer in portal", nu.trim()); toast("Saved change"); markReviewedInList(id, "modified"); }
+          catch (_) {}
+        }
+      });
+    });
   }
 
-  // Go!
-  checkGate();
+  function markReviewedInList(ruleId, action) {
+    const card = [...$("list-rules").querySelectorAll(".list-card")]
+      .find(c => c.querySelector(".rule-id")?.textContent === ruleId);
+    if (!card) return;
+    card.classList.add("reviewed");
+    card.querySelectorAll("button").forEach(b => b.disabled = true);
+    let tag = card.querySelector(".reviewed-tag");
+    if (!tag) { tag = document.createElement("span"); tag.className = `reviewed-tag reviewed-${action}`; card.querySelector(".lc-head").appendChild(tag); }
+    tag.textContent = `you ${action}`;
+    tag.className = `reviewed-tag reviewed-${action}`;
+  }
+
+  $("list-back").addEventListener("click", (e) => { e.preventDefault(); enterDashboard(); });
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Keyboard shortcuts (focus mode)
+  // ─────────────────────────────────────────────────────────────────────────
+  document.addEventListener("keydown", (e) => {
+    if (!$("screen-focus").hidden && !document.querySelector("dialog[open]")) {
+      if (e.key === "a") $("b-approve").click();
+      if (e.key === "r") $("b-reject").click();
+      if (e.key === "m") $("b-modify").click();
+      if (e.key === "s") $("b-skip").click();
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Boot
+  // ─────────────────────────────────────────────────────────────────────────
+  if (sessionStorage.getItem("portal_unlocked") === "yes") {
+    bootAfterPassword();
+  } else {
+    screen("gate");
+    $("gate-pw").focus();
+  }
   </script>
 </body>
 </html>
