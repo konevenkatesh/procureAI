@@ -341,6 +341,7 @@
         <div class="voice-status" id="reject-status"></div>
       </div>
       <textarea id="reject-reason" required placeholder="Type or speak your reason…"></textarea>
+      <audio id="reject-playback" controls hidden style="width:100%;margin-top:10px"></audio>
       <div class="dlg-actions">
         <button value="cancel" class="btn-skip">Cancel</button>
         <button value="confirm" class="btn-reject">Reject rule</button>
@@ -368,6 +369,7 @@
         <div class="voice-status" id="modify-status"></div>
       </div>
       <textarea id="modify-text" required placeholder="Type or speak the new rule text…"></textarea>
+      <audio id="modify-playback" controls hidden style="width:100%;margin-top:10px"></audio>
       <div class="dlg-actions">
         <button value="cancel" class="btn-skip">Cancel</button>
         <button value="confirm" class="btn-modify">Save change</button>
@@ -409,11 +411,21 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Voice input (Web Speech API) — wires a mic button + language select to
-  // a textarea. Speech is appended to the textarea's existing value so the
-  // reviewer can type and dictate in any order.
+  // Voice input — Web Speech API for live transcript + MediaRecorder for the
+  // original audio. Recorded blob is held per-dialog and uploaded only if the
+  // reviewer confirms (Cancel discards it).
   // ─────────────────────────────────────────────────────────────────────────
-  function attachVoiceInput({ button, lang, status, textarea }) {
+  const dialogAudio = { reject: null, modify: null };   // Blob holders
+
+  function pickMimeType() {
+    if (typeof MediaRecorder === "undefined") return "";
+    for (const m of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+      if (MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return "";
+  }
+
+  function attachVoiceInput({ button, lang, status, textarea, playback, blobKey }) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
       button.disabled = true;
@@ -421,22 +433,54 @@
       status.textContent = "Voice unsupported in this browser";
       return;
     }
-    // remember language preference per-user
     const savedLang = localStorage.getItem("voice_lang");
     if (savedLang) lang.value = savedLang;
     lang.addEventListener("change", () => localStorage.setItem("voice_lang", lang.value));
 
     let recog = null;
+    let recorder = null;
+    let mediaStream = null;
+    let chunks = [];
     let recording = false;
-    let baseline = "";          // textarea content at the moment recording started
+    let baseline = "";
 
-    button.addEventListener("click", () => {
-      if (recording) { recog && recog.stop(); return; }
+    async function startBoth() {
+      // Reset previous capture
+      dialogAudio[blobKey] = null;
+      if (playback) { playback.hidden = true; playback.removeAttribute("src"); }
+
+      // Try MediaRecorder (audio capture). If it fails, transcript still works.
+      let audioOk = false;
+      try {
+        if (typeof MediaRecorder === "undefined") throw new Error("MediaRecorder unsupported");
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = pickMimeType();
+        recorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : {});
+        chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          dialogAudio[blobKey] = blob;
+          if (playback) {
+            playback.src = URL.createObjectURL(blob);
+            playback.hidden = false;
+          }
+          if (mediaStream) {
+            mediaStream.getTracks().forEach(t => t.stop());
+            mediaStream = null;
+          }
+        };
+        recorder.start();
+        audioOk = true;
+      } catch (err) {
+        console.warn("MediaRecorder unavailable:", err);
+      }
+
+      // Speech recognition (transcript)
       recog = new SR();
       recog.lang = lang.value;
       recog.continuous = true;
       recog.interimResults = true;
-
       baseline = textarea.value.trimEnd();
       let finalChunk = "";
 
@@ -444,7 +488,8 @@
         recording = true;
         button.classList.add("recording");
         button.innerHTML = '<span class="dot"></span> ⏹ Stop';
-        status.textContent = `Listening (${lang.value})…`;
+        status.textContent = audioOk ? `Listening + recording (${lang.value})…`
+                                     : `Listening (${lang.value}) — audio not captured`;
       };
       recog.onresult = (event) => {
         let interim = "";
@@ -457,36 +502,82 @@
         textarea.value = (baseline + sep + finalChunk + interim).trimStart();
       };
       recog.onerror = (e) => {
-        status.textContent = `Error: ${e.error}`;
-        if (e.error === "not-allowed") {
-          status.textContent = "Microphone permission denied. Allow it in browser settings.";
-        }
+        status.textContent = e.error === "not-allowed"
+          ? "Microphone permission denied. Allow it in browser settings."
+          : `Error: ${e.error}`;
       };
       recog.onend = () => {
         recording = false;
         button.classList.remove("recording");
         button.innerHTML = '<span class="dot"></span> 🎤 Speak';
+        if (recorder && recorder.state !== "inactive") recorder.stop();
         if (!status.textContent.startsWith("Error") && !status.textContent.startsWith("Mic")) {
-          status.textContent = finalChunk.trim() ? "Captured. Edit if needed." : "No speech detected.";
+          const havePlayback = playback && !playback.hidden;
+          status.textContent = (finalChunk.trim() || havePlayback)
+            ? "Captured. Play back or edit before submitting."
+            : "No speech detected.";
         }
       };
       recog.start();
+    }
+
+    button.addEventListener("click", () => {
+      if (recording) { recog && recog.stop(); return; }
+      startBoth();
     });
   }
 
-  // Wire voice input to the two review dialogs (only after DOM ready).
+  // Wire voice input to the two review dialogs.
   attachVoiceInput({
     button:   $("reject-mic"),
     lang:     $("reject-lang"),
     status:   $("reject-status"),
     textarea: $("reject-reason"),
+    playback: $("reject-playback"),
+    blobKey:  "reject",
   });
   attachVoiceInput({
     button:   $("modify-mic"),
     lang:     $("modify-lang"),
     status:   $("modify-status"),
     textarea: $("modify-text"),
+    playback: $("modify-playback"),
+    blobKey:  "modify",
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Audio upload helper — POSTs to Supabase Storage and returns public URL
+  // ─────────────────────────────────────────────────────────────────────────
+  async function uploadAudio(blob, ruleId) {
+    if (!blob || !state.reviewer) return null;
+    const ext = blob.type.includes("webm") ? "webm"
+              : blob.type.includes("mp4")  ? "m4a"
+              : blob.type.includes("ogg")  ? "ogg" : "bin";
+    const path = `${state.reviewer.id}/${ruleId}-${Date.now()}.${ext}`;
+    const url  = `${SUPABASE_PROJECT_URL}/storage/v1/object/review_audio/${path}`;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "apikey":        SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type":  blob.type || "audio/webm",
+          "x-upsert":      "false",
+        },
+        body: blob,
+      });
+      if (!res.ok) {
+        console.error("Audio upload failed:", res.status, await res.text());
+        toast(`Audio upload failed (${res.status})`);
+        return null;
+      }
+      return `${SUPABASE_PROJECT_URL}/storage/v1/object/public/review_audio/${path}`;
+    } catch (err) {
+      console.error("Audio upload error:", err);
+      toast("Audio upload error");
+      return null;
+    }
+  }
 
   const state = {
     reviewer: null,
@@ -752,7 +843,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   // Action handlers — write to rule_reviews AND update rules.human_status
   // ─────────────────────────────────────────────────────────────────────────
-  async function recordReview(ruleId, action, note = null, suggestedText = null) {
+  async function recordReview(ruleId, action, note = null, suggestedText = null, audioUrl = null) {
     // 1) insert into rule_reviews (audit trail)
     const reviewBody = {
       rule_id:        ruleId,
@@ -760,6 +851,7 @@
       action,
       note,
       suggested_text: suggestedText,
+      audio_url:      audioUrl,
     };
     const r1 = await fetch(restUrl("rule_reviews"), {
       method: "POST",
@@ -800,14 +892,24 @@
   $("b-reject").addEventListener("click", () => {
     $("reject-reason").value = "";
     $("reject-status").textContent = "";
+    $("reject-playback").hidden = true;
+    $("reject-playback").removeAttribute("src");
+    dialogAudio.reject = null;
     const dlg = $("dlg-reject"); dlg.returnValue = ""; dlg.showModal();
     dlg.addEventListener("close", async function once() {
       dlg.removeEventListener("close", once);
-      if (dlg.returnValue !== "confirm") return;
+      if (dlg.returnValue !== "confirm") { dialogAudio.reject = null; return; }
       const reason = $("reject-reason").value.trim();
       if (!reason) { toast("Reason required"); return; }
+      const ruleId = state.queue[state.cursor];
+      let audioUrl = null;
+      if (dialogAudio.reject) {
+        toast("Uploading audio…");
+        audioUrl = await uploadAudio(dialogAudio.reject, ruleId);
+        dialogAudio.reject = null;
+      }
       try {
-        await recordReview(state.queue[state.cursor], "rejected", reason);
+        await recordReview(ruleId, "rejected", reason, null, audioUrl);
         state.counts.rejected++; toast("Rejected");
         await showFocusRule(state.cursor + 1);
       } catch (_) {}
@@ -816,14 +918,24 @@
   $("b-modify").addEventListener("click", () => {
     $("modify-text").value = $("rule-text").textContent;
     $("modify-status").textContent = "";
+    $("modify-playback").hidden = true;
+    $("modify-playback").removeAttribute("src");
+    dialogAudio.modify = null;
     const dlg = $("dlg-modify"); dlg.returnValue = ""; dlg.showModal();
     dlg.addEventListener("close", async function once() {
       dlg.removeEventListener("close", once);
-      if (dlg.returnValue !== "confirm") return;
+      if (dlg.returnValue !== "confirm") { dialogAudio.modify = null; return; }
       const newText = $("modify-text").value.trim();
       if (!newText) { toast("Text required"); return; }
+      const ruleId = state.queue[state.cursor];
+      let audioUrl = null;
+      if (dialogAudio.modify) {
+        toast("Uploading audio…");
+        audioUrl = await uploadAudio(dialogAudio.modify, ruleId);
+        dialogAudio.modify = null;
+      }
       try {
-        await recordReview(state.queue[state.cursor], "modified", "Modified by reviewer in portal", newText);
+        await recordReview(ruleId, "modified", "Modified by reviewer in portal", newText, audioUrl);
         state.counts.modified++; toast("Saved change");
         await showFocusRule(state.cursor + 1);
       } catch (_) {}
