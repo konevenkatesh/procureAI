@@ -22,9 +22,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Postgres
+    # Postgres (local Docker stack)
     postgres_password: str = "changeme"
     postgres_url: str = "postgresql://apuser:changeme@localhost:5432/ap_knowledge"
+
+    # Supabase (production / portal data store)
+    supabase_url: str = ""                  # full Postgres connection string (port 6543 pooler)
+    supabase_project_ref: str = ""
+    supabase_rest_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
 
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
