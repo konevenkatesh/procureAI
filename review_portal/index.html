@@ -385,7 +385,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   const SUPABASE_PROJECT_URL = "https://hjhxcmfuivpsbhlagunr.supabase.co";
   const SUPABASE_ANON_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaHhjbWZ1aXZwc2JobGFndW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjIwOTksImV4cCI6MjA5MjgzODA5OX0.iLazMpShscsF7NUwfus9U23R1guQhMGKl8S_UwXUPYA";
-  const REVIEWER_PASSWORD    = "4eKvys4y3znliH68";
+  const REVIEWER_PASSWORD    = "review";
 
   const CATEGORIES = ["Financial","Completeness","Governance","Eligibility","Process","Collusion","Compliance"];
 
@@ -590,11 +590,11 @@
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Password gate (sessionStorage so it persists across reloads in same tab)
+  // Password gate (localStorage so it persists across reloads in same tab)
   // ─────────────────────────────────────────────────────────────────────────
   $("gate-go").addEventListener("click", () => {
     if ($("gate-pw").value === REVIEWER_PASSWORD) {
-      sessionStorage.setItem("portal_unlocked", "yes");
+      localStorage.setItem("portal_unlocked", "yes");
       bootAfterPassword();
     } else {
       $("gate-err").textContent = "Wrong password.";
@@ -1057,7 +1057,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   // Boot
   // ─────────────────────────────────────────────────────────────────────────
-  if (sessionStorage.getItem("portal_unlocked") === "yes") {
+  if (localStorage.getItem("portal_unlocked") === "yes") {
     bootAfterPassword();
   } else {
     screen("gate");
