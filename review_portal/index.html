@@ -289,6 +289,29 @@
       <div class="stat"><div class="num" id="stat-others">—</div><div class="lab">Reviewed by others</div></div>
     </div>
 
+    <div class="section-title">Triage by rule type <small style="font-weight:normal;color:#888">(narrow your queue before opening a category)</small></div>
+    <div class="stat-row" id="type-row">
+      <div class="stat" style="cursor:pointer" data-type="TYPE_1_ACTIONABLE">
+        <div class="num" id="stat-t1">—</div>
+        <div class="lab">TYPE_1 — Actionable<br><small style="color:#888">checkable on tender doc</small></div>
+      </div>
+      <div class="stat" style="cursor:pointer" data-type="TYPE_2_INSTRUCTIONAL">
+        <div class="num" id="stat-t2">—</div>
+        <div class="lab">TYPE_2 — Instructional<br><small style="color:#888">officer process guidance</small></div>
+      </div>
+      <div class="stat" style="cursor:pointer" data-type="TYPE_3_CONTEXTUAL">
+        <div class="num" id="stat-t3">—</div>
+        <div class="lab">TYPE_3 — Contextual<br><small style="color:#888">definitions / scope</small></div>
+      </div>
+      <div class="stat" style="cursor:pointer" data-type="">
+        <div class="num" id="stat-tall">—</div>
+        <div class="lab">All types<br><small style="color:#888">no rule-type filter</small></div>
+      </div>
+    </div>
+    <div class="mode-row" style="margin-top:-6px">
+      <small id="type-filter-label" style="color:#666">Currently filtering: <strong>All types</strong></small>
+    </div>
+
     <div class="section-title">Categories</div>
     <div class="cat-grid" id="cat-grid">Loading…</div>
 
@@ -671,6 +694,7 @@
     cursor:   0,
     counts:   { approved: 0, rejected: 0, modified: 0, skipped: 0 },
     selectedCategory: null,  // null = all
+    selectedRuleType: "",    // "" = all, else TYPE_1_ACTIONABLE / TYPE_2_INSTRUCTIONAL / TYPE_3_CONTEXTUAL
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -762,13 +786,20 @@
   }
 
   async function loadAllForDashboard() {
-    state.rules   = await fetchAllPaged("rules?select=rule_id,severity,pattern_type,category,human_status&order=created_at.asc");
+    state.rules   = await fetchAllPaged("rules?select=rule_id,severity,pattern_type,category,human_status,rule_type&order=created_at.asc");
     state.reviews = await fetchAllPaged("rule_reviews?select=rule_id,reviewer_id,action&order=created_at.desc");
   }
 
+  function _typeFiltered(rules) {
+    if (!state.selectedRuleType) return rules;
+    return rules.filter(r => (r.rule_type || "") === state.selectedRuleType);
+  }
+
   function renderDashboard() {
-    const total = state.rules.length;
-    const pending = state.rules.filter(r => r.human_status === "pending").length;
+    const all = state.rules;
+    const visible = _typeFiltered(all);
+    const total = visible.length;
+    const pending = visible.filter(r => r.human_status === "pending").length;
     const myReviews = new Set(
       state.reviews.filter(r => r.reviewer_id === state.reviewer.id).map(r => r.rule_id)
     );
@@ -777,14 +808,32 @@
     );
     $("stat-total").textContent   = total;
     $("stat-pending").textContent = pending;
-    $("stat-mine").textContent    = myReviews.size;
-    $("stat-others").textContent  = otherReviews.size;
+    $("stat-mine").textContent    = visible.filter(r => myReviews.has(r.rule_id)).length;
+    $("stat-others").textContent  = visible.filter(r => otherReviews.has(r.rule_id) && !myReviews.has(r.rule_id)).length;
 
-    // Category cards
+    // rule_type counters
+    $("stat-t1").textContent   = all.filter(r => r.rule_type === "TYPE_1_ACTIONABLE").length;
+    $("stat-t2").textContent   = all.filter(r => r.rule_type === "TYPE_2_INSTRUCTIONAL").length;
+    $("stat-t3").textContent   = all.filter(r => r.rule_type === "TYPE_3_CONTEXTUAL").length;
+    $("stat-tall").textContent = all.length;
+    document.querySelectorAll("#type-row .stat").forEach(el => {
+      const isActive = (el.dataset.type || "") === state.selectedRuleType;
+      el.style.borderColor = isActive ? "var(--accent)" : "";
+      el.style.background  = isActive ? "var(--accent-soft)" : "";
+    });
+    const labels = {
+      "": "All types",
+      "TYPE_1_ACTIONABLE":   "TYPE_1 — Actionable (checkable on tender)",
+      "TYPE_2_INSTRUCTIONAL": "TYPE_2 — Instructional (officer process)",
+      "TYPE_3_CONTEXTUAL":   "TYPE_3 — Contextual (definitions / scope)",
+    };
+    $("type-filter-label").innerHTML = "Currently filtering: <strong>" + (labels[state.selectedRuleType] || "All types") + "</strong>";
+
+    // Category cards (respect rule_type filter)
     const myExp = new Set(state.reviewer.expertise || []);
     const counts = {};
     CATEGORIES.forEach(c => { counts[c] = { total: 0, pending: 0, hard: 0 }; });
-    state.rules.forEach(r => {
+    visible.forEach(r => {
       const c = r.category in counts ? r.category : null;
       if (!c) return;
       counts[c].total++;
@@ -833,6 +882,14 @@
   $("dash-focus-all").addEventListener("click", () => startFocus(null));
   $("dash-list-all").addEventListener("click", () => startList(null));
   $("dash-clauses").addEventListener("click", () => openClauses());
+
+  // rule_type triage cards
+  document.querySelectorAll("#type-row .stat").forEach(el => {
+    el.addEventListener("click", () => {
+      state.selectedRuleType = el.dataset.type || "";
+      renderDashboard();
+    });
+  });
 
   // ─────────────────────────────────────────────────────────────────────────
   // Clauses browser
@@ -969,13 +1026,14 @@
     const myReviews = new Set(
       state.reviews.filter(r => r.reviewer_id === state.reviewer.id).map(r => r.rule_id)
     );
-    state.queue = state.rules
+    state.queue = _typeFiltered(state.rules)
       .filter(r => r.human_status === "pending")
       .filter(r => !category || r.category === category)
       .filter(r => !myReviews.has(r.rule_id))
       .map(r => r.rule_id);
     screen("focus");
-    $("focus-cat-label").textContent = category || "All categories";
+    const typeLabel = state.selectedRuleType ? ` · ${state.selectedRuleType}` : "";
+    $("focus-cat-label").textContent = (category || "All categories") + typeLabel;
     $("focus-loading").hidden = true;
     if (!state.queue.length) {
       $("focus-card").hidden = true;
@@ -1159,7 +1217,8 @@
   async function startList(category) {
     state.selectedCategory = category;
     screen("list");
-    $("list-cat-label").textContent = category || "All categories";
+    const typeLabel = state.selectedRuleType ? ` · ${state.selectedRuleType}` : "";
+    $("list-cat-label").textContent = (category || "All categories") + typeLabel;
     $("list-loading").hidden = false;
     $("list-rules").innerHTML = "";
 
@@ -1171,6 +1230,7 @@
     // Fetch full rule objects matching filter (paginated past Supabase's 1000-row cap)
     let path = "rules?select=*&order=rule_id.asc";
     if (category) path += `&category=eq.${encodeURIComponent(category)}`;
+    if (state.selectedRuleType) path += `&rule_type=eq.${encodeURIComponent(state.selectedRuleType)}`;
     const rules = await fetchAllPaged(path);
     $("list-loading").hidden = true;
     $("list-count").textContent = `${rules.length} rule${rules.length !== 1 ? "s" : ""}`;
