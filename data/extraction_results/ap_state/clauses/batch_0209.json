@@ -1,0 +1,30 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-TWO-COVER-SYSTEM-001",
+    "title": "AP Works — Two-Cover Sealed Bid System (Technical + Price)",
+    "text_english": "Tenders under this Contract SHALL be RECEIVED IN TWO PARTS in TWO DIFFERENT SEALED COVERS — Cover-A and Cover-B — both placed inside an OUTER SEALED ENVELOPE Cover-C supplied by the department: (a) COVER-A (Technical Bid) SHALL CONTAIN the QUALIFICATION DATA viz. Annual Turnover and value of works under execution etc.; (b) COVER-B (Price Bid) SHALL CONTAIN the FINANCIAL BID for the work in question — including Schedule-A with description of work, quantity, estimate rate and amount. The Executive Engineers and Superintending Engineers delegated with the power to invite tenders shall OPEN AND EVALUATE the tenders. Cover-C SHALL be opened FIRST in the PRESENCE of the tenderers or their authorised representatives and other officials concerned on the specified date and time, and minutes recorded as to whether Cover-A and Cover-B are properly sealed. IF Cover-A or Cover-B is found to be UNSEALED, such tenders SHALL NOT be opened and SHALL be SUMMARILY REJECTED. Only Cover-B of bidders QUALIFIED at technical evaluation shall be opened on the specified date; Cover-B of UNQUALIFIED tenderers SHALL NOT BE OPENED and SHALL be RETURNED along with EMD after tender finalisation. The PREMIUM OR DISCOUNT quoted by the Contractor shall be APPLICABLE ONLY for PART-I of Schedule-A; Part-II (LS provisions) shall be operable based on conditions in tender Schedules.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 30,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-052", "AP-GO-053", "AP-GO-054"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-TENDER-FINALISATION-DELEGATION-001",
+    "title": "AP Works — Tender Finalisation Delegation (EE/SE/CE/COT)",
+    "text_english": "Tenders under this Contract SHALL be FINALISED at the following authority levels: (a) EXECUTIVE ENGINEERS (EE) and SUPERINTENDING ENGINEERS (SE) — for works costing UP TO their delegated POWERS TO ACCORD TECHNICAL SANCTION; (b) CHIEF ENGINEER (CE) — for works COSTING UP TO Rs.{{ce_finalisation_cr}} crore (default Rs.2 crore); (c) COMMISSIONER OF TENDERS (COT) — for works COSTING MORE THAN Rs.{{ce_finalisation_cr}} crore — referred to COT along with TECHNICAL BID EVALUATION and PRICE BID EVALUATION for consideration. The COT shall scrutinise the tenders submitted by ENC/CE/Project Administrators in accordance with the conditions stipulated in the Tender Document; in case of any discrepancy or non-adherence, the same shall be COMMUNICATED and BINDING on both the Tender Concluding Authority and the Contractor. NEGOTIATIONS are NOT PERMITTED to be conducted at any level. The TIME ALLOWED from the date of publication of tender notices to the date of receipt of tenders is {{first_call_days}} (default 14) DAYS for the FIRST CALL and {{second_call_days}} (default 7) DAYS for the SECOND CALL.",
+    "parameters": [
+      {"name": "ce_finalisation_cr", "param_type": "currency", "formula": null, "cap": 2, "label": "CE Finalisation Ceiling (Rs. Crore)", "example": "2"},
+      {"name": "first_call_days", "param_type": "days", "formula": null, "cap": 14, "label": "First Call Notice Period (Days)", "example": "14"},
+      {"name": "second_call_days", "param_type": "days", "formula": null, "cap": 7, "label": "Second Call Notice Period (Days)", "example": "7"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 35,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-055", "AP-GO-056", "AP-GO-057"]
+  }
+]

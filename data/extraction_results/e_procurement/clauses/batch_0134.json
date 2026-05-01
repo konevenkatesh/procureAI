@@ -1,0 +1,23 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-KEY-PERSONNEL-DEPLOYMENT-001",
+    "title": "AP Capital City Works — Key Personnel Deployment Requirements",
+    "text_english": "The Contractor SHALL DEPLOY at the project site, throughout the contract period, the following KEY PERSONNEL with the qualifications and minimum experience as specified: (a) {{chief_pm_count}} (default 1) CHIEF PROJECT MANAGER — Graduate in Civil Engineering with {{chief_pm_years}} (default 20) years of experience in executing similar works (also designated as GRIEVANCE REDRESSAL EXPERT); (b) {{electrical_mgr_count}} (default 1) ELECTRICAL/MECHANICAL MANAGER — Post Graduate in Electrical/Mechanical Engineering with {{electrical_mgr_years}} (default 15) years of experience in MEP works; (c) {{construction_mgr_count}} (default 1) CONSTRUCTION MANAGER — Graduate in Civil Engineering with {{construction_mgr_years}} (default 15) years of experience in similar works; (d) {{civil_engr_count}} (default 4) CIVIL SITE ENGINEERS — Graduate in Civil Engineering with {{civil_engr_years}} (default 10) years of experience; (e) Quality Engineer(s) — Graduate in Civil Engineering with relevant experience. The Bidder SHALL submit PROOF of availability of adequate design and execution engineers, AND SHALL submit a PROPOSED ORGANIZATION CHART along with STAFF DEPLOYMENT SCHEDULE along with the tender.",
+    "parameters": [
+      {"name": "chief_pm_count", "param_type": "integer", "formula": null, "cap": 1, "label": "Chief Project Manager Count", "example": "1"},
+      {"name": "chief_pm_years", "param_type": "integer", "formula": null, "cap": 20, "label": "Chief PM Min Years", "example": "20"},
+      {"name": "electrical_mgr_count", "param_type": "integer", "formula": null, "cap": 1, "label": "Electrical/Mechanical Manager Count", "example": "1"},
+      {"name": "electrical_mgr_years", "param_type": "integer", "formula": null, "cap": 15, "label": "Electrical/Mechanical Mgr Min Years", "example": "15"},
+      {"name": "construction_mgr_count", "param_type": "integer", "formula": null, "cap": 1, "label": "Construction Manager Count", "example": "1"},
+      {"name": "construction_mgr_years", "param_type": "integer", "formula": null, "cap": 15, "label": "Construction Mgr Min Years", "example": "15"},
+      {"name": "civil_engr_count", "param_type": "integer", "formula": null, "cap": 4, "label": "Civil Site Engineers Count", "example": "4"},
+      {"name": "civil_engr_years", "param_type": "integer", "formula": null, "cap": 10, "label": "Civil Site Engineers Min Years", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 60,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

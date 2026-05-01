@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-ADDITIONAL-ITEMS-CE-DELEGATION-001",
+    "title": "AP Capital City Works — Additional Items Entrustment to Original Contractor",
+    "text_english": "Wherever ADDITIONAL ITEMS are to be entrusted to the ORIGINAL CONTRACTOR, the CHIEF ENGINEER is EMPOWERED to ENTRUST works initially to the contractor WITHOUT CALLING FOR TENDERS, with the APPROVAL of the higher authority. Entrustment of additional items WILL be authorised by the Chief Engineer UP TO THE MONETARY LIMITS up to which they themselves are competent to accept items in the original agreement, so long as the total amounts up to which they are competent to accept in an original agreement are not exceeded. Such entrustments SHALL be recorded with detailed JUSTIFICATION and shall be SUBJECT to AUDIT.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 165,
+    "cross_references": ["CLAUSE-AP-EPC-ADDITIONAL-ITEMS-001"],
+    "rule_ids": []
+  }
+]

@@ -1,0 +1,35 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EPC-MEASUREMENT-PROTOCOL-001",
+    "title": "AP EPC Works — Measurement Verification Protocol",
+    "text_english": "For EPC works, MEASUREMENTS shall be RECORDED by the EPC AGENCY in M.Books and L.F.Books issued by the concerned Engineer-in-Charge, duly numbered and certified. The M.Books and L.F.Books shall be MAINTAINED by the EPC agency through AUTHORISED GRADUATE ENGINEERS as per procedure prescribed in the Code, and FINALLY HANDED OVER to the Department (Engineer-in-charge). For Earth Work Excavation and Embankment, AE/AEEs SHALL VERIFY AND RECORD: (a) {{pre_levels_check_pct}}% (default 33% i.e., 1/3rd) of pre-levels taken by EPC agency; (b) {{cutoff_levels_check_pct}}% (default 100%) of levels in cut-off and foundations; (c) {{intermediate_levels_check_pct}}% (default 25%) of intermediate work-done levels; (d) {{final_levels_check_pct}}% (default 100%) for final levels recorded by EPC agency; (e) ALL MEASUREMENTS recorded by the EPC agency in the M-Books issued by the EE shall be CHECKED to {{ae_check_pct}}% (default 100%) by AEs/AEEs. DEEs, EEs and SEs shall check the above levels and measurements as per standing codal provisions. Wherever Quality Control agencies are in existence, such agency SHALL RECORD ITS FINDINGS in M-Books/LF-Books, besides furnishing certificates as prescribed separately.",
+    "parameters": [
+      {"name": "pre_levels_check_pct", "param_type": "percentage", "formula": null, "cap": 33, "label": "Pre-Levels Check (%)", "example": "33"},
+      {"name": "cutoff_levels_check_pct", "param_type": "percentage", "formula": null, "cap": 100, "label": "Cut-off / Foundation Levels Check (%)", "example": "100"},
+      {"name": "intermediate_levels_check_pct", "param_type": "percentage", "formula": null, "cap": 25, "label": "Intermediate Levels Check (%)", "example": "25"},
+      {"name": "final_levels_check_pct", "param_type": "percentage", "formula": null, "cap": 100, "label": "Final Levels Check (%)", "example": "100"},
+      {"name": "ae_check_pct", "param_type": "percentage", "formula": null, "cap": 100, "label": "AE/AEE 100% Check Requirement (%)", "example": "100"}
+    ],
+    "applicable_tender_types": ["EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 62,
+    "cross_references": ["CLAUSE-AP-WORKS-MEASUREMENT-BOOK-001"],
+    "rule_ids": ["AP-GO-226"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-EPC-MOBILIZATION-001",
+    "title": "AP EPC Mobilization Advance — 5% Cap + Original Invoice Verification",
+    "text_english": "In EPC contracts, MOBILIZATION ADVANCE NOT EXCEEDING {{mobilization_pct}}% (default 5%) of the contract value is payable at the prescribed stages of execution. Mobilization advance on NEW MACHINERY at the prescribed percentage of the value of new machinery, NOT EXCEEDING {{machinery_advance_pct}}% (default 5%) of contract value, is payable against PRODUCTION OF ORIGINAL INVOICES in proof of purchase of the machinery by the contractor/firm/joint venture. The INVOICES SHALL BE in the NAME of the CONTRACTOR/FIRM/JOINT VENTURE only, AND the new machinery SHALL HAVE BEEN PURCHASED only AFTER the date of conclusion of the agreement for the work. NO MOBILIZATION ADVANCE is payable on machinery purchased by an individual firm in respect of a joint venture, even though that individual firm is a partner in the joint venture. The contractor/firm/joint venture SHALL SUBMIT AN UNDERTAKING that they have NOT obtained any mobilization advance from the Government against the machinery for which they are presently claiming payment.",
+    "parameters": [
+      {"name": "mobilization_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "EPC Mobilization Advance (% of Contract Value)", "example": "5"},
+      {"name": "machinery_advance_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "EPC Machinery Advance (% of Contract Value)", "example": "5"}
+    ],
+    "applicable_tender_types": ["EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 35,
+    "cross_references": ["CLAUSE-AP-WORKS-CONTRACTOR-ADVANCE-001"],
+    "rule_ids": ["AP-GO-224", "AP-GO-225"]
+  }
+]

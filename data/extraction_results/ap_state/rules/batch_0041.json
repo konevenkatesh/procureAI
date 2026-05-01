@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-209",
+    "rule_text": "When AP work is executed under piece-work or lump-sum contract, the Government servant signing the contract must decide whether the department supplies any imported stores or other materials; if departmental supply is decided, descriptions, rates, and place of supply must be specified in the tender notice AND the schedule forming part of the agreement.",
+    "source_clause": "AP Financial Code Vol-I, Article 191",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND DepartmentSuppliesMaterials=true",
+    "verification_method": "Check tender notice + schedule document material descriptions + rates + delivery point if departmental supply is intended",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-210",
+    "rule_text": "AP Article 192 — TENDERS must invariably be invited when the amount involved in a Works contract is Rs.2,500 or more; below Rs.2,500 the sanctioning authority has discretion; a work MUST NOT be split into parts costing less than Rs.2,500 each to give contracts without calling for tenders.",
+    "source_clause": "AP Financial Code Vol-I, Article 192",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>=2500",
+    "verification_method": "Works tenders >= Rs.2,500: tender process mandatory; aggregate connected sub-tenders to detect splitting below Rs.2,500",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Bid-Splitting-Pattern",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-211",
+    "rule_text": "Sealed tenders must invariably be invited as PUBLICLY AS POSSIBLE for AP Works contracts — by advertisement in AP Gazette and local newspapers, and posting notices in English and the local Indian languages in public places; intending tenderers must have free access to copies of contract documents; for large contracts, latest date for submission must be at least ONE MONTH after the date of first publicity.",
+    "source_clause": "AP Financial Code Vol-I, Article 192",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>=2500",
+    "verification_method": "Check NIT publication: AP Gazette + local newspapers; bilingual notices; (publication-date to bid-close) >= 30 days for large contracts",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Pre-Bid-Process-Unclear",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-212",
+    "rule_text": "AP contractor agreements must NOT pay rates IN EXCESS of those stated in the agreement (such payment would NULLIFY the contract); when a piece-work contractor refuses to execute at agreement rates, the Government servant in charge must terminate the agreement, measure work done, pay at agreement rates, and FORFEIT the contractor's security per agreement terms (unless waived by competent authority).",
+    "source_clause": "AP Financial Code Vol-I, Article 195(a)-(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check agreement-rate adherence; no excess-rate-payment clauses; security forfeiture provisions on refusal-to-execute",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

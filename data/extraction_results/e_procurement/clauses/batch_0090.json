@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-OTHER-REQUIREMENTS-001",
+    "title": "AP-Tender Other Eligibility — GST AP / SEA Declaration / Blacklist Self-Cert",
+    "text_english": "The Bidder SHALL FURTHER DEMONSTRATE the following: (i) GST REGISTRATION in ANDHRA PRADESH; (ii) PAN CARD; (iii) ENVIRONMENTAL AND SOCIAL PERFORMANCE DECLARATION (Annex 1); (iv) SEXUAL EXPLOITATION AND ABUSE (SEA) and/or SEXUAL HARASSMENT PERFORMANCE DECLARATION (Annex 2); (v) SEA / SEXUAL HARASSMENT PERFORMANCE DECLARATION FOR SUB-CONTRACTORS (Annex 3); (vi) MANAGEMENT STRATEGIES and IMPLEMENTATION PLANS (MSIP). DISQUALIFICATION GROUNDS — even where above eligibility is met, the bidder SHALL be DISQUALIFIED if: (a) BLACKLISTED by any Central/State Government Institutions / WORLD BANK / ADB — an UNDERTAKING (self-certificate) SHALL be SUBMITTED that the bidder has NOT been blacklisted; (b) FOUND to have MISLED or made FALSE REPRESENTATION in forms/statements submitted in proof of qualification.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 89,
+    "cross_references": ["CLAUSE-AP-GST-CERT-001", "CLAUSE-WB-ADB-DEBARMENT-001"],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-NO-JV-CONSORTIUM-001",
+    "title": "AP-Tender Variant — No JV / Consortium / SPV / Foreign Contractor (Judicial Academy)",
+    "text_english": "The bidders need to REGISTER on the e-Procurement marketplace of GOVERNMENT OF AP at https://www.apeprocurement.gov.in. On registration, bidders shall be PROVIDED a USER ID and PASSWORD. PARTICIPATION in this tendering process by FORMING JOINT VENTURE OR CONSORTIUM OR SPECIAL PURPOSE VEHICLE is NOT ALLOWED. Any CONTRACTOR FROM ABROAD shall NOT be PERMITTED. The bidders SHALL NOT have a CONFLICT OF INTEREST with the Authority. NOTE: This is a TENDER-LEVEL OVERRIDE that NARROWS the standard JV/foreign-bidder permission found in MPW 2022 §3.3.6(f) — verifiers SHALL flag as `Criteria-Restriction-Narrow` UNLESS justified.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 90,
+    "cross_references": ["CLAUSE-WORKS-BIDDER-ELIGIBILITY-001"],
+    "rule_ids": []
+  }
+]

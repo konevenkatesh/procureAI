@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-123",
+    "rule_text": "POLITICAL EVENTS (acts of any Government Instrumentality) include: (i) CHANGE IN LAW only if consequences cannot be dealt with under §19.17; (ii) COMPULSORY ACQUISITION in NATIONAL INTEREST or EXPROPRIATION of any Project Assets/rights; (iii) UNLAWFUL/UNAUTHORISED revocation of, or refusal to renew/grant without valid cause, any clearance, license, permit, NoC, consent or approval — provided such action did not result from Contractor's/Sub-contractor's inability/failure to comply.",
+    "source_clause": "GCC §21.4 Political Event",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if PE list distinguishes lawful from unlawful Government acts. FAIL on PE definition that includes lawful regulatory action.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-124",
+    "rule_text": "DUTY TO REPORT FORCE MAJEURE: Upon occurrence of FM, the Affected Party SHALL by NOTICE REPORT such occurrence to the other Party FORTHWITH including FULL PARTICULARS — nature/extent, evidence, ESTIMATED DURATION, EFFECT on performance, MITIGATION measures being taken, other relevant information. The Affected Party SHALL NOT be ENTITLED to ANY RELIEF UNLESS it has NOTIFIED the other Party AS SOON AS REASONABLY PRACTICABLE — and IN ANY EVENT NO LATER THAN {{fm_notice_days}} (default 10) DAYS.",
+    "source_clause": "GCC §21.5 Duty to report Force Majeure",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND FMEventOccurred=true",
+    "verification_method": "PASS if 10-day FM notice deadline + particulars explicit. FAIL on absent notice deadline.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-125",
+    "rule_text": "FORCE MAJEURE COSTS — ALLOCATION: (i) NON-POLITICAL EVENT — Parties BEAR THEIR RESPECTIVE Force Majeure costs; neither shall reimburse the other; (ii) INDIRECT POLITICAL EVENT — ALL FM costs NOT EXCEEDING the INSURANCE COVER shall be BORNE by the CONTRACTOR; to the extent FM costs EXCEED Insurance Cover, ONE-HALF of the EXCESS amount SHALL be REIMBURSED by the AUTHORITY to the Contractor; (iii) POLITICAL EVENT — ALL FM costs SHALL be REIMBURSED by the AUTHORITY to the Contractor.",
+    "source_clause": "GCC §21.6 Effect of Force Majeure on the Agreement",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND FMEventOccurred=true",
+    "verification_method": "PASS if 3-tier FM cost allocation explicit. FAIL on flat allocation regardless of FM type.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-126",
+    "rule_text": "TERMINATION FOR FORCE MAJEURE: If a Force Majeure Event SUBSISTS for a period of {{fm_duration_days}} (default 60) DAYS or MORE within a CONTINUOUS PERIOD of {{fm_window_days}} (default 120) DAYS, EITHER PARTY may TERMINATE the Agreement by issuing a TERMINATION NOTICE without being LIABLE — save as in Article 21. BEFORE issuing the Termination Notice, the Party intending to issue SHALL INFORM the other Party of such intention and GRANT {{fm_representation_days}} (default 15) DAYS to MAKE a REPRESENTATION; after expiry of 15 days, the Party may issue the Termination Notice in its sole discretion.",
+    "source_clause": "GCC §21.7 Termination Notice for FM",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND FMEventOccurred=true",
+    "verification_method": "PASS if 60-of-120 day FM trigger + 15-day representation explicit. FAIL on shorter triggers.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

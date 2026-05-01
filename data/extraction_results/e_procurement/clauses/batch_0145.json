@@ -1,0 +1,19 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PROGRESS-CHART-MILESTONE-001",
+    "title": "AP Capital City Works — Time and Progress Chart per Milestone",
+    "text_english": "The Contractor SHALL SUBMIT a TIME AND PROGRESS CHART for EACH MILESTONE of this Work. The Engineer-in-Charge MAY, within {{program_review_days}} (default 15) days thereafter, MODIFY and COMMUNICATE the program approved to the Contractor; failing such communication, the program submitted by the Contractor SHALL be DEEMED to be APPROVED by the Engineer-in-Charge. The work programme SHALL include all DETAILS OF BALANCE DRAWINGS and DECISIONS REQUIRED to complete the contract — with SPECIFIC DATES by which these details are required by the Contractor. Progress reports SHALL include: a construction schedule for the next {{forward_window_months}} (default 3) months showing micro-milestones and targeted tasks; AT LEAST {{photo_min_count}} (default 10) digital photographs of all parts of the construction site; AND AT LEAST {{video_min_minutes}} (default 5) MINUTES of video showing execution of different items in soft copy.",
+    "parameters": [
+      {"name": "program_review_days", "param_type": "days", "formula": null, "cap": 15, "label": "Program Review Window (Days)", "example": "15"},
+      {"name": "forward_window_months", "param_type": "months", "formula": null, "cap": 3, "label": "Forward Schedule Window (Months)", "example": "3"},
+      {"name": "photo_min_count", "param_type": "integer", "formula": null, "cap": 10, "label": "Min Digital Photographs", "example": "10"},
+      {"name": "video_min_minutes", "param_type": "integer", "formula": null, "cap": 5, "label": "Min Video Duration (Minutes)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 120,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CSP-INDIAN-PRECEDENCE-001",
+    "title": "AP Stores — Preference Order: Indian-Origin > Indian-Stocked > Imported",
+    "text_english": "When the conditions regarding QUALITY and PRICE are equal, preference in making purchases shall be given in the following order: (1) FIRSTLY, to articles which are PRODUCED IN INDIA in the form of raw materials OR are MANUFACTURED IN INDIA from Indian raw materials; (2) SECONDLY, to articles WHOLLY OR PARTIALLY MANUFACTURED in India; (3) THIRDLY, to articles of FOREIGN MANUFACTURE held in stock in India; (4) FOURTHLY, to articles MANUFACTURED ABROAD which need to be SPECIALLY IMPORTED. A purchasing officer specially authorised in this behalf may, when satisfied that such a measure is justified, allow a LIMITED PRICE PREFERENCE not exceeding {{indian_price_preference_pct}}% (default 5%) of the price at which articles of similar quality not so produced or manufactured can be obtained.",
+    "parameters": [
+      {"name": "indian_price_preference_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Indian Manufacture Price Preference (%)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-4/Evaluation",
+    "position_order": 20,
+    "cross_references": ["CLAUSE-AP-CSP-PRICE-PREFERENCE-001"],
+    "rule_ids": ["AP-GO-149"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-DELIVERY-IN-INDIA-001",
+    "title": "AP Stores — Delivery in India + Payment in Rupees",
+    "text_english": "ALL articles required for use in the public service shall be PURCHASED ON THE CONDITION that DELIVERY shall be made IN INDIA for PAYMENT IN RUPEES IN INDIA. (This requirement applies to articles purchased under Article 125 Rules II to IV and VI of the AP Financial Code Vol-I; the only exceptions are articles of special or unusual character covered by Rule VIII.) NO TENDER which is NOT expressed in terms of rupees, OR which fails to comply with this delivery and payment condition, SHALL be accepted. While purchasing articles, the purchasing officer shall take into consideration ONLY the prices of the articles EXCLUDING SALES TAX/GST and compare the rates for purpose of arriving at competitive prices.",
+    "parameters": [],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 8,
+    "cross_references": ["CLAUSE-AP-CSP-INDIAN-PRECEDENCE-001"],
+    "rule_ids": ["AP-GO-150", "AP-GO-151"]
+  }
+]

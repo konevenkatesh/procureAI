@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PRICE-ADJUSTMENT-COMPREHENSIVE-001",
+    "title": "AP Price Adjustment — Comprehensive Order Applicability + 5% Deadband",
+    "text_english": "PRICE ADJUSTMENT (both POSITIVE AND NEGATIVE) under this Contract: (i) SHALL be applicable to all Works of Rs.{{pa_threshold_lakh}} LAKHS (default Rs.40 lakh) AND ABOVE where the ORIGINAL CONTRACT PERIOD as per agreement is {{pa_min_months}} (default 6) MONTHS OR MORE; (ii) SHALL NOT be applicable for works of Rs.{{pa_threshold_lakh}} lakh and above where the original period is LESS than {{pa_min_months}} months — Extensions of Time (EOT) shall NOT be counted for price adjustment; (iii) SHALL NOT be applicable for works LESS than Rs.{{pa_threshold_lakh}} lakh, irrespective of period of execution. Price Adjustment shall be ALLOWED only when the variation between estimated rates and current rates is MORE THAN {{deadband_pct}}% (default 5%) OR LESS THAN -{{deadband_pct}}% (default -5%); the amount payable/deductible shall be the differential after adding/deducting the initial {{deadband_pct}}% buffer over the rate adopted in the Estimate. TENDER PERCENTAGE (premium or discount, +/-) SHALL NOT be applied on the Price Adjustment amount. For EAP Works, Price Adjustment is applicable as defined in the Contract. (Source: GO Ms No 62, Water Resources (Reforms) Department, dated 30-11-2021 — supersedes all earlier department-specific orders.)",
+    "parameters": [
+      {"name": "pa_threshold_lakh", "param_type": "currency", "formula": null, "cap": 40, "label": "Price Adjustment Value Threshold (Rs. Lakhs)", "example": "40"},
+      {"name": "pa_min_months", "param_type": "months", "formula": null, "cap": 6, "label": "Price Adjustment Minimum Period (Months)", "example": "6"},
+      {"name": "deadband_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Price Adjustment Deadband (%)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 95,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-019", "AP-GO-020", "AP-GO-021", "AP-GO-022", "AP-GO-023", "AP-GO-024"]
+  }
+]

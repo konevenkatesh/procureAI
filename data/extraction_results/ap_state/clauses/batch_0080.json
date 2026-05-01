@@ -1,0 +1,32 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-AA-TS-001",
+    "title": "AP PWD Works — Administrative Approval & Technical Sanction Pre-Requisite",
+    "text_english": "Every original work (including mixed works of the kind described in Article 147 of AP Financial Code Vol-I) which is allotted to the Public Works Department REQUIRES the ADMINISTRATIVE APPROVAL of the competent authority — except to the extent that the power to accord administrative approval has been delegated to subordinate authorities (Appendix 12). Detailed plans and estimates SHALL BE PREPARED and submitted to Government or competent authority for TECHNICAL SANCTION in respect of every work allotted to the Public Works Department, UNLESS it is a petty work costing Rs.{{petty_work_ceiling}} (default Rs.1,000) or less, OR it comprises only ordinary repairs for which a lump-sum provision not exceeding Rs.{{lump_sum_repairs_ceiling}} (default Rs.1,000) is made annually. ALL PROPOSALS for construction of compound walls, reconstruction of collapsed compound walls, improvements to existing ones, AND iron-wire fencing SHALL REQUIRE Government approval (even when met from the Minor Works grant).",
+    "parameters": [
+      {"name": "petty_work_ceiling", "param_type": "currency", "formula": null, "cap": 1000, "label": "Petty-Work Ceiling for TS Waiver (Rs.)", "example": "1000"},
+      {"name": "lump_sum_repairs_ceiling", "param_type": "currency", "formula": null, "cap": 1000, "label": "Lump-Sum Repairs Annual Ceiling (Rs.)", "example": "1000"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 20,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-207"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-BUILDING-REPAIRS-1PCT-001",
+    "title": "AP Building Repairs — Annual Cost Capped at 1% of Capital Cost",
+    "text_english": "The annual expenditure on ORDINARY REPAIRS to a Government building of any kind, EXCLUDING municipal and other taxes, SHALL be LIMITED to a MAXIMUM of {{repair_cap_pct}}% (default 1%) of the CAPITAL COST of the building. This limit applies also to a building occupied partly by a district board office along with one or more Government offices, unless any other limit has been specially sanctioned. For RESIDENTIAL BUILDINGS, the {{repair_cap_pct}}% limit applies to total Superintending-Engineer-Circle capital cost — within which it is permissible to incur larger expenditure than {{repair_cap_pct}}% on old low-capital-cost buildings, with a MAXIMUM of {{individual_residential_cap_pct}}% (default 1.5%) on any individual residential building.",
+    "parameters": [
+      {"name": "repair_cap_pct", "param_type": "percentage", "formula": null, "cap": 1, "label": "Annual Repair Cap (% of Capital Cost)", "example": "1"},
+      {"name": "individual_residential_cap_pct", "param_type": "percentage", "formula": null, "cap": 1.5, "label": "Individual Residential Building Cap (%)", "example": "1.5"}
+    ],
+    "applicable_tender_types": ["Works"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 25,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-208"]
+  }
+]

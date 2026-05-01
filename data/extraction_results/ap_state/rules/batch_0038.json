@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-201",
+    "rule_text": "AP Government servants who start a work WITHOUT sanctioned estimate or adequate funds, except under written order from a higher authority OR under emergency provisions of Article 170, are PERSONALLY RESPONSIBLE for paying for the work done if their action is found not justified by exceptional circumstances.",
+    "source_clause": "AP Financial Code Vol-I, Article 169",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender file: written sanction OR Article-170 emergency record exists before work-start; otherwise audit-callable as personal liability",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-202",
+    "rule_text": "Emergency-start of an AP work (e.g., breaching of irrigation bund) without prior estimate is permitted; the Government servant on the spot must report immediately to immediate superior and Accountant-General; if a contractor cannot be formally engaged, a written order signed by the Government servant AND the contractor at the earliest opportunity is sufficient; formal estimate and written agreement must be prepared as expeditiously as possible thereafter.",
+    "source_clause": "AP Financial Code Vol-I, Article 170",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND ProcurementMethod=Emergency",
+    "verification_method": "For emergency work-starts: check immediate-report record + signed work-order + post-event sanction & formal agreement",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

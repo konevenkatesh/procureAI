@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-134",
+    "rule_text": "All AP Government stores procurement shall be done THROUGH the Director, Printing, Stationery & Stores Purchase Department (Central Stores Purchase, CSP) which has State-wide jurisdiction — except for items specifically exempted in Article 123 (perishable items, controlled commodities like cement/iron/steel under bulk contract, journals, low-value items <= Rs.2,000, emergency machinery spares, fuel, etc.) OR where the Stores Purchase Committee has granted special exemption.",
+    "source_clause": "AP Financial Code Vol-I, Article 123",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "For Goods tenders >= Rs.2,000: check tender was routed through CSP Director OR documented Article-123-exemption category OR Stores Purchase Committee exemption order",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-135",
+    "rule_text": "AP departments may directly procure office-common-use articles only if estimated value does NOT exceed Rs.2,000 AND the item is NOT on a rate or running contract; OR for items whose individual unit value <= Rs.500 with maximum aggregate Rs.5,000 at a time, also subject to no rate/running contract.",
+    "source_clause": "AP Financial Code Vol-I, Article 123(e)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND ProcurementChannel=DirectDepartmental",
+    "verification_method": "For direct departmental Goods purchases: aggregate value <= Rs.2,000 OR per-unit <= Rs.500 with cap Rs.5,000; check no rate/running contract exists for the item",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-136",
+    "rule_text": "AP Government Khadi requirements shall be placed on the Andhra Pradesh Khadi & Village Industries Board for supply at the rates approved/certified by the Certification Committee of the Commission; CSP and other departments may tap other sources only after the Board expresses inability to supply.",
+    "source_clause": "AP Financial Code Vol-I, Article 123(x) — Memo No 64219/2145/Accts/63-2 dated 17-1-1964",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND Material=Khadi",
+    "verification_method": "Khadi tenders must show Board-non-supply certificate before sourcing elsewhere",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

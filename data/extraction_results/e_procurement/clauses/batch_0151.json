@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-QA-QC-SYSTEM-001",
+    "title": "AP Capital City Works — Quality Assurance / Quality Control System",
+    "text_english": "The Contractor SHALL INSTITUTE QUALITY ASSURANCE (QA) AND QUALITY CONTROL (QC) SYSTEMS in accordance with a QUALITY ASSURANCE PLAN to demonstrate compliance with the requirements of this Contract — as APPROVED by the Project Manager. COMPLIANCE with the QA/QC systems SHALL NOT RELIEVE the Contractor of any of their duties, obligations, or responsibilities under the Contract. The Contractor SHALL PROVIDE all apparatus, assistance, documents, and other information required for INSPECTIONS AND TESTS. The Project Manager MAY INSTRUCT the Contractor to SEARCH for a Defect AND to UNCOVER and TEST any work that the Project Manager considers may have a Defect; the Project Manager SHALL CHECK the Contractor's work and NOTIFY the Contractor of any Defects found, specifying a TIME by which the Defect should be corrected. Such checking SHALL NOT AFFECT the Contractor's responsibilities. The Contractor SHALL also PERMIT the Employer's TECHNICAL AUDITOR to check the Contractor's work and notify Defects found.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 145,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

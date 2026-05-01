@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-084",
+    "rule_text": "Defect Liability Period for AP works is fixed at TWO YEARS for both original works AND maintenance works; departments may issue work-type-specific guidelines based on nature/lifespan.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 25",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender BDS DLP = 24 months for both original + maintenance works; reject DLP < 24 months without justification",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "DLP-Period-Short",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-085",
+    "rule_text": "Up to 1% of departmental budget allocation must be set aside to train AP departmental Engineers at all levels for new technologies, practices, and materials in works execution.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 26",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level check on departmental budget allocation; not directly tender-verifiable",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-086",
+    "rule_text": "Site Order Book must be maintained at every AP works site as per Codes; it must record remarks and instructions of every visiting Engineer (EE, SE, CE, ENC).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 27",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC requires Site Order Book at site; physical verification at execution stage",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

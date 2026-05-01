@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-RFP-CONSORTIUM-SPV-COVENANT-001",
+    "title": "AP RFP — Consortium SPV Incorporation + Joint & Several Liability",
+    "text_english": "The Parties (Consortium Members) hereby UNDERTAKE that in the event the Consortium is DECLARED THE SELECTED BIDDER and AWARDED THE PROJECT, the Consortium WILL INCORPORATE a SPECIAL PURPOSE VEHICLE (SPV) — referred to as 'the Concessionaire' — UNDER THE COMPANIES ACT, 2013 for entering into the Concession Agreement with the Authority for undertaking the Project. The Members of the Consortium UNDERTAKE that they SHALL BE JOINTLY AND SEVERALLY RESPONSIBLE AND LIABLE for all matters arising out of or in relation to this RFP and the resulting Concession Agreement. Party of the FIRST PART shall be the LEAD MEMBER of the Consortium and shall have the POWER OF ATTORNEY from all Parties and BIND ALL PARTIES for and in conducting all business for and on behalf of the Consortium during the Bid Process and, if the Consortium is declared the Selected Bidder, during execution of the Project.",
+    "parameters": [],
+    "applicable_tender_types": ["EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-5/Forms",
+    "position_order": 50,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

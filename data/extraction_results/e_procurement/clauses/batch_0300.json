@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-RFP-DIGITAL-SIGNATURE-001",
+    "title": "AP RFP — Digital Signature for E-Procurement Submission",
+    "text_english": "Each Bidder (and in case of a Consortium, the LEAD MEMBER) MUST USE the DIGITAL SIGNATURE of its AUTHORISED SIGNATORY while uploading the SOFT COPY of the Qualification Proposal AND Financial Proposal to the E-Procurement Portal. The maximum FILE SIZE of each file uploaded by the Bidder as part of its Bid SHALL NOT EXCEED {{max_file_mb}} MB (default 5 MB). The digital signature SHALL be issued by a certifying authority licensed under the Information Technology Act, 2000 and SHALL be VALID on the Bid Due Date.",
+    "parameters": [
+      {"name": "max_file_mb", "param_type": "integer", "formula": null, "cap": 5, "label": "Max E-Proc Upload File Size (MB)", "example": "5"}
+    ],
+    "applicable_tender_types": ["EPC", "Services", "Works", "Goods", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 80,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

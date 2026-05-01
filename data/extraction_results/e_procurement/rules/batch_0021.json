@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-099",
+    "rule_text": "LABOUR LAW COMPLIANCE: The Contractor SHALL COMPLY with rules and regulations on MAINTENANCE of SUITABLE RECORDS prescribed for labour from time to time by the Government — and SHALL MAINTAIN ACCOUNTS and VOUCHERS on PAYMENT of WAGES to satisfaction of the Executive Engineer. The Authority SHALL HAVE the RIGHT to CALL FOR such records to satisfy itself on FAIR WAGES — AND SHALL HAVE the RIGHT to DEDUCT from the contract amount a SUITABLE AMOUNT for making good loss to workers. The Contractor SHALL be PRIMARILY LIABLE for ALL PAYMENTS and observance of regulations — without prejudice to right to claim indemnity from sub-contractors.",
+    "source_clause": "GCC §11 Labour Law Compliance",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if SCC mandates wage records + Authority audit rights + deduction power. FAIL on absent compliance clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-100",
+    "rule_text": "APPLICABLE LABOUR LAWS: The Contractor SHALL COMPLY with: (i) WORKMEN'S COMPENSATION ACT 1923 — compensation for injury arising out of/during employment; (ii) PAYMENT OF GRATUITY ACT 1972 — gratuity payable on completion of 5 years' service or death at the rate of 15 days' wages per completed year (applicable to establishments with ≥10 employees); (iii) EMPLOYEES' PF and MISCELLANEOUS PROVISIONS ACT 1952 — monthly contributions @ 10% or 8.33%; (iv) MINIMUM WAGES ACT; (v) CONTRACT LABOUR (Regulation and Abolition) ACT; (vi) BUILDING & OTHER CONSTRUCTION WORKERS WELFARE CESS ACT.",
+    "source_clause": "GCC §11 (Labour Laws)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if all 6 acts enumerated + compliance certifications attached monthly. FAIL on partial compliance.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-101",
+    "rule_text": "TESTS ON COMPLETION: AT LEAST {{tests_notice_days}} (default 30) DAYS PRIOR to LIKELY COMPLETION of Project Works/Section, the Contractor SHALL NOTIFY the Authority's Representative of INTENT to subject Works to TESTS. Date and time SHALL be DETERMINED by the Authority's Representative in CONSULTATION with the Contractor and NOTIFIED to the Authority. In the event of FAILURE to MUTUALLY AGREE on dates, the Contractor SHALL FIX dates by giving NOT LESS THAN {{tests_fallback_notice_days}} (default 10) DAYS' notice to the Authority's Representative.",
+    "source_clause": "GCC Tests on completion",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 30-day prior notice + 10-day fallback explicit. FAIL on shorter or vague notice.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-102",
+    "rule_text": "WORKMEN COMPENSATION INDEMNITY: In event of accident under Workmen's Compensation Act VIII 23, the Authority MAY RETAIN such SUM as may be SUFFICIENT to MEET LIABILITY in opinion of Authority — AUTHORITY's OPINION SHALL be FINAL on all matters. The Contractor SHALL AT ALL TIMES INDEMNIFY the Employer against ALL CLAIMS under the Workmen's Compensation Act or any statutory modification — for damages/compensation consequent of any accident, injuries sustained or death of any workmen engaged in the contract.",
+    "source_clause": "GCC §11 Workmen Compensation Indemnity",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if SCC includes Authority's retention right + contractor's indemnity. FAIL on weaker indemnity.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

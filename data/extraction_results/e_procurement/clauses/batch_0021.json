@@ -1,0 +1,34 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PRECOMMENCEMENT-001",
+    "title": "AP-Tender Pre-Commencement Obligations (10-Day Window)",
+    "text_english": "Within {{precom_window_days}} (default 10) DAYS of the APPOINTED DATE, the Contractor SHALL: (i) APPOINT its REPRESENTATIVE duly authorised to deal with the Authority; (ii) APPOINT a PROJECT MANAGER who shall HEAD the Contractor's DESIGN UNIT and be RESPONSIBLE for SURVEYS, INVESTIGATIONS, DATA COLLECTION, and PRELIMINARY/DETAILED DESIGNS; (iii) UNDERTAKE all acts required before commencement per Applicable Laws and Permits; (iv) MAKE its OWN ARRANGEMENTS for QUARRYING materials needed; (v) PREPARE Construction Zone and CAMP SITE SAFETY CHECKLIST; (vi) PREPARE UPDATED HEALTH, SAFETY and ENVIRONMENT (HSE) PLAN. The Authority SHALL — within {{auth_response_days}} (default 15) days — issue confirmations on Right of Way / land availability per Schedule-A.",
+    "parameters": [
+      {"name": "precom_window_days", "param_type": "days", "formula": null, "cap": 10, "label": "Pre-Commencement Window (Days)", "example": "10"},
+      {"name": "auth_response_days", "param_type": "days", "formula": null, "cap": 15, "label": "Authority Response Window (Days)", "example": "15"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 60,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-087"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-PROOF-CONSULTANT-001",
+    "title": "Design Submission via Proof Consultant — 5 Hard + 1 Soft Copy",
+    "text_english": "The Contractor SHALL PREPARE and SUBMIT — in such SEQUENCE consistent with the Project Completion Schedule — {{design_hard_copies}} (default 5) HARD COPIES and {{design_soft_copies}} (default 1) SET OF SOFT COPY (CD/pen drive) of the DESIGN and GFC DRAWINGS — DULY CERTIFIED by the PROOF CONSULTANT — to the Authority's Representative for review. For STRUCTURES and SEWERAGE SYSTEM, the Authority's Representative MAY REQUIRE ADDITIONAL DRAWINGS for review per Good Industry Practice. Proof Consultant: {{proof_consultant_name}}; engagement reference: {{proof_consultant_ref}}.",
+    "parameters": [
+      {"name": "design_hard_copies", "param_type": "integer", "formula": null, "cap": null, "label": "Hard Copies of Design", "example": "5"},
+      {"name": "design_soft_copies", "param_type": "integer", "formula": null, "cap": null, "label": "Soft Copies", "example": "1"},
+      {"name": "proof_consultant_name", "param_type": "text", "formula": null, "cap": null, "label": "Proof Consultant", "example": "M/s ABC Engineering Consultants"},
+      {"name": "proof_consultant_ref", "param_type": "text", "formula": null, "cap": null, "label": "Proof Consultant Engagement Reference", "example": "GVSCCL/PROOF-CONS/2026/045"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 61,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-088"]
+  }
+]

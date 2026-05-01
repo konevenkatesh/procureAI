@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-207",
+    "rule_text": "Every AP original work allotted to PWD requires ADMINISTRATIVE APPROVAL (except where delegated to subordinate authorities per Appendix 12); detailed plans and estimates must be prepared and submitted for TECHNICAL SANCTION except for petty works costing Rs.1,000 or less or ordinary repairs <= Rs.1,000 lump-sum annual.",
+    "source_clause": "AP Financial Code Vol-I, Article 185",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender file: AA + TS orders on file with proper signatory authority; reject if either missing",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-208",
+    "rule_text": "Annual ordinary repair expenditure on AP Government buildings is LIMITED to a MAXIMUM of 1% of the capital cost of the building (excluding municipal/other taxes); for residential buildings, the 1% limit applies to total Superintending-Engineer-Circle capital cost — within which up to 1.5% can be spent on individual old/low-capital buildings.",
+    "source_clause": "AP Financial Code Vol-I, Article 186(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works] AND WorkCategory=OrdinaryRepair",
+    "verification_method": "For ordinary repair tenders: estimated annual cost <= 1% of building capital cost (1.5% for individual residential exceptions)",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

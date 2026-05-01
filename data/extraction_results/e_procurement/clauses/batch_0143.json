@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-SITE-CLEANLINESS-STORAGE-001",
+    "title": "AP Capital City Works — Site Cleanliness, Material Stacking & Storage",
+    "text_english": "The site of work SHALL BE ALWAYS KEPT CLEAN, strictly adhering to the approved JOB LAYOUT and GREEN BUILDING PARAMETERS. The Contractor SHALL TAKE ALL CARE to PREVENT WATER-LOGGING at site. WASTE WATER SHALL NOT be allowed to be collected at site, but may be DIRECTLY PUMPED into the public drainage system with PRIOR APPROVAL of the concerned authorities; necessary permission SHALL be obtained AFTER PAYING the necessary charges directly to the authorities. Materials SHALL be STACKED in DESIGNATED AREAS as approved by the Employer's Representative, with proper protection against weather and theft.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 105,
+    "cross_references": [],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-OFFICIAL-SECRETS-ACT-001",
+    "title": "AP Capital City Works — Official Secrets Act 1923 Confidentiality",
+    "text_english": "The Contractor SHALL TAKE ALL STEPS NECESSARY that all persons employed on any work in connection with this contract are NOTICED that the INDIAN OFFICIAL SECRETS ACT 1923 APPLIES TO THEM and WILL CONTINUE TO APPLY EVEN AFTER the execution of such works under the contract. This Contract is CONFIDENTIAL and MUST BE STRICTLY CONFINED to the Contractor's own use (except so far as confidential disclosure to sub-contractors or suppliers as necessary) AND to the purpose of the Contract. ALL DOCUMENTS, COPIES THEREOF, AND EXTRACTS THEREFROM furnished to the Contractor SHALL BE RETURNED to the Engineer-in-Charge upon completion or termination of the contract.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 115,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

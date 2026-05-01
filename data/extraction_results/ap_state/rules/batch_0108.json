@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-071",
+    "rule_text": "If both first and second tender calls receive abnormally high quoted percentages or evidence collusion/unethical practices, AP works may be entrusted on Selection Basis from a list of eligible contractors with proven track record — invited in batches of 5 to file price bids before competent committee.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 14(i)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "If award method=SelectionBasis: check failed-2-calls record + selection committee minutes + 5-contractor batch invitations",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-072",
+    "rule_text": "Selection-basis Committee composition for AP works: works <= Rs.1 crore — Collector + concerned SE + 2 SEs from other works depts (PR/R&B/Irrigation); works > Rs.1 crore — COT + concerned CE + ENC (Irrigation).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 14(ii)(a)-(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND AwardMethod=SelectionBasis",
+    "verification_method": "Check committee composition matches threshold: <=Rs.1cr → 4-member district committee; >Rs.1cr → 3-member State committee",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-073",
+    "rule_text": "Nomination-basis lists of contractors for AP works must be published every 6 months; from these lists contractors are called in groups of 5 in rotation; selection committee has 5 days to decide; total value of works grounded in any year (tenders + nomination) shall not exceed the divisional budget.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 14(iii)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND AwardMethod=Nomination",
+    "verification_method": "Check 6-monthly nomination-list publication + 5-contractor rotation + 5-day decision; verify aggregate awards <= divisional budget",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-074",
+    "rule_text": "Sub-contracting in AP works: prime contractor must declare sub-contractor at tender filing or during execution with name + qualification + experience; the Tender Accepting Authority verifies sub-contractor satisfies qualification criteria PROPORTIONAL to sub-let value; total sub-letting must NOT exceed 50% of contract value; sub-let portion adds to sub-contractor's experience and is deducted from prime's experience.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 15",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND SubContractingProposed=true",
+    "verification_method": "Check sub-contract declaration + qualification verification proportional to sub-let value + total sub-let <= 50% of contract value",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Sub-Consultant-Cap-Exceed",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

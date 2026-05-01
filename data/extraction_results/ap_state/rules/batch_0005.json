@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-124",
+    "rule_text": "Estimated cost of any AP estate survey not managed by Court of Wards must ordinarily be recovered IN ADVANCE; if the survey is expected to last more than 18 months, the cost may be recovered in instalments per AP Survey and Boundaries Act 1923; if any instalment is not paid, three-month notice of survey-stoppage must be given AND the survey promptly stopped on expiry of three months.",
+    "source_clause": "AP Financial Code Vol-I, Article 24(a) read with AP Survey and Boundaries Act 1923",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Services AND ServiceType=Survey",
+    "verification_method": "Check survey-tender file: advance-payment record OR signed instalment-schedule with 3-month-notice clause",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

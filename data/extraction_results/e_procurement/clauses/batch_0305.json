@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-RFP-LOA-AGREEMENT-EXECUTION-001",
+    "title": "AP RFP — LOA Acceptance + 15-Day Agreement Execution",
+    "text_english": "The Authority SHALL, within {{loa_to_draft_days}} (default 15) DAYS of the ACCEPTANCE OF THE LETTER OF AWARD (LOA) by the Selected Bidder, PROVIDE the Selected Bidder with the FINAL EXECUTION DRAFT of the Concession Agreement. The Concessionaire incorporated by the Selected Bidder, OR the Selected Bidder (as the case may be), SHALL EXECUTE the Agreement in the DRAFT FORM PROVIDED by the Authority. If the Selected Bidder seeks to MATERIALLY NEGOTIATE or seeks ANY MATERIAL DEVIATIONS from the final execution draft, the Authority MAY, in its sole discretion: (a) DECLARE the Selected Bidder's Bid as INVALID; AND/OR (b) FORFEIT the Performance Security; AND/OR (c) AWARD the Project to the next-best Bidder.",
+    "parameters": [
+      {"name": "loa_to_draft_days", "param_type": "days", "formula": null, "cap": 15, "label": "LOA Acceptance to Draft Window (Days)", "example": "15"}
+    ],
+    "applicable_tender_types": ["EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 110,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

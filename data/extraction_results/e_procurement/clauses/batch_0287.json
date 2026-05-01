@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WTE-TECH-FIN-QR-001",
+    "title": "AP WtE PPP — Technical & Financial Qualification Criteria",
+    "text_english": "To qualify for the award of this WtE Project on PPP, the Bidder MUST DEMONSTRATE: (a) TECHNICAL CAPACITY — Bidder, Member, or Associate must have demonstrable EXPERIENCE in DEVELOPMENT/DESIGN AND CONSTRUCTION of Waste-to-Electricity Plants (DB / DBO / EPC / DBOT / DBFOT contracts), with cumulative project value or installed capacity satisfying the Authority's prescribed thresholds; (b) FINANCIAL CAPACITY — Bidder must satisfy MINIMUM NET WORTH and AVERAGE ANNUAL TURNOVER thresholds for the past 3 years as certified by the Statutory Auditor on the Statutory Auditor's letterhead. NEITHER the Bidder, nor any Member, nor any Associate whose Technical Capacity or Financial Capacity is being relied upon, may have been BARRED by GoI, GoAP, any state government, or any of their instrumentalities from participating in any project, with the bar subsisting on the Bid Due Date; nor may any of them be subject to a CONFLICT OF INTEREST under Clause 3.3 of this RFP, OR a FRAUD AND CORRUPTION finding under Clause 3.4.",
+    "parameters": [],
+    "applicable_tender_types": ["EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 25,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

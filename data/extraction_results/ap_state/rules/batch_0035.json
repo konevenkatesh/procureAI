@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-193",
+    "rule_text": "Site for any new AP Government building should be FIXED BEFORE detailed plans and estimates are prepared; the local authority must be consulted on site suitability (except in reserved forests); Military Works Officer must be consulted if site is near a fort or cantonment, with matter reported to Government.",
+    "source_clause": "AP Financial Code Vol-I, Article 156",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND ConstructionType=NewBuilding",
+    "verification_method": "Tender file must contain site-fixation order pre-dating detailed plans; local-authority consultation record + military consultation if applicable",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-194",
+    "rule_text": "No AP work may be started before a proper estimate has been prepared and SANCTIONED by the competent authority; estimates must use Common Form 150 (or special form for very large works); every estimate must provide for: rubbish removal, filling unsightly pits, works establishment, incidental costs (worker sheds, store sheds), and watchmen for vacant buildings.",
+    "source_clause": "AP Financial Code Vol-I, Article 157(a)-(c)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender estimate uses Form 150; verify estimate includes incidental items; reject if started without sanctioned estimate (except Articles 169-170 emergency)",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

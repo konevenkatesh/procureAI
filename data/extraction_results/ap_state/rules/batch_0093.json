@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-001",
+    "rule_text": "Infrastructure projects of value Rs.100 crore and above (undertaken by AP Government, AP Public Undertakings, JVs, SPVs, or PPP) must undergo Judicial Preview by a sitting/former High Court Judge prior to inviting tenders.",
+    "source_clause": "Section 3(i) read with Section 2(12)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>=1000000000",
+    "verification_method": "Check tender file for Judicial Preview certificate / Hon'ble Judge's approval issued before NIT publication date",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-002",
+    "rule_text": "Lead Consortium Member in any Bidding Consortium for AP infrastructure projects must hold not less than 26% equity stake AND must hold the highest equity stake among all consortium members.",
+    "source_clause": "Section 2(15)",
+    "condition_when": "TenderState=AndhraPradesh AND BidType=Consortium",
+    "verification_method": "Check consortium agreement: lead member equity_share >= 0.26 AND lead_member_equity == max(all_member_equity)",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Criteria-Restriction-Loose",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-003",
+    "rule_text": "An infrastructure project shall not be split, segregated, divided or tendered separately to evade the Rs.100 crore Judicial Preview threshold; any such part is deemed an integral part of the original project requiring preview.",
+    "source_clause": "Section 5(3)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check if same scope/site has multiple sub-tenders whose combined value >=100 cr; verify each was preview-cleared",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-004",
+    "rule_text": "Government Agency or Local Authority must place all tender-related documents (NIT, BDS, GCC, SCC, technical specs, BOQ) before the Hon'ble Judge for projects of value Rs.100 crore and above.",
+    "source_clause": "Section 5(1)",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=1000000000",
+    "verification_method": "Check tender file contains acknowledgement/dated receipt from Judicial Preview Committee covering all tender documents",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-005",
+    "rule_text": "AP Judicial Preview Act 2019 overrides any conflicting State Laws (Section 13).",
+    "source_clause": "Section 13 (TOC reference)",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "If state-law conflict found, Judicial Preview Act prevails — record override in audit trail",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

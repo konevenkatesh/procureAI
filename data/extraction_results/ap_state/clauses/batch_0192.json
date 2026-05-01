@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-MOBILIZATION-RESTORED-001",
+    "title": "AP Mobilization Advance — Restored Provision (Post 27-Nov-2024)",
+    "text_english": "Contractors for works exceeding more than Rs.{{ma_threshold}} (default Rs.1,00,00,000 i.e. Rs.1.00 Crore) of estimated contract value are PERMITTED to AVAIL the facility of MOBILIZATION ADVANCE up to {{ma_pct}}% (default 10%) of the value of the contract against an UNCONDITIONAL AND IRREVOCABLE BANK GUARANTEE, with the following conditions: (i) the BANK GUARANTEE shall be VALID till the recovery of the entire Mobilization Advance from the contractor/agency; (ii) a TIME FRAME for ENCASHING the BG SHALL be put if the contractor/agency does not initiate the work without valid reasons; (iii) a SPECIFIC RATE OF INTEREST shall be charged on the pending MA — at the PREVAILING RATE OF ONE-YEAR MCLR of STATE BANK OF INDIA (currently {{mclr_rate_pct}}% (default 9%) w.e.f. 15 November 2024). The advance and interest SHALL BE RECOVERED from the contractor's bills in suitable instalments. (Source: GO Ms No 57, Water Resources (Reforms) Department dated 27-11-2024 — restoring the Mobilization Advance Provision cancelled by GO Ms No 83 of 2019.)",
+    "parameters": [
+      {"name": "ma_threshold", "param_type": "currency", "formula": null, "cap": null, "label": "Mobilization Advance Threshold (Rs.)", "example": "10000000"},
+      {"name": "ma_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Mobilization Advance (% of Contract Value)", "example": "10"},
+      {"name": "mclr_rate_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "SBI 1-Year MCLR (%)", "example": "9"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 33,
+    "cross_references": ["CLAUSE-AP-WORKS-CONTRACTOR-ADVANCE-001", "CLAUSE-AP-EPC-MOBILIZATION-001"],
+    "rule_ids": ["AP-GO-014", "AP-GO-015", "AP-GO-016", "AP-GO-017", "AP-GO-018"]
+  }
+]

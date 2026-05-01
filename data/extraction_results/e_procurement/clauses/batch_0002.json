@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-ADMEASUREMENT-CORRECTION-001",
+    "title": "Admeasurement Contract — Arithmetic Error Correction Hierarchy",
+    "text_english": "For ADMEASUREMENT CONTRACTS, the following correction hierarchy shall apply to bid prices: (a) UNIT PRICE vs TOTAL PRICE — if there is a DISCREPANCY between the UNIT PRICE and the TOTAL PRICE (obtained by multiplying unit price × quantity), the UNIT PRICE SHALL PREVAIL and the total price shall be CORRECTED — UNLESS the Authority determines there is an OBVIOUS MISPLACEMENT of the DECIMAL POINT in the unit price, in which case the TOTAL PRICE as quoted SHALL GOVERN and the unit price SHALL be CORRECTED. (b) SUBTOTALS — if there is an ERROR in a TOTAL corresponding to ADDITION or SUBTRACTION of subtotals, the SUBTOTALS SHALL PREVAIL and the total SHALL be CORRECTED. (c) WORDS vs FIGURES — if there is a DISCREPANCY between WORDS and FIGURES, the AMOUNT IN WORDS SHALL PREVAIL — UNLESS the amount in words is itself related to an arithmetic error, in which case the AMOUNT IN FIGURES SHALL PREVAIL (subject to (a) and (b)). FAILURE to ACCEPT correction per ITB SHALL RESULT in REJECTION of the Bid.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 100,
+    "cross_references": ["CLAUSE-FINANCIAL-EVAL-RANKING-001"],
+    "rule_ids": ["GVSCCL-006", "GVSCCL-007", "GVSCCL-008"]
+  }
+]

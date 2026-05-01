@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-AUCTION-CONDUCT-001",
+    "title": "AP Government Property Auction Sale — Bid-Down Procedure & Witness Signatures",
+    "text_english": "When any property or right belonging to the Government is sold by PUBLIC AUCTION at {{auction_venue}} on {{auction_date}}, the Government servant conducting the auction SHALL give ADEQUATE TIME of {{bid_down_window_minutes}} minutes (default 5 minutes) BEFORE knocking down the bid in favour of the highest bidder, AND SHALL OBTAIN the SIGNATURES of the SUCCESSFUL BIDDER and TWO OTHER BIDDERS who have quoted lower than the highest bid in the SALE REGISTER, with the AMOUNT OF EACH BID written in WORDS AND FIGURES and DULY DATED.",
+    "parameters": [
+      {"name": "auction_venue", "param_type": "text", "formula": null, "cap": null, "label": "Auction Venue", "example": "Office of the Collector, Vijayawada"},
+      {"name": "auction_date", "param_type": "date", "formula": null, "cap": null, "label": "Auction Date", "example": "2026-06-15"},
+      {"name": "bid_down_window_minutes", "param_type": "integer", "formula": null, "cap": null, "label": "Bid-Down Time Window (Minutes)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 30,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-123"]
+  }
+]

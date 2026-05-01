@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-179",
+    "rule_text": "Every AP Government servant entrusted with stores must take special care for safe custody AND maintain stock accounts/inventories enabling check of actual balance vs book balance and stores expenditure at any time; separate stock accounts for: (a) raw materials and expendable manufacturing stores, (b) office furniture and other office stores (excluding books, forms, stationery).",
+    "source_clause": "AP Financial Code Vol-I, Article 133",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level check on stock-account maintenance for received stores; not directly tender-verifiable",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-180",
+    "rule_text": "Priced inventories of AP stores must NOT record values materially exceeding current market value; Head of Department issues instructions to ensure reasonable accuracy and that adopted rates are reviewed at suitable intervals.",
+    "source_clause": "AP Financial Code Vol-I, Article 136",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level check on stores-valuation accuracy; not directly tender-verifiable",
+    "severity": "ADVISORY",
+    "pattern_type": "P4",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

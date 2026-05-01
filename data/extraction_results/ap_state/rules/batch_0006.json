@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-125",
+    "rule_text": "Refund of revenue claims in AP must be summarily rejected if received: (i) more than 3 months after a notice has been served on the party (for ex-gratia refunds), OR (ii) more than 1 year after the date of credit of the revenue to Government (for other ex-gratia refunds).",
+    "source_clause": "AP Financial Code Vol-I, Article 35(a) read with Notes 1-2",
+    "condition_when": "TenderState=AndhraPradesh AND RefundClaim=true",
+    "verification_method": "Reject EMD/PBG/retention refund applications received past 1-year-from-credit (or 3-month-from-notice) limits",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-126",
+    "rule_text": "Refund order issued by AP Government remains in force for ONLY 3 MONTHS from issue date; no payment may be made on its authority after expiry.",
+    "source_clause": "AP Financial Code Vol-I, Article 35 Note 4",
+    "condition_when": "TenderState=AndhraPradesh AND RefundOrderIssued=true",
+    "verification_method": "Check refund order date; reject treasury payment if (today - issue_date) > 90 days",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

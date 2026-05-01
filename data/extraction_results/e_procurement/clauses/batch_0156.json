@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-TAKING-OVER-7DAYS-001",
+    "title": "AP Capital City Works — Taking Over Within 7 Days of Completion Certificate",
+    "text_english": "The EMPLOYER SHALL TAKE OVER the SITE and the WORKS within {{takeover_days}} (default 7) DAYS of the Engineer-in-Charge's issuing a CERTIFICATE OF COMPLETION. The Contractor SHALL SUBMIT to the Project Manager a DETAILED ACCOUNT of the total amount that the Contractor considers payable under the Contract at the END OF THE DEFECTS LIABILITY PERIOD. The Project Manager SHALL ISSUE a DEFECTS LIABILITY CERTIFICATE and CERTIFY any FINAL PAYMENT due to the Contractor.",
+    "parameters": [
+      {"name": "takeover_days", "param_type": "days", "formula": null, "cap": 7, "label": "Take-Over Window (Days)", "example": "7"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 175,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

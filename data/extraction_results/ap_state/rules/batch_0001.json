@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-118",
+    "rule_text": "AP Government servants must not incur any expenditure from public funds unless: (a) it is sanctioned by general/special order of the competent authority, AND (b) sufficient funds are provided in the Appropriation Act for the current FY (or by sanctioned re-appropriation) — both conditions must be satisfied independently.",
+    "source_clause": "AP Financial Code Vol-I, Article 3",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For tender file: check Administrative Approval order + Budget Authorisation matching the current FY; reject if either is absent",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-119",
+    "rule_text": "AP Standards of Financial Propriety: (1) expenditure should not be more than the occasion demands, (2) Government servant cannot sanction expenditure to his own advantage, (3) public moneys should not benefit a particular person/section unless the amount is insignificant or claim is enforceable in court or under recognised policy/custom, (4) allowances must not be a source of profit on the whole.",
+    "source_clause": "AP Financial Code Vol-I, Article 3 (Standards of Financial Propriety)",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level review of single-source / nomination / non-competitive procurement decisions against the four standards",
+    "severity": "ADVISORY",
+    "pattern_type": "P4",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-120",
+    "rule_text": "Personal/private money cannot be used for AP Government/public purpose; reimbursement claims for unauthorized personal-money expenditure are not entertained except with rectification orders from Government.",
+    "source_clause": "AP Financial Code Vol-I, Articles 3 and 38 (read with Govt Memo No 1119/44/TFR/A2/91-2 dated 30-3-1991)",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "PAO must reject reimbursement bills not pre-sanctioned per Chapters I & IV of AP Financial Code",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

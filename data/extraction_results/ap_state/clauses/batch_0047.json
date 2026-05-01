@@ -1,0 +1,69 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CSP-PRICE-PREFERENCE-001",
+    "title": "AP Central Stores Purchase — Price Preference for Indigenous & Local Producers",
+    "text_english": "In tender evaluation by the Director, Central Stores Purchase Department, the following PRICE PREFERENCES shall be applied: (i) PRICE PREFERENCE of {{indigenous_pct}}% (default 10%) for INDIGENOUS PRODUCTS over imported products; (ii) PRICE PREFERENCE of {{local_state_pct}}% (default 5%) for LOCAL ANDHRA PRADESH STATE PRODUCTS over other Indian products; (iii) PRICE PREFERENCE of {{cottage_ssi_pct}}% (default 10%) for COTTAGE AND SMALL-SCALE INDUSTRIES; (iv) PRICE PREFERENCE of {{cooperative_pct}}% (default 5%) for COOPERATIVE SOCIETIES; (v) RESERVATIONS for cottage and small-scale industries as ordered from time to time shall be ADHERED to. The Local Agents or Middlemen of products manufactured outside the State shall NOT be eligible for the Local-State preference.",
+    "parameters": [
+      {"name": "indigenous_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Indigenous Price Preference (%)", "example": "10"},
+      {"name": "local_state_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "AP-State Price Preference (%)", "example": "5"},
+      {"name": "cottage_ssi_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Cottage / SSI Price Preference (%)", "example": "10"},
+      {"name": "cooperative_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Cooperative Society Price Preference (%)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-4/Evaluation",
+    "position_order": 15,
+    "cross_references": ["CLAUSE-AP-CSP-PROCUREMENT-CHANNEL-001"],
+    "rule_ids": ["AP-GO-137", "AP-GO-148", "AP-GO-149"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-CSP-SECURITY-DEPOSIT-001",
+    "title": "AP CSP Security Deposit — Slab-Based on Indent Value",
+    "text_english": "The successful tenderer shall furnish SECURITY DEPOSIT in the name of the Governor of Andhra Pradesh as follows: (a) For indents EXCEEDING Rs.{{sd_threshold}} (default Rs.10,000) — {{sd_percentage}}% (default 10%) of the contract value; (b) For orders ABOVE Rs.{{sd_lowslab_min}} and BELOW Rs.{{sd_threshold}} (default Rs.5,000-Rs.10,000) — flat Rs.{{sd_lowslab_amount_high}} (default Rs.200); (c) For orders ABOVE Rs.{{sd_lowest_min}} and BELOW Rs.{{sd_lowslab_min}} (default Rs.2,000-Rs.5,000) — flat Rs.{{sd_lowslab_amount_low}} (default Rs.100). The Director, Central Stores Purchase, is empowered to EXEMPT firms from Security Deposit in deserving cases at his discretion. The following entities are EXEMPT on RECIPROCAL BASIS: Small Scale Industries, Government Institutions, Work Centres, Federation of Industrial Co-operatives, Ordnance factories of Government of India, and institutions of other State Governments and Central Government.",
+    "parameters": [
+      {"name": "sd_threshold", "param_type": "currency", "formula": null, "cap": null, "label": "Security Deposit 10% Threshold (Rs.)", "example": "10000"},
+      {"name": "sd_percentage", "param_type": "percentage", "formula": null, "cap": 10, "label": "Security Deposit (%)", "example": "10"},
+      {"name": "sd_lowslab_min", "param_type": "currency", "formula": null, "cap": null, "label": "Lower Slab Minimum (Rs.)", "example": "5000"},
+      {"name": "sd_lowslab_amount_high", "param_type": "currency", "formula": null, "cap": 200, "label": "Lower-Slab Flat SD (Rs.)", "example": "200"},
+      {"name": "sd_lowest_min", "param_type": "currency", "formula": null, "cap": null, "label": "Lowest Slab Minimum (Rs.)", "example": "2000"},
+      {"name": "sd_lowslab_amount_low", "param_type": "currency", "formula": null, "cap": 100, "label": "Lowest-Slab Flat SD (Rs.)", "example": "100"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 25,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-141"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-CSP-LIMITED-SINGLE-TENDER-001",
+    "title": "AP CSP Limited Tender / Single Tender Procurement Methods",
+    "text_english": "(a) The LIMITED TENDER system shall be adopted for demands UP TO Rs.{{limited_tender_ceiling}} (default Rs.5,000) OR where it is known that only very few firms deal in the required stores. The invitation shall be addressed only to firms on the APPROVED LIST maintained by the Printing, Stationery and Stores Purchase Department. (b) The SINGLE TENDER ENQUIRY system shall be adopted for procurement of PROPRIETARY ARTICLES with sole agency where competition is NOT considered necessary, OR for SMALL ORDERS up to Rs.{{single_tender_ceiling}} (default Rs.10,000) total value (whether for one article or aggregate of several articles). The Director CSP shall RECORD reasons in writing for adopting the Single Tender method.",
+    "parameters": [
+      {"name": "limited_tender_ceiling", "param_type": "currency", "formula": null, "cap": 500000, "label": "Limited Tender Ceiling (Rs.)", "example": "500000"},
+      {"name": "single_tender_ceiling", "param_type": "currency", "formula": null, "cap": 10000, "label": "Single Tender Ceiling (Rs.)", "example": "10000"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 10,
+    "cross_references": ["CLAUSE-AP-OPEN-TENDER-THRESHOLD-001"],
+    "rule_ids": ["AP-GO-142", "AP-GO-154", "AP-GO-155"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-CSP-REPEAT-ORDER-001",
+    "title": "AP CSP Repeat Order Conditions",
+    "text_english": "The Director, Printing, Stationery & Stores Purchase, may, at his discretion, place REPEAT ORDERS for stores subject to the following conditions: (a) NO DOWNWARD TREND of prices since the original order, AND original order placed within {{repeat_window_months}} (default 6) months; (b) Repeat order quantity shall NOT exceed the ORIGINAL QUANTITY for purchase orders up to Rs.{{repeat_threshold_low}} (default Rs.50,000) in value; (c) Repeat order shall NOT exceed {{repeat_pct_high}}% (default 50%) of the original quantity OR Rs.{{repeat_threshold_low}} (whichever is greater) for orders above Rs.{{repeat_threshold_low}}. Any deviation requires the Director's written reasons and the SANCTION of the High Power Committee.",
+    "parameters": [
+      {"name": "repeat_window_months", "param_type": "months", "formula": null, "cap": 6, "label": "Repeat-Order Window (Months)", "example": "6"},
+      {"name": "repeat_threshold_low", "param_type": "currency", "formula": null, "cap": null, "label": "Repeat Threshold (Rs.)", "example": "50000"},
+      {"name": "repeat_pct_high", "param_type": "percentage", "formula": null, "cap": 50, "label": "Higher-Slab Repeat-Order Cap (%)", "example": "50"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 40,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-143"]
+  }
+]

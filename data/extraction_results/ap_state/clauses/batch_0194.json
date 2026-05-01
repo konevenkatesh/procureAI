@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PA-STEEL-CEMENT-MONTHLY-001",
+    "title": "AP Price Adjustment — Steel & Cement Monthly BoCE Rates Formula",
+    "text_english": "For STEEL & CEMENT items, Price Adjustment under this Contract shall be allowed ON A MONTHLY BASIS, computed using the BOARD OF CHIEF ENGINEERS (BoCE)-approved monthly rate. The Board of Chief Engineers SHALL meet on the {{boce_meeting_day}} (default 10th) of every month and recommend the new price to the Secretary to Government, Water Resources Department on the next day for approval. The Secretary to Government, Water Resources Department, in CONSULTATION with the Secretary, Finance (W&P) shall ISSUE AN ORDER on the settled new price every month based on BoCE recommendation. The BoCE shall collect quotations from ISI-approved producers for all categories of Steel including TMT, and from ISI-standards Cement manufacturers, and arrive at admissible rates. Calculation Formula: For POSITIVE Price Adjustment (when current rate > 1.05 × initial/estimate rate), Amount payable = Quantity Consumed in the specified month × (Current rate − 1.05 × Initial rate). For NEGATIVE Price Adjustment (when current rate < 0.95 × initial/estimate rate), Amount deductible = Quantity Consumed in the specified month × (Current rate − 0.95 × Initial rate). The DEFAULT DEADBAND of 5% (1.05 / 0.95 multipliers) is applied via the formula.",
+    "parameters": [
+      {"name": "boce_meeting_day", "param_type": "integer", "formula": null, "cap": 10, "label": "BoCE Monthly Meeting Day", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 96,
+    "cross_references": ["CLAUSE-AP-PRICE-ADJUSTMENT-COMPREHENSIVE-001"],
+    "rule_ids": ["AP-GO-025"]
+  }
+]

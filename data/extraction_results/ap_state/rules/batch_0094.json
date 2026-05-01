@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-006",
+    "rule_text": "Tender documents referred for Judicial Preview must be placed in public domain for one week to invite suggestions before preview decisions are issued.",
+    "source_clause": "Section 7(1)",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=1000000000",
+    "verification_method": "Check tender file shows 7-day public-domain publication record (URL/portal-id) prior to preview report date",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-007",
+    "rule_text": "Preview of tender documents must be completed within 8 days of public-domain publication; modifications suggested by the Hon'ble Judge are binding on the Government.",
+    "source_clause": "Section 7(2)",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=1000000000",
+    "verification_method": "Check preview-completion date <= public-publication date + 8 days; verify all suggested modifications incorporated in final tender",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-008",
+    "rule_text": "The entire Judicial Preview exercise for each tender must be completed within 15 days from the date of submission of tender documents.",
+    "source_clause": "Section 13(5)",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=1000000000",
+    "verification_method": "Check (preview-completion-date - tender-document-submission-date) <= 15 days",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-009",
+    "rule_text": "AP Judicial Preview applies to 25 enumerated infrastructure sectors including Roads, Health, Water Supply, Sewerage, Public Buildings, IT Infrastructure, Power, Transport Terminus, Railways, Ports, Airports, Smart Cities, and Educational Institutions.",
+    "source_clause": "Schedule (Sectors enumerated)",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=1000000000 AND Sector IN [Roads, Health, WaterSupply, Sewerage, PublicBuildings, ITInfra, Power, Transport, Railways, Ports, Airports, SmartCities, EducationalInstitutions, ...]",
+    "verification_method": "Match tender sector against the 25-item Schedule; if matched and value >= 100 cr, judicial preview is mandatory",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Judicial-Preview-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

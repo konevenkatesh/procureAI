@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-SECURITY-DEPOSIT-001",
+    "title": "AP Contractor Security Deposit — 10% of Contract Value",
+    "text_english": "Whenever a private person or a firm enters into a contract with the Government of Andhra Pradesh to SUPPLY STORES or to EXECUTE A WORK, he or it SHALL — unless EXEMPTED by competent authority — be required to give SECURITY for the due fulfilment of the contract to an amount equivalent to {{sd_percentage}}% (default 10%) of the TOTAL VALUE of the contract. The security may take any of the forms (1) to (5) mentioned in Article 279 of AP Financial Code Vol-I (Cash; Promissory notes/Municipal Debentures/Port Trust Bonds/State Financial Corporation Bonds/APSEB Bonds; Government securities; Post Office Savings Bank deposits; Post Office Cash Certificates). The PERSONAL SECURITY of TWO PERSONS of known probity and satisfactory financial status MAY be accepted in EXCEPTIONAL CASES, when there are special reasons. The Head of the Department may, when he thinks it desirable, EXEMPT a firm of established repute from the obligation to furnish security in respect of all contracts, a particular contract, or a class of contracts. A reference to the agreement SHALL be RECORDED in the REGISTER OF SECURITY DEPOSITS.",
+    "parameters": [
+      {"name": "sd_percentage", "param_type": "percentage", "formula": null, "cap": 10, "label": "Security Deposit (% of Contract Value)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "Goods", "Services", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 28,
+    "cross_references": ["CLAUSE-AP-CSP-SECURITY-DEPOSIT-001"],
+    "rule_ids": ["AP-GO-175", "AP-GO-216", "AP-GO-217"]
+  }
+]

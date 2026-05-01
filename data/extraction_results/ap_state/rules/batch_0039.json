@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-203",
+    "rule_text": "All AP work done otherwise than by daily labour AND all supplies relating to a work must be paid for ON THE BASIS OF MEASUREMENTS recorded in a Measurement Book (Common Form 298); the Measurement Book is the original record of actual measurement/count, must be kept with great care since it may be produced as evidence in court.",
+    "source_clause": "AP Financial Code Vol-I, Article 174",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC: payment-from-measurement-book clause; verify book maintenance protocol",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-204",
+    "rule_text": "NO ADVANCE shall be paid to a contractor in AP works EXCEPT with the SPECIAL SANCTION of the Government or competent delegated authority; Government servants must maintain a system under which payment is made ONLY for work actually done.",
+    "source_clause": "AP Financial Code Vol-I, Article 177",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND AdvancePayment=true",
+    "verification_method": "Any contractor advance: check special sanction order with delegation authority; reject open-ended advance clauses",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-205",
+    "rule_text": "When an AP contractor anticipates a contract will result in a NET LOSS to him, this is NOT to be accepted as a reason for not compelling him to complete the work; the contractor has no claim to leniency when execution turns out less favourable than originally anticipated.",
+    "source_clause": "AP Financial Code Vol-I, Article 179",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Tender SCC must NOT include cost-overrun-relief clauses for contractor's misjudgement; reject loss-contingency reduction provisions",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-206",
+    "rule_text": "Every completed AP work requires a COMPLETION REPORT showing: name of work, sanction order number/date, sanctioned expenditure, actual expenditure; if actual exceeds sanctioned, completion report must include reasons and obtain authority's sanction for excess.",
+    "source_clause": "AP Financial Code Vol-I, Article 181",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check completed-work file contains completion report on Common Form 296 with all four data points + excess-justification if applicable",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

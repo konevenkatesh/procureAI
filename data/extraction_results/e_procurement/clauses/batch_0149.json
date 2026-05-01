@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-RISKS-001",
+    "title": "AP Capital City Works — Contractor's All-Risk Liability",
+    "text_english": "ALL RISKS of LOSS OF or DAMAGE TO PHYSICAL PROPERTY and of PERSONAL INJURY AND DEATH which arise during and in consequence of the performance of this Contract are the RESPONSIBILITY of the CONTRACTOR. ALL RISKS and CONSEQUENCES arising from the INACCURACIES OR FALSENESS of the documents and/or information SUBMITTED BY THE CONTRACTOR shall be the RESPONSIBILITY of the Contractor alone, NOTWITHSTANDING the fact that designs, drawings, or other documents have been APPROVED by the Department's reviewers. The Contractor SHALL CONSTRUCT and INSTALL the Works in accordance with the Specifications and Drawings AND as per instructions of the Project Manager. The Contractor SHALL TAKE ALL REASONABLE STEPS to PROTECT the ENVIRONMENT on and off the Site AND to AVOID DAMAGE OR NUISANCE to persons or to property of the public or others resulting from POLLUTION, NOISE, or other cause arising from the Contractor's operations.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 135,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

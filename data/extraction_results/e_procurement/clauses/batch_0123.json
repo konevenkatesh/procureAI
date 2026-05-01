@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-STATUTORY-PERMITS-001",
+    "title": "AP Capital City Works — Mandatory Statutory Permissions Schedule",
+    "text_english": "The Contractor SHALL OBTAIN and PRODUCE the following STATUTORY PERMISSIONS, in accordance with the Environment & Social Compliance Schedule of this Tender, BEFORE commencing the corresponding activities: (1) Approval of Base Camp Plan from AGICL/APCRDA/ADC/PMC; (2) Land lease deed for base camp from State Government; (3) Consent to Establish (CTE) for Plants from APPCB; (4) Consent to Operate (CTO) for Plants operation from APPCB; (5) Explosive Licence from Chief Controller of Explosives Department; (6) Authorisation for Storage of Hazardous Chemicals from Chief Controller of Explosives; (7) Authorisation for Storage of Hazardous Waste from APSPCB; (8) Quarry lease (if applicable); plus other statutory permissions notified by the Employer's Representative. The Contractor SHALL be RESPONSIBLE for obtaining all such permissions AT HIS OWN COST, in advance of the relevant work activity, and SHALL FURNISH copies to the Employer/Employer's Representative.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 30,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

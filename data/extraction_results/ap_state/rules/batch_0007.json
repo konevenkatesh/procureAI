@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-127",
+    "rule_text": "AP Government appropriations LAPSE at the close of the financial year (31st March); a Government servant must not transfer unexpended appropriation to a deposit/other head or draw it into a cash chest to prevent lapse OR for use after year-end; no undue rush of expenditure during March is permissible.",
+    "source_clause": "AP Financial Code Vol-I, Article 39",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For year-end procurement spikes (March): require justification + ensure no advance-deposit-of-funds maneuver to defer lapsing",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

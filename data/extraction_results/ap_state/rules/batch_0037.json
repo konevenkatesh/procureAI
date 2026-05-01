@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-198",
+    "rule_text": "AP works are executed by ONE OF FOUR methods: (i) Departmental method (engaging daily labour, supplying materials directly), (ii) Piece-work contract (rates without quantity/time reference, dept supervises), (iii) Lump-sum contract (complete work for fixed sum), (iv) Schedule contract (rates for items, payment by quantity executed); Lump-sum contract is the DEFAULT method except when another method is more advantageous.",
+    "source_clause": "AP Financial Code Vol-I, Article 163",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender BDS specifies one of the 4 methods; verify justification if method != Lump-sum",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-199",
+    "rule_text": "No AP Government servant may enter into a contract for execution of a work UNLESS funds have been duly provided OR an assurance is received from the competent funding authority that funds will be allotted before the liability matures.",
+    "source_clause": "AP Financial Code Vol-I, Article 165",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender file: budget allocation OR fund-allotment-assurance letter on file before contract signing date",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-200",
+    "rule_text": "No AP work to be executed under contract should be STARTED until the contractor has signed a FORMAL WRITTEN AGREEMENT (except emergency starts under Article 170 or petty works under Article 167); for petty works <= Rs.1,000 a written understanding specifying prices and rates may suffice.",
+    "source_clause": "AP Financial Code Vol-I, Articles 166-167",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check formal written agreement signed by contractor exists prior to work-start date; for petty works <= Rs.1,000 written-understanding may suffice",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EPROCUREMENT-WORKS-1LAKH-001",
+    "title": "AP E-Procurement Mandate — Works AND Material Procurement ≥ Rs.1 Lakh",
+    "text_english": "All WORKS and MATERIAL PROCUREMENT (including works, stationery / livery supplies for offices, and other office consumables) costing Rs.{{eproc_works_threshold}} (default Rs.1,00,000 i.e. Rs.1 Lakh) AND ABOVE SHALL be invited through the e-procurement platform ONLY (apeprocurement.gov.in) — to enhance TRANSPARENCY and bring UNIFORMITY across all AP Government Departments. This GO supersedes earlier department-specific e-procurement thresholds previously fixed by T,R&B (works), MA&UD (works/material), and I&CAD (PW:Reforms) departments. (Source: GO Ms No 2, Finance (Works & Projects-F7) Department, dated 03-02-2014.)",
+    "parameters": [
+      {"name": "eproc_works_threshold", "param_type": "currency", "formula": null, "cap": 100000, "label": "E-Procurement Threshold for Works (Rs.)", "example": "100000"}
+    ],
+    "applicable_tender_types": ["Works", "Goods", "EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 11,
+    "cross_references": ["CLAUSE-AP-EPROCUREMENT-STORES-1LAKH-001"],
+    "rule_ids": ["AP-GO-012", "AP-GO-013"]
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EPC-ADDITIONAL-ITEMS-001",
+    "title": "AP EPC Works — Additional Items Pricing Rules",
+    "text_english": "Additional items of work in respect of this EPC Contract shall be handled as follows: (1) Entrustment of ADDITIONAL ITEMS CONTINGENT to the main work AND WITHIN the scope of contract WILL BE AUTHORISED by the EMPLOYER, and the contractor SHALL BE BOUND to execute such additional items at NO EXTRA COST to the employer — the cost of such items SHALL BE DEEMED to have been INCLUDED in the contract price quoted. (2) Entrustment of ADDITIONAL ITEMS CONTINGENT to main work BUT OUTSIDE the scope of contract WILL BE AUTHORISED by the EMPLOYER WITH PRIOR APPROVAL OF GOVERNMENT, and the contractor SHALL BE BOUND to execute such additional items and SHALL BE COMPENSATED at the price decided by Government. (3) Whenever ADDITIONAL ITEMS NOT CONTINGENT on the main work AND OUTSIDE the scope of original contract are entrusted to the contractor, entrustment of such items AND THE PRICE TO BE PAID SHALL BE REFERRED TO THE GOVERNMENT for FINAL DECISION.",
+    "parameters": [],
+    "applicable_tender_types": ["EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 78,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-228"]
+  }
+]

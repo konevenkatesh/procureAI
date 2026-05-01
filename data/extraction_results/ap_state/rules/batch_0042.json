@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-213",
+    "rule_text": "REVISED ESTIMATE must be submitted for an AP work when the sanctioned estimate is likely to be exceeded by MORE THAN 5% (for any cause whatsoever) OR when material developments necessitate revised administrative approval; report must show progress + reasons for revision; sanctioned estimate must accompany the revision.",
+    "source_clause": "AP Financial Code Vol-I, Article 197",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimateExceedance>5",
+    "verification_method": "If actual exceeds sanctioned >5%: revised estimate on file; reject post-hoc completion-report excuses unless construction stage was advanced",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-214",
+    "rule_text": "Approval/sanction to an AP works estimate (other than ordinary annual repairs) CEASES to be in force FIVE YEARS after the date of approval, unless the work has already been STARTED; sanctions for ordinary annual repairs lapse on the last day of the financial year (with special working-year-end dates for irrigation works in certain divisions).",
+    "source_clause": "AP Financial Code Vol-I, Article 198(a)-(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check sanction-order date < 5 years from work-start; reject expired sanctions for unstarted works",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

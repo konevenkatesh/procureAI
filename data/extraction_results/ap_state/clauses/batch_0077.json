@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-MEASUREMENT-BOOK-001",
+    "title": "AP Works — Measurement Book as Basis for All Payments",
+    "text_english": "All work done OTHERWISE THAN BY DAILY LABOUR, AND all supplies relating to a work, SHALL BE PAID FOR ON THE BASIS OF MEASUREMENTS recorded in a MEASUREMENT BOOK (Common Form 298). The Measurement Book is the ORIGINAL RECORD of actual measurement or count, and the descriptions therein shall be lucid such that items described may be EASILY IDENTIFIED AND CHECKED. The Measurement Book is a VERY IMPORTANT RECORD and SHALL be kept with great care, since it may have to be PRODUCED AS EVIDENCE IN A COURT OF LAW. Whenever a Measurement Book changes hands, even within the same building, a responsible Government servant SHALL note the date and his initials on the cover.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 60,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-203"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-CONTRACTOR-ADVANCE-001",
+    "title": "AP Works — No Advance to Contractor Without Special Sanction",
+    "text_english": "NO ADVANCE shall be paid to the Contractor under this contract EXCEPT with the SPECIAL SANCTION of the Government or of a competent authority to whom the power has been delegated. The Department shall make every endeavour to maintain a system under which PAYMENT is MADE ONLY FOR WORK ACTUALLY DONE. When, in EXCEPTIONAL CIRCUMSTANCES, an advance is sanctioned, the Government servants concerned shall take the necessary precautions to SECURE THE GOVERNMENT AGAINST LOSS and to PREVENT the system from becoming general or continuing longer than necessary. (For Provisions relating to EPC Works mobilization advance, see CLAUSE-AP-EPC-MOBILIZATION-001.)",
+    "parameters": [],
+    "applicable_tender_types": ["Works"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 65,
+    "cross_references": ["CLAUSE-AP-EPC-MOBILIZATION-001"],
+    "rule_ids": ["AP-GO-204"]
+  }
+]

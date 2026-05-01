@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CSP-PROCUREMENT-CHANNEL-001",
+    "title": "Stores Procurement through AP Central Stores Purchase Department",
+    "text_english": "All stores required for use in the public services of the {{department_name}} shall be purchased THROUGH the Director, Printing, Stationery & Stores Purchase Department (Central Stores Purchase, CSP), Government of Andhra Pradesh, having STATE-WIDE jurisdiction in respect of purchases — EXCEPT for: (a) perishable articles (fruits, fish, foodstuff, tinned/bottled food and drinks); (b) bulk-contract controlled articles like cement, iron and steel; (c) newspapers, journals and other periodicals; (d) common-use office articles whose ESTIMATED VALUE does not exceed Rs.{{direct_purchase_ceiling}} (default Rs.2,000) and which are NOT on rate or running contract; (e) emergency machinery spares; (f) live-stock and fodder; (g) medical supplies from GoI Medical Stores; (h) Government-institution-manufactured articles (Jails, State Workshops, Textile Training Centre); (i) Khadi articles which shall first be sourced from the AP Khadi & Village Industries Board; (j) other items listed under Article 123 of the AP Financial Code Vol-I. All such direct departmental purchases shall be subject to the existence of budget provision and competent sanction.",
+    "parameters": [
+      {"name": "department_name", "param_type": "text", "formula": null, "cap": null, "label": "Procuring Department", "example": "I&CAD Department"},
+      {"name": "direct_purchase_ceiling", "param_type": "currency", "formula": null, "cap": 2000, "label": "Direct Purchase Ceiling (Rs.)", "example": "2000"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 5,
+    "cross_references": ["CLAUSE-AP-CSP-PRICE-PREFERENCE-001"],
+    "rule_ids": ["AP-GO-134", "AP-GO-135", "AP-GO-136"]
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-TENDER-OPENING-RECORD-001",
+    "title": "AP Tender Opening — On-Spot Statement of Tenderers + Witness Signatures",
+    "text_english": "After OPENING the tenders at the specified time, the Government servant shall RECORD ON THE SPOT a brief statement giving the NAMES of the tenderers and the AMOUNT of each tender, AND obtain the DATED SIGNATURE of such of those tenderers who are present in token of their presence. If other conditions are equal, the LOWEST tender SHALL be accepted. When the lowest tender is NOT accepted, the REASONS SHALL be RECORDED, and all relevant records made available to the Accountant-General during local inspection. NO TENDER shall be accepted from any person directly or indirectly connected with the Government service. If any collusion is detected between a tenderer and a Government servant, it shall be DEALT WITH SEVERELY.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "Goods", "Services", "EPC", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 50,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-170", "AP-GO-171", "AP-GO-172"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-SUPPLY-AGREEMENT-FIXED-PRICE-001",
+    "title": "AP Stores Supply Agreement — Fixed Price + No Market Fluctuation",
+    "text_english": "Upon acceptance of this tender, the successful tenderer SHALL execute a FORMAL AGREEMENT in regard to the supply of stores, with the following binding conditions: (i) LONG-TERM CONTRACTS shall be AVOIDED; (ii) only Government servants specifically authorised to make contracts on behalf of the Governor shall accept tenders and sign agreements (see Article 51 and Appendix-4 of AP Financial Code Vol-I); (iii) a FIXED PRICE for each article is ESSENTIAL, and the agreement shall NOT provide for a price fluctuating with the market price; (iv) PAYMENT shall NOT be made until the stores have been received and examined, except where partial advance is specifically permitted (Article 125 Rule II/III); (v) NO ORDER shall be placed for any stores without obtaining at least a written agreement from the supplier as to the price. Agreements relating to supply of stores are LIABLE TO STAMP DUTY but their REGISTRATION is OPTIONAL.",
+    "parameters": [],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 30,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-173", "AP-GO-174"]
+  }
+]

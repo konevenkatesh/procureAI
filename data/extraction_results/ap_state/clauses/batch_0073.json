@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-EXECUTION-METHODS-001",
+    "title": "AP Works — Five Methods of Execution",
+    "text_english": "Works under this Contract shall be executed by one of the following methods: (i) DEPARTMENTAL METHOD — the Department engages necessary daily labour and purchases or supplies the necessary materials directly; adopted when no contractor is available or when most economical; (ii) PIECE-WORK CONTRACT — the piece-worker agrees to execute specified work or part of a work at specified rates without reference to quantity or time, while the Department supervises, sets out and measures all work done (used as a rule only for petty works including improvements and repairs); (iii) LUMP-SUM CONTRACT — the contractor agrees to execute a complete work in accordance with specifications for a lump-sum payment (this method shall be ADOPTED EXCEPT when one of the other methods is more advantageous); (iv) SCHEDULE CONTRACT — the contractor agrees to execute one or more items at fixed rates, payment depends on quantity and kind of work done or materials supplied (mainly used in Forest and Agricultural Departments); (v) EPC AGREEMENT — by an agreement in the form approved by Government for EPC works, with details set forth in articles of agreement, tender notice and tender documents approved by Government.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 15,
+    "cross_references": ["CLAUSE-AP-EPC-AGREEMENT-FORM-001"],
+    "rule_ids": ["AP-GO-198", "AP-GO-223"]
+  }
+]

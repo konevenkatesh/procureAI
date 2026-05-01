@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-147",
+    "rule_text": "When the lowest tender cannot supply the full quantity within delivery period in AP stores procurement, the order for the BALANCE may be placed with the next-higher tenderer(s) able to supply within the period — at different rates if necessary — until full quantity is covered, subject to the prescribed monetary limit.",
+    "source_clause": "AP Financial Code Vol-I, Article 123 / Delegation II(5)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND L1QuantityInsufficient=true",
+    "verification_method": "If L2/L3 awarded part of order: check L1-quantity-shortfall justification on file + balance award is within delegated monetary limit",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-148",
+    "rule_text": "AP Heads of Departments are authorised to grant 5% price preference to products manufactured in AP State; the preference applies only when stores meet specifications and prices fall within the 5% concession; the preference does NOT apply to local agents or middlemen for out-of-State products.",
+    "source_clause": "AP Financial Code Vol-I, Article 123 / Delegation II(6) Note — Memo No 8410/Accts/62-11 dated 28-2-1962",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND BidderOrigin=AndhraPradesh",
+    "verification_method": "Check tender BDS contains 5% price-preference clause for AP-manufactured products + local-agent/middleman exclusion",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "MakeInIndia-LCC-Missing",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-149",
+    "rule_text": "AP Article 125 Rule I — preference order in stores procurement when quality and price are equal: (1) articles produced in India from Indian raw materials, (2) articles wholly/partially manufactured in India, (3) imported articles held in Indian stock, (4) specially-imported foreign articles; specially authorised purchasing officers may give an additional price preference up to 5% to Indian-produced/manufactured articles.",
+    "source_clause": "AP Financial Code Vol-I, Article 125 Rule I",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender BDS evaluation methodology applies the 4-tier preference order; reject if tender favours imports without justification",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "MakeInIndia-LCC-Missing",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-150",
+    "rule_text": "All articles required for AP public service shall be purchased on the condition that DELIVERY shall be made in India for PAYMENT in RUPEES in India (except articles of special/unusual character covered by Rule VIII).",
+    "source_clause": "AP Financial Code Vol-I, Article 125 Rule II",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender ITB: delivery in India + payment in INR clause; reject foreign-currency-payment terms unless Rule VIII exemption documented",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-151",
+    "rule_text": "Sales tax (now GST) must be EXCLUDED from the price comparison when purchasing AP stores — the purchasing officer compares tender rates net of tax to arrive at competitive prices, then places orders.",
+    "source_clause": "AP Financial Code Vol-I, Article 125 Rule I Instruction 4 — Memo No 23015-B/544/68-5 dated 7-9-1968",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check L1 evaluation explicitly compared rates net of GST/sales tax; reject if tax-inclusive comparison was used",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

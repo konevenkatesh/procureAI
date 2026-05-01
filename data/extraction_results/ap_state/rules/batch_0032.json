@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-183",
+    "rule_text": "AP stores inspection AUTHORITY must be DISTINCT from the order-placing authority — the inspecting authority and the authority competent to place purchase orders shall in no case be the same person.",
+    "source_clause": "AP Financial Code Vol-I, Article 138 / Inspection (C)(c)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender file: PO-issuing officer != Inspecting officer; reject same-person sign-off as COI/material-irregularity",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "COI-PMC-Works",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-184",
+    "rule_text": "For AP stores receipts > Rs.1,000 from any source: stores worth more than 10% in value must be checked both for quality and (where necessary) quantity by a Junior Officer and certified on receipt voucher; for receipts > Rs.5,000, stores worth more than 5% must be checked by a higher officer.",
+    "source_clause": "AP Financial Code Vol-I, Article 138 / Inspection (C)(c)(i)-(ii)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND ReceiptValue>1000",
+    "verification_method": "Check tender SCC includes layered-inspection thresholds 10%/5% with Junior Officer/Higher Officer certification",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-185",
+    "rule_text": "AP Government servants shall not hold stores in stock in EXCESS of the amount likely to be required during a reasonable period; perishable stores must be inspected ONCE every HALF-YEAR; all other stores once a YEAR — recording reasons if delayed; stores in stock OVER ONE YEAR are treated as being in excess of reasonable requirements unless sufficient reason justifies retention.",
+    "source_clause": "AP Financial Code Vol-I, Article 139",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level; not tender-verifiable directly",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

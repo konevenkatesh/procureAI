@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WTE-PPP-CONCESSION-001",
+    "title": "AP WtE Plant on PPP — Concessionaire-Authority Project Structure",
+    "text_english": "The {{authority_name}} (default 'Tirupati Municipal Corporation') and the Participating ULBs (Authority) shall GRANT to the CONCESSIONAIRE on LEASE the PROJECT SITE to DEVELOP, CONSTRUCT, OPERATE, AND MAINTAIN the WASTE-TO-ENERGY (WtE) PLANT of MINIMUM CAPACITY {{plant_mw}} MW (default 12 MW), with peaceful unencumbered access to and possession of the Project Site during the term of the Concession Agreement. The Concessionaire SHALL OBTAIN ALL APPROVALS for the Project — including connectivity for delivery of electricity at the Interconnection Point, all required statutory permissions, and environmental clearances. The Authority shall TRANSFER UNSEGREGATED/SEGREGATED MUNICIPAL SOLID WASTE (MSW) of agreed quantum to the Concessionaire at the Project Site free of cost. The Concessionaire shall RECOVER REVENUES through (a) sale of generated electricity to the State Discom or open-access consumers, (b) Tipping Fee from the Authority where applicable, and (c) by-product sale.",
+    "parameters": [
+      {"name": "authority_name", "param_type": "text", "formula": null, "cap": null, "label": "Authority / Municipal Body", "example": "Tirupati Municipal Corporation"},
+      {"name": "plant_mw", "param_type": "integer", "formula": null, "cap": null, "label": "Plant Capacity (MW)", "example": "12"}
+    ],
+    "applicable_tender_types": ["EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

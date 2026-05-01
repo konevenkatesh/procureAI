@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-087",
+    "rule_text": "OBLIGATIONS PRIOR TO COMMENCEMENT: Within {{precom_window_days}} (default 10) DAYS of the APPOINTED DATE, the Contractor SHALL: (i) APPOINT its REPRESENTATIVE duly authorised to deal with the Authority; (ii) APPOINT a PROJECT MANAGER who shall HEAD the Contractor's DESIGN UNIT and be RESPONSIBLE for SURVEYS, INVESTIGATIONS, DATA COLLECTION, and PRELIMINARY/DETAILED DESIGNS; (iii) UNDERTAKE all acts required before commencement per Applicable Laws and Permits; (iv) MAKE its OWN ARRANGEMENTS for QUARRYING materials needed; (v) PREPARE Construction Zone and CAMP SITE SAFETY CHECKLIST; (vi) PREPARE UPDATED HEALTH, SAFETY and ENVIRONMENT PLAN (HSE).",
+    "source_clause": "GCC §9.1 Obligations prior to commencement",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if all 6 pre-commencement actions completed within 10 days post-appointed-date. FAIL on missing item.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-088",
+    "rule_text": "DESIGN AND DRAWINGS: The Contractor SHALL PREPARE and SUBMIT — in such SEQUENCE as is consistent with the Project Completion Schedule — {{design_copies}} (default 5) HARD COPIES and ONE SOFT COPY (CD/pen drive) of design and GFC Drawings, DULY CERTIFIED by the PROOF CONSULTANT, to the Authority's Representative for review. For STRUCTURES and SEWERAGE SYSTEM, the Authority's Representative MAY REQUIRE ADDITIONAL DRAWINGS for review per Good Industry Practice.",
+    "source_clause": "GCC §9.2 Design and Drawings",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND Sector=Sewerage",
+    "verification_method": "PASS if 5 hard + 1 soft copy submitted with proof-consultant certification. FAIL on missing proof-consultant approval.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-089",
+    "rule_text": "CONSTRUCTION OF PROJECT WORKS: The Contractor SHALL CONSTRUCT per Schedule-B and Schedule-C — IN CONFORMITY with Specifications and Standards in Schedule-D. Construction SHALL be CARRIED OUT in {{num_construction_phases}} (default 3) PHASES. The Contractor AGREES that construction of EACH PHASE SHALL be COMPLETED on or before the SCHEDULED COMPLETION DATE of that Phase (including any extension).",
+    "source_clause": "GCC §10.1 Construction of Project Works",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 3-phase construction schedule with phase-wise milestones. FAIL on single-phase lump completion.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-090",
+    "rule_text": "EXTENSION OF TIME (EoT): The Contractor SHALL be ENTITLED to TIME EXTENSION to the extent that completion of any Project Milestone is or will be DELAYED by: (i) CHANGE OF SCOPE/VARIATIONS (unless Schedule adjusted under Article 13); (ii) FORCE MAJEURE EVENT; (iii) any DELAY/IMPEDIMENT/PREVENTION caused by or attributable to the AUTHORITY, Authority's personnel or Authority's other contractors on the Site. NO CLAIM for COMPENSATION on account of delays/hindrances SHALL LIE except as defined in this clause. REASONABLE EXTENSION OF TIME SHALL be ALLOWED by the CHIEF ENGINEER, GVMC (or office competent to sanction the extension) for UNAVOIDABLE DELAYS — at the discretion of the Executive Engineer if undoubtedly beyond the contractor's control.",
+    "source_clause": "GCC §10.2 Extension of time for completion",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND ProjectAuthority=GVSCCL",
+    "verification_method": "PASS if EoT triggers + Chief Engineer GVMC sanctioning power explicit. FAIL on absent EoT clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

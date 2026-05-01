@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-SITE-SECURITY-001",
+    "title": "AP Works — Contractor's Site Security Responsibility",
+    "text_english": "The Contractor SHALL BE RESPONSIBLE for the SECURITY OF THE WORKS for the duration of the contract AND SHALL PROVIDE AND MAINTAIN CONTINUOUSLY adequate SECURITY PERSONNEL to fulfill these obligations. The requirements of security measures SHALL INCLUDE — but not be limited to — (a) MAINTENANCE OF ORDER on the site; (b) provision of all LIGHTING, FENCING, GUARD FLAGMEN and all other measures necessary for the protection of the works within the colonies, camps, and elsewhere on the site; (c) protection of all MATERIALS DELIVERED TO THE SITE; (d) protection of all PERSONS EMPLOYED in connection with the works CONTINUOUSLY THROUGHOUT WORKING HOURS AND OUTSIDE WORKING HOURS.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 175,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

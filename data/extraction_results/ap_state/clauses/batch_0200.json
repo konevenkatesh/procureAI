@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-REVERSE-TENDERING-MANDATORY-001",
+    "title": "AP Reverse Tendering — Mandatory for All Procurement ≥ Rs.1 Crore",
+    "text_english": "REVERSE TENDERING procedure shall be MANDATORY for procurement of GOODS, SERVICES, and WORKS with a value of Rs.{{reverse_tender_threshold_cr}} CRORE (default Rs.1.00 crore) and above. This requirement applies to ALL Departments, Public Sector Undertakings, Societies, Universities, Local Bodies, and ALL OTHER INSTITUTIONS of the Government of Andhra Pradesh, in accordance with guidelines issued by the Finance Department. The Managing Director, A.P.T.S., shall enable the reverse tendering process on the e-procurement platform (apeprocurement.gov.in) for all such tenders. The CEO, APCFSS, shall ensure that NO PAYMENTS are made if the reverse tendering process is not adopted, and SHALL BRING VIOLATIONS to the notice of the Finance Department. (Source: GO Ms No 79, Finance Department, dated 24-08-2020.)",
+    "parameters": [
+      {"name": "reverse_tender_threshold_cr", "param_type": "currency", "formula": null, "cap": 1, "label": "Reverse Tendering Threshold (Rs. Crore)", "example": "1"}
+    ],
+    "applicable_tender_types": ["Works", "Goods", "Services", "EPC", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 4,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-035", "AP-GO-036", "AP-GO-037", "AP-GO-038"]
+  }
+]

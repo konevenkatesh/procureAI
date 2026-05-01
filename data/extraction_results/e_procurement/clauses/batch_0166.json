@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-ESMP-RESPONSIBILITIES-001",
+    "title": "AP Capital City Works — Contractor ESMP Responsibilities & Major Non-Compliances",
+    "text_english": "The Contractor's RESPONSIBILITIES under the ENVIRONMENT & SOCIAL MANAGEMENT PLAN (ESMP) of this Project SHALL INCLUDE: (a) IMPLEMENTING all assigned MITIGATION MEASURES per the ESMP and contract documents; (b) ADDRESSING GRIEVANCES raised by the public during project implementation; (c) UNDERTAKING REGULAR REPORTING to the Project Management Consultant (PMC) and Environment & Social Management Unit (ESMU). MAJOR NON-COMPLIANCES include: (i) FAILURE TO OBTAIN clearances/permissions/NoC/Registrations/Consent under statutory environment and labour regulations; (ii) UNADDRESSED PUBLIC COMPLAINTS within the Contractor's scope, formally registered and communicated, within the time period set by PMC/ESMU; (iii) INADEQUATE SAFETY ARRANGEMENTS or compromising occupational safety / serious hazards posing high risk to lives of personnel on site or conditions leading to suspension of work; (iv) significant degradation of environment.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 170,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

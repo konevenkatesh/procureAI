@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-128",
+    "rule_text": "AP Government sanction for a fresh charge LAPSES if not acted on for ONE YEAR from issue, unless specifically renewed; sanction is treated as 'acted upon' if any payment (whole or part) was made within the year — subsequent balance payments may then proceed against the same sanction.",
+    "source_clause": "AP Financial Code Vol-I, Article 50",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For tender file: check sanction order date is within 1 year of first action OR is specifically renewed; reject stale sanctions never acted upon",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-129",
+    "rule_text": "AP Government servants entering into contracts with private firms/contractors for supply of stores or execution of works must follow the definite rules, orders, conditions and forms issued by Government; contracts containing UNUSUAL CONDITIONS or involving UNCERTAIN/INDEFINITE LIABILITY must only be made after obtaining the SPECIAL SANCTION of the Government, who will obtain necessary LEGAL AND FINANCIAL ADVICE in each case; material variations in existing contracts also require Government referral.",
+    "source_clause": "AP Financial Code Vol-I, Article 51",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For tenders containing non-standard SCC clauses, indemnities, or open-ended liability: check Government Special Sanction order on file with legal/financial advice trail",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-130",
+    "rule_text": "AP claims against Government not preferred within ONE YEAR of becoming due cannot be presented without an Authority from Accountant-General/PAO Hyderabad; small claims up to Rs.500 presented within 3 years may be paid without pre-audit by AG/PAO.",
+    "source_clause": "AP Financial Code Vol-I, Article 52",
+    "condition_when": "TenderState=AndhraPradesh AND PaymentClaim=true",
+    "verification_method": "For contractor's bill claims: if claim_age > 1 year, check AG/PAO authorisation order; for claims <= Rs.500 within 3 years, pre-audit waiver applies",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

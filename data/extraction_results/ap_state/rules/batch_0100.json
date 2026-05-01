@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-032",
+    "rule_text": "Price Adjustment for pipes (other than DI) follows the formula P2 = P1 + (A2 - A1) × M / 1000, where A1/A2 are initial/current raw-material prices per MT and M is pipe weight per metre as per weight chart.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, generic pipe formula",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true AND Material=Pipes",
+    "verification_method": "Check pipe PA bills use raw-material price ratio with weight-chart M factor; reject ad-hoc pipe pricing",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-033",
+    "rule_text": "Price Adjustment for MS pipes uses the formula R2 = R1 + (M2 - M1) × Wm / 1000, where M1/M2 are initial/current raw-material prices per MT and Wm is weight of MS plates per metre of pipe.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, MS pipe formula",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true AND Material=MSPipes",
+    "verification_method": "Check MS pipe PA uses Wm factor and raw-material price ratio; reject formulas without MS-plate weight conversion",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-034",
+    "rule_text": "GO Ms No 62/2021 applies prospectively only — it governs price-adjustment computations for agreements signed on or after 30-11-2021; ongoing works at the time of issue continue under their original agreement's PA clause.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Order Para 6 & 7",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For tender_date >= 30-11-2021: apply GO 62/2021 formulas; for tender_date < 30-11-2021: apply original agreement's PA clause",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

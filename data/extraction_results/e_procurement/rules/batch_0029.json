@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-130",
+    "rule_text": "TERMINATION (Article 23): The Department/Authority MAY TERMINATE the Contract IF the Contractor causes a FUNDAMENTAL BREACH. The Department/Authority MAY TERMINATE the Contract for CONVENIENCE at ANY TIME without prior notice to the contractor and also the sub-contractor. FUNDAMENTAL BREACHES include (but not limited to): (i) Contractor STOPS WORK for {{stoppage_days}} (default 28) DAYS when no stoppage is shown on current programme and not authorised; (ii) Contractor MADE BANKRUPT or goes into LIQUIDATION (other than for reconstruction/amalgamation); (iii) Engineer-in-Charge gives Notice that failure to correct a particular DEFECT is a fundamental breach AND Contractor FAILS to CORRECT within reasonable time determined by EiC; (iv) Contractor DOES NOT MAINTAIN required SECURITY.",
+    "source_clause": "GCC Article 23 Termination",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if all 4 fundamental-breach grounds + convenience-termination right explicit. FAIL on absent grounds.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-131",
+    "rule_text": "RESTRICTION on ASSIGNMENT and CHARGES: This Agreement SHALL NOT be ASSIGNED by the Contractor to any person — SAVE AND EXCEPT with the PRIOR CONSENT IN WRITING of the Authority — which consent the Authority SHALL be ENTITLED to DECLINE WITHOUT ASSIGNING ANY REASON.",
+    "source_clause": "GCC Article 24 Restrictions on assignment",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if assignment requires written Authority consent. FAIL on free assignability.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-132",
+    "rule_text": "INDEMNITY (Article 25): The Contractor SHALL FULLY INDEMNIFY, HOLD HARMLESS and DEFEND the AUTHORITY INDEMNIFIED PERSONS from and against ALL SUITS, PROCEEDINGS, ACTIONS, CLAIMS, DEMANDS, LIABILITIES and DAMAGES on account of: (i) FAILURE of the Contractor to COMPLY with APPLICABLE LAWS and PERMITS; (ii) PAYMENT OF TAXES required to be made by the Contractor (income or other taxes of Sub-contractors, suppliers and representatives); (iii) NON-PAYMENT of amounts due as a result of MATERIALS or SERVICES furnished to the Contractor or any Sub-contractors. ALSO indemnify against CLAIMS of INFRINGEMENT of DOMESTIC or FOREIGN PATENT RIGHTS, COPYRIGHTS or other IP/PROPRIETARY RIGHTS.",
+    "source_clause": "GCC Article 25 Indemnity",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if comprehensive indemnity covering laws, taxes, IP infringement. FAIL on partial indemnity.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-133",
+    "rule_text": "DISPUTE RESOLUTION (Article 26): Any DISPUTE arising under or in relation to this Agreement (including its INTERPRETATION) — once notified in writing by either Party — SHALL FIRST be ATTEMPTED to be RESOLVED AMICABLY per the CONCILIATION PROCEDURE in Clause 26.2. The Parties AGREE to use BEST EFFORTS for resolving disputes PROMPTLY, EQUITABLY and in GOOD FAITH — and to PROVIDE EACH OTHER with REASONABLE ACCESS during normal business hours to ALL non-privileged records, information and data pertaining to any Dispute.",
+    "source_clause": "GCC Article 26 Dispute Resolution",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if amicable-resolution + records-access obligations explicit. FAIL on absent first-step amicable process.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

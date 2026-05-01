@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-PERMIT-TO-WORK-WORKS-001",
+    "title": "Permit-to-Work System for High-Risk Construction Activities",
+    "text_english": "Where the RISKS are HIGH and the use of a method statement and risk assessment alone DOES NOT ensure a safe system of work, the Contractor SHALL ENSURE that a PERMIT TO WORK is IMPLEMENTED. AS A MINIMUM, Contractors SHALL ENSURE that the following works are CONTROLLED by a PERMIT TO WORK: (i) PERMIT-TO-DIG; (ii) DEMOLITION PERMIT; (iii) HOT WORKS PERMIT; (iv) CONFINED SPACE PERMIT; (v) ELECTRICAL and MECHANICAL PERMIT / LOCKOUT-TAGOUT (LOTO); (vi) GENERAL PERMIT TO WORK. The need for a permit-to-work system SHALL be IDENTIFIED in the RISK ASSESSMENT for the activity. Examples typically covered: HOT WORKS (cutting, grinding, welding etc.), ELEVATED WORKS (anything ABOVE {{elevated_height_m}} (default 4) METRES), CONFINED-SPACE ENTRY, work on ELECTRICAL SYSTEMS, NON-ROUTINE LIFTS. The Contractor SHALL NOMINATE a PERMIT-ISSUING PERSON.",
+    "parameters": [
+      {"name": "elevated_height_m", "param_type": "integer", "formula": null, "cap": null, "label": "Elevated-Works Permit Trigger Height (m)", "example": "4"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 245,
+    "cross_references": ["CLAUSE-WORKS-QA-CELL-001"],
+    "rule_ids": []
+  }
+]

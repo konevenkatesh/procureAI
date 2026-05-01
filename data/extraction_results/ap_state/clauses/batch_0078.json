@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-CONTRACTOR-LIABILITY-001",
+    "title": "AP Works — Contractor Liability Despite Anticipated Loss",
+    "text_english": "When the Contractor, after entering into this Agreement to execute the work, subsequently for any cause whatever ANTICIPATES that the contract will result in a NET LOSS to him, this SHALL NOT be accepted as a reason for not compelling him to COMPLETE THE WORK. The Contractor shall be deemed to have looked after his own interests properly when entering into this Agreement, and SHALL HAVE NO CLAIM TO ANY LENIENCY in the enforcement of this contract when it turns out to be less favourable to him than he originally anticipated.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 70,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-205"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-COMPLETION-REPORT-001",
+    "title": "AP Works — Mandatory Completion Report",
+    "text_english": "When this Work has been duly completed, the Government servant who pays for it SHALL HAVE A COMPLETION REPORT prepared and forwarded to the Accountant-General or other prescribed authority. The report shall be prepared in Common Form 296 (or special form prescribed for the department) and SHALL SHOW: (a) NAME OF THE WORK, (b) NUMBER AND DATE of the order sanctioning it, (c) AMOUNT OF EXPENDITURE SANCTIONED, AND (d) ACTUAL EXPENDITURE INCURRED. If actual expenditure EXCEEDS the sanctioned estimate, the completion report shall be sent through the sanctioning authority with REASONS FOR THE EXCESS, and the SANCTION of the authority competent to sanction the total expenditure shall be obtained and recorded.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 90,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-206"]
+  }
+]

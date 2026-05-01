@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-012",
+    "rule_text": "All works AND material procurement (works, stationery, livery supplies, office consumables) costing Rs.1.00 lakh and above must be invited through the e-procurement platform — uniformly across all AP Government departments.",
+    "source_clause": "GO Ms No 2 / Finance (Works & Projects-F7) Dept dated 03-02-2014, Order Para 4",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=100000",
+    "verification_method": "Check tender_id originates from apeprocurement.gov.in and bid-submission was electronic-only",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "E-Procurement-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": ["AP-GO-010"],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-013",
+    "rule_text": "GO Ms No 2/2014 supersedes the earlier department-specific e-procurement thresholds previously fixed by T,R&B (works), MA&UD (works/material), and I&CAD (PW:Reforms) departments.",
+    "source_clause": "GO Ms No 2 / Finance (Works & Projects-F7) Dept dated 03-02-2014 read with GO Ms 171/2004 MA&UD, GO Ms 216/2007 T,R&B, GO Ms 62/2013 I&CAD",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Apply uniform Rs.1 lakh e-procurement threshold for works and materials regardless of issuing department; older department-specific threshold defences are not valid post-2014",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "E-Procurement-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-079",
+    "rule_text": "AP Works contractors may opt for the Composing Scheme under Section 5(g) of APGST Act for sales/works-contract tax — those opting are subject to 2% Tax Deduction at Source (TDS) on total contract value; departments shall NOT insist on tax-clearance certificates and no separate tax assessment is needed.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 20",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC contains 2% TDS option clause + waiver of tax-clearance-certificate insistence",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-080",
+    "rule_text": "AP works contractors may submit work bills once a month; payment must be made within reasonable time after quantity-and-quality check; final payment shall NOT be delayed for want of Quality Control certification.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 22",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC: monthly bill cycle + final-payment-not-delayed-for-QC clause",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-081",
+    "rule_text": "AP Executive Engineers are accountable for prompt processing of payments for excess quantities — failure invites disciplinary action; Chief Engineers must ensure Quality Control Wing issues timely certificates on pain of disciplinary action.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 23",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender file: excess-quantity payment chain + QC-wing accountability mechanism",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-082",
+    "rule_text": "For all AP works costing more than Rs.2 crore, contractor must submit a Quality Plan AND show proof of owning a Quality Laboratory or having tie-up with an established Quality Laboratory; required QC test equipment must be specified in tender documents.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 24(c)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>20000000",
+    "verification_method": "For ECV > Rs.2cr: check tender requires Quality Plan + QC-lab proof + equipment list in SCC",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-083",
+    "rule_text": "ISO certified AP works contractors should be encouraged AND given preference in award of works.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 24(d)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender BDS: ISO 9001 certification carries scoring/preference weight in evaluation matrix",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Certification-Exclusionary",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

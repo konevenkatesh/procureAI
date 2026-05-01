@@ -1,0 +1,29 @@
+[
+  {
+    "clause_id": "CLAUSE-WB-ADB-DEBARMENT-001",
+    "title": "World Bank / ADB Debarment Eligibility Bar",
+    "text_english": "A BIDDER that has been SANCTIONED and/or is UNDER ONGOING INVESTIGATION by the WORLD BANK pursuant to the World Bank's and Asian Development Bank's ANTI-CORRUPTION GUIDELINES (and per their prevailing sanctions policies in Section V) SHALL be INELIGIBLE to be PRE-QUALIFIED for, INITIALLY SELECTED for, BID for, PROPOSE for, or be AWARDED a World Bank and ADB-financed contract — or BENEFIT FROM such contract financially or otherwise — during the period determined by the World Bank. The list of debarred firms and individuals is available at: WB: {{wb_debar_url}} (default https://www.worldbank.org/debarr); ADB: {{adb_debar_url}} (default https://lnadbg4.adb.org/oga0009p.nsf). A firm SHALL NOT be ELIGIBLE to participate in any procurement activity while UNDER TEMPORARY SUSPENSION or DEBARMENT by ADB.",
+    "parameters": [
+      {"name": "wb_debar_url", "param_type": "text", "formula": null, "cap": null, "label": "World Bank Debarment URL", "example": "https://www.worldbank.org/debarr"},
+      {"name": "adb_debar_url", "param_type": "text", "formula": null, "cap": null, "label": "ADB Debarment URL", "example": "https://lnadbg4.adb.org/oga0009p.nsf"}
+    ],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 26,
+    "cross_references": ["CLAUSE-DEBARMENT-GFR-RULE-151-001"],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-C-ESMP-001",
+    "title": "Contractor's Environmental and Social Management Plan (C-ESMP)",
+    "text_english": "The Contractor SHALL APPLY the MANAGEMENT STRATEGIES and IMPLEMENTATION PLANS (MSIPs) and the CODE OF CONDUCT for Contractor's Personnel submitted as part of the Proposal AND agreed as part of the Contract. The Contractor SHALL SUBMIT to the Engineer for REVIEW any ADDITIONAL MSIPs as are necessary to MANAGE the E&S RISKS and IMPACTS of ongoing Works (e.g., excavation, earth works, bridge and structure works, stream and road diversions, quarrying or extraction of materials, concrete batching and asphalt manufacture). These MSIPs COLLECTIVELY COMPRISE the Contractor's ENVIRONMENTAL AND SOCIAL MANAGEMENT PLAN (C-ESMP). The C-ESMP SHALL be PREPARED considering the E&S requirements in Appendix I and Appendix II of Part VI. The WORKS SHALL be COMMENCED only with PRIOR APPROVAL of C-ESMP by the PMC and EMPLOYER.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 244,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

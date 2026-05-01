@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORK-PROGRAM-ESMP-001",
+    "title": "AP Capital City Works — Revised Program with Environmental & Social Management Plan",
+    "text_english": "Within the time stated in the PCC after the date of the LETTER OF ACCEPTANCE, the Contractor SHALL SUBMIT to the Project Manager for approval a REVISED PROGRAM (revising the program given along with the bid) — INCLUDING the ENVIRONMENTAL & SOCIAL MANAGEMENT PLAN (ESMP) to comply with the applicable Laws, Rules, and Regulations for protection of environment, public health and safety, and the applicable parts of the Environment Management Plan of the project — showing the GENERAL METHODS, ARRANGEMENTS, ORDER, and TIMING for ALL ACTIVITIES of the Works.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 140,
+    "cross_references": ["CLAUSE-AP-PROGRESS-CHART-MILESTONE-001"],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-ACCELERATION-001",
+    "title": "AP Capital City Works — Acceleration on Employer's Request",
+    "text_english": "When the Employer wants the Contractor to FINISH BEFORE the INTENDED COMPLETION DATE, the Project Manager SHALL OBTAIN PRICED PROPOSALS for achieving the necessary acceleration from the Contractor. If the Employer ACCEPTS these proposals, the Intended Completion Date SHALL be ADJUSTED accordingly and CONFIRMED by both the Employer and the Contractor. If the Contractor's priced proposals for acceleration are accepted by the Employer, they are INCORPORATED IN THE CONTRACT PRICE and treated as a Variation.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 142,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "clause_id": "CLAUSE-SEWER-HYDRAULIC-DESIGN-001",
+    "title": "Sewer Hydraulic Design Velocities and Cover (UGSS)",
+    "text_english": "Sewer pipelines and structures shall be DESIGNED for the following hydraulic envelopes: (i) MINIMUM VELOCITY at INITIAL PEAK FLOW = {{v_min_initial}} (default 0.6) m/s; (ii) MINIMUM VELOCITY at ULTIMATE PEAK FLOW = {{v_min_ultimate}} (default 0.8) m/s; (iii) MAXIMUM VELOCITY = {{v_max}} (default 3.0) m/s. The sewers SHALL be DESIGNED on the assumption that although silting may occur at minimum flow, it shall be FLUSHED OUT during peak flows. MINIMUM COVER of {{min_cover_m}} (default 1.0) METRE for sewers SHALL be MAINTAINED below ground level to the TOP of pipe. Population basis: {{pop_2021}} lakh (current); {{pop_design}} lakh (design year {{design_year}}); {{pop_ultimate}} lakh (ultimate {{ultimate_year}}). Per-capita sewage = {{lpcd}} LPCD; return factor = {{return_factor_pct}}%; infiltration provision = {{infiltration_pct}}%.",
+    "parameters": [
+      {"name": "v_min_initial", "param_type": "text", "formula": null, "cap": null, "label": "Min Velocity at Initial Peak Flow (m/s)", "example": "0.6"},
+      {"name": "v_min_ultimate", "param_type": "text", "formula": null, "cap": null, "label": "Min Velocity at Ultimate Peak Flow (m/s)", "example": "0.8"},
+      {"name": "v_max", "param_type": "text", "formula": null, "cap": null, "label": "Max Velocity (m/s)", "example": "3.0"},
+      {"name": "min_cover_m", "param_type": "text", "formula": null, "cap": null, "label": "Minimum Pipe Cover (m)", "example": "1.0"},
+      {"name": "pop_2021", "param_type": "text", "formula": null, "cap": null, "label": "Current Population (lakh)", "example": "2.29"},
+      {"name": "pop_design", "param_type": "text", "formula": null, "cap": null, "label": "Design-Year Population (lakh)", "example": "2.64"},
+      {"name": "design_year", "param_type": "integer", "formula": null, "cap": null, "label": "Design Year", "example": "2036"},
+      {"name": "pop_ultimate", "param_type": "text", "formula": null, "cap": null, "label": "Ultimate Population (lakh)", "example": "3.02"},
+      {"name": "ultimate_year", "param_type": "integer", "formula": null, "cap": null, "label": "Ultimate Year", "example": "2051"},
+      {"name": "lpcd", "param_type": "text", "formula": null, "cap": null, "label": "Per-Capita Sewage (LPCD)", "example": "125.4"},
+      {"name": "return_factor_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Return Factor (%)", "example": "80"},
+      {"name": "infiltration_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Infiltration Provision (%)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 20,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-032", "GVSCCL-033", "GVSCCL-035"]
+  }
+]

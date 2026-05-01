@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-053",
+    "rule_text": "The Operator SHALL SUBMIT to the Owner WITHIN {{test_result_days}} (default 7) DAYS of EVERY TEST such NUMBER of CERTIFIED COPIES (default 3) of the test results as the Owner's Representative may require. APPROVAL by the Owner's Representative as to placement of orders for materials, samples or tests SHALL NOT PREJUDICE any of the Owner's Representative's powers under the Contract. This provision applies ALSO to materials supplied under any NOMINATED SUB-CONTRACT.",
+    "source_clause": "Volume II — Test Results Submission",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if 3 certified copies submitted within 7 days of every test. FAIL on missing/late submission.",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-054",
+    "rule_text": "ALL BUILDING WORKS SHALL be of REINFORCED CONCRETE FRAMEWORK. The works SHALL be LAID OUT within the confines of the site to be COMPATIBLE with EXISTING INFRASTRUCTURE FACILITIES, INLET/OUTLET pipework/channels and NEARBY WATER BODIES. UNDERGROUND SERVICES requiring relocation SHALL be RELOCATED by the Operator to ALIGNMENTS APPROVED by the Owner's Representative.",
+    "source_clause": "Volume II — Orientations / Building Framework",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if structural drawings = RCC framework + utility relocation map approved. FAIL on load-bearing masonry.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-055",
+    "rule_text": "ALL ROOF FLOORS SHALL have MINIMUM {{parapet_h_accessible_mm}} (default 750) mm HEIGHT solid concrete-block PARAPET WALL where ACCESS is provided AND MINIMUM {{parapet_h_inaccessible_mm}} (default 300) mm HEIGHT where access is NOT provided. ROOFING DRAINAGE: cast iron or uPVC rainwater downtakes with C.I. bell-mouth/uPVC bend and C.I./uPVC grating at top SHALL be PROVIDED. For roof areas UP TO 40 sq.m, MINIMUM 2 NOS 100 mm DIA downtake pipes SHALL be PROVIDED. For EVERY ADDITIONAL 40 sq.m or part thereof, AT LEAST 1 ADDITIONAL 100 mm dia downtake pipe SHALL be PROVIDED.",
+    "source_clause": "Volume II — Roof and Drainage",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if drawings show parapet heights + downtake pipe count per area formula. FAIL on under-counted downtakes.",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-056",
+    "rule_text": "PROPOSED TREATMENT PLANT SHALL have MINIMUM ONE MAIN GATE to access the plant — IRRESPECTIVE of EXISTING GATE at the premises of existing plant site. MINIMUM WIDTH of MAIN GATE SHALL be {{gate_min_width_m}} (default 4.2) METRES. Main gate SHALL have a {{wicket_w_m}} (default 1.2) m WIDE WICKET GATE. EXTERNAL FRAMEWORK of GI/CI PIPES; INTERNAL FRAMEWORK of MS FLATS. Gate SHALL be FIXED on RCC COLUMNS. Design and pattern of the gate with drawing SHALL be SUBMITTED for APPROVAL of the Engineer.",
+    "source_clause": "Volume II — Plant Gate Specifications",
+    "condition_when": "TenderType=Works AND Sector=Sewerage AND Component=TreatmentPlant",
+    "verification_method": "PASS if gate drawing approved + dimensions ≥4.2 m main + 1.2 m wicket. FAIL on under-sized gate.",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-057",
+    "rule_text": "LANDSCAPING: The site SHALL be LANDSCAPED ONCE the works are SUBSTANTIALLY COMPLETE. Landscaping area SHALL be MARKED in the LAYOUT PLAN of the proposed plant. Landscaping SHALL include PLANTING of SUITABLE TREE SAPLINGS and DEVELOPMENT of LAWN/GRASSED AREAS — meeting ECOLOGICAL and ENVIRONMENTAL conditions of the site. ROAD WIDTHS SHALL DETERMINE the SIZE of the TREE HEIGHT and SPREAD selected for planting. Trees suitable for LOCAL CLIMATE SHALL be PREFERRED.",
+    "source_clause": "Volume II — Landscaping",
+    "condition_when": "TenderType=Works AND Sector=Sewerage AND Component=TreatmentPlant",
+    "verification_method": "PASS if landscaping plan + tree list submitted at substantial-completion. FAIL on missing landscaping scope.",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

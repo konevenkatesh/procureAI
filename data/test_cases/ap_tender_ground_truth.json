@@ -1,0 +1,149 @@
+{
+  "version": "1.0",
+  "schema": "ap_tender_ground_truth_v1",
+  "description": "Hand-curated ground-truth test cases for AP procurement compliance verification. Each case represents a tender-document fragment, the rules that should fire (and how), and the expected verifier verdict. Cases marked 'AP-acceptable' encode legitimate AP-state departures from MPW/GFR central defaults — verifiers must NOT raise these as violations.",
+  "source_corpus": "Vizag UGSS Pkg-2 (GVSCCL/Projects/395) + Judicial Academy (APCRDA) — content already read by Claude Code from data/extraction_batches/e_procurement/rules/ batches 0001-0030",
+  "created": "2026-04-29",
+  "test_cases": [
+    {
+      "case_id": "AP-TC-001",
+      "title": "Tender with PBG at 2.5% — should flag PBG-Shortfall",
+      "tender_excerpt": "GCC §7.1 Security: 'The Contractor shall, during the Construction Period, provide to the Authority a Performance Security equal to 2.5% of the bid amount at the time of signing of the Contract in the shape of unconditional and irrevocable Bank Guarantee valid until 60 days after the completion of Defect liability period.'",
+      "tender_metadata": {
+        "tender_type": "Works",
+        "contract_type": "EPC",
+        "tender_state": "Andhra Pradesh",
+        "estimated_value_cr": 350,
+        "source": "Vizag UGSS Pkg-2 (GVSCCL)"
+      },
+      "rules_under_test": [
+        "MPW-080",
+        "GVSCCL-076",
+        "CLAUSE-WORKS-PBG-001",
+        "CLAUSE-AP-PBG-2POINT5-001"
+      ],
+      "expected_verdict": "FAIL_WARNING",
+      "expected_typology": "PBG-Shortfall",
+      "expected_severity": "WARNING",
+      "expected_reason": "Performance Security at 2.5% of bid is BELOW the MPW 2022 §4.12 standard range of 5%-10%. The DoE PS-relaxation to 3% (effective till 31.03.2023) has expired. The 2.5% rate is therefore below all current authorised floors. Reviewer must either (a) flag the gap and require raise to 5%, or (b) attach a documented entity-level GO/SoPP relaxation justifying the lower rate.",
+      "expected_remediation": "Raise PS to 5% of bid amount OR attach AP-state SoPP/GO authorising 2.5% PS for this work category and value band.",
+      "ap_acceptable": false,
+      "notes": "This is the most-cited departure across the Vizag bidset. Without an explicit GO covering the 2.5% rate post-31.03.2023, every Vizag-style template currently fails MPW 2022 §4.12. The verifier's job is to surface this — not silently accept it."
+    },
+    {
+      "case_id": "AP-TC-002",
+      "title": "Tender with civil-court arbitration cap above ₹50K — AP-state acceptable",
+      "tender_excerpt": "GCC Settlement of Claims: 'Settlement of claims for Rs. 50,000/- and below shall be by Arbitration. Claims up to a value of Rs. 10,000/- — Superintending Engineer; Claims above Rs. 10,000/- and up to Rupees 50,000/- — Chief Engineer. All claims of above Rs. 50,000/- are to be settled by a Civil Court of competent jurisdiction by way of Civil suit and not by arbitration.'",
+      "tender_metadata": {
+        "tender_type": "Works",
+        "contract_type": "EPC",
+        "tender_state": "Andhra Pradesh",
+        "estimated_value_cr": 350,
+        "source": "Vizag UGSS Pkg-2 (GVSCCL)"
+      },
+      "rules_under_test": [
+        "MPW-094",
+        "GVSCCL-137",
+        "CLAUSE-AP-CIVIL-COURT-50K-001",
+        "CLAUSE-ARBITRATION-AGREEMENT-001"
+      ],
+      "expected_verdict": "PASS_AP_ACCEPTABLE",
+      "expected_typology": "Arbitration-Clause-Violation",
+      "expected_severity": "ADVISORY",
+      "expected_reason": "On its face this clause caps arbitration at ₹50,000 and routes all higher-value claims to civil court — which DEPARTS from MPW 2022 §6.10's arbitration default. However, the value-tiered SE/CE/Civil-Court ladder is the LONG-STANDING AP STATE STANDARD per APSS / AP R&B Department circulars, and is explicitly preserved in AP Works tenders. Verifiers shall (a) recognise this as an AP-state-specific override; (b) NOT block tender publication; (c) raise an ADVISORY note flagging departure from MPW arbitration default for awareness only.",
+      "expected_remediation": "No remediation required. Reviewer optionally attaches a note in audit trail: 'AP-state value-tiered arbitration ladder per APSS — accepted as state-level departure from MPW 2022 §6.10.'",
+      "ap_acceptable": true,
+      "notes": "This is one of the cleanest examples of AP-state legal infrastructure differing from central defaults. Treating it as a violation would block every AP works tender."
+    },
+    {
+      "case_id": "AP-TC-003",
+      "title": "Tender requiring AP-registered Grade A/C electrical contractor for utility shifting — AP-state acceptable",
+      "tender_excerpt": "GCC §8.8 Shifting of obstructing utilities: 'For shifting of electrical utilities, contractors registered with Andhra Pradesh State and have C or A Grade License shall be employed. For such works, registered contractors of Government of Andhra Pradesh with Grade I qualification shall be employed.'",
+      "tender_metadata": {
+        "tender_type": "Works",
+        "contract_type": "EPC",
+        "tender_state": "Andhra Pradesh",
+        "estimated_value_cr": 350,
+        "source": "Vizag UGSS Pkg-2 (GVSCCL)"
+      },
+      "rules_under_test": [
+        "MPW-046",
+        "GVSCCL-086",
+        "CLAUSE-AP-UTILITY-SHIFT-CONTRACTOR-001",
+        "CLAUSE-OTE-OPEN-PARTICIPATION-001"
+      ],
+      "expected_verdict": "PASS_AP_ACCEPTABLE",
+      "expected_typology": "Geographic-Restriction",
+      "expected_severity": "ADVISORY",
+      "expected_reason": "Restricting utility-shifting sub-contractors to AP-State-registered firms with Grade A/C electrical license + Grade-I works qualification is a Geographic-Restriction in the absolute MPW 2022 sense. HOWEVER, this is a UTILITY-OWNER REQUIREMENT (APSPDCL/APEPDCL/APTRANSCO mandate) — not a procurement-side restriction on the prime contractor's eligibility. The prime contractor remains free to engage any AP-licensed electrical sub-contractor. Verifiers shall (a) recognise utility-owner-imposed registration as ACCEPTABLE; (b) flag it as ADVISORY for transparency; (c) NOT block publication.",
+      "expected_remediation": "No remediation required. Verifier should confirm the prime contractor's bid does not also impose AP-only restrictions on its own scope.",
+      "ap_acceptable": true,
+      "notes": "Verifiers must distinguish utility-owner-mandated vs procuring-entity-mandated registration. Only the latter is a true Geographic-Restriction violation under GFR Rule 144."
+    },
+    {
+      "case_id": "AP-TC-004",
+      "title": "Tender citing AP GO Ms No 100/2015 for seignorage — AP-state acceptable",
+      "tender_excerpt": "GCC §29: 'Seignorage charges are to be recovered as provided in the agreement. Any escalation in these charges beyond the provisions of the agreement is to be borne by the department debiting such escalated amount to the works estimate concerned (As per G.O. Ms. No. 100, Industries and Commerce (M.I) Dept., dated 31.10.2015).'",
+      "tender_metadata": {
+        "tender_type": "Works",
+        "contract_type": "EPC",
+        "tender_state": "Andhra Pradesh",
+        "estimated_value_cr": 350,
+        "source": "Vizag UGSS Pkg-2 (GVSCCL)"
+      },
+      "rules_under_test": [
+        "GVSCCL-129",
+        "CLAUSE-AP-SEIGNORAGE-001",
+        "CLAUSE-STATUTORY-VARIATIONS-001"
+      ],
+      "expected_verdict": "PASS_AP_ACCEPTABLE",
+      "expected_typology": null,
+      "expected_severity": "PASS",
+      "expected_reason": "Reference to GO Ms No 100, Industries & Commerce (M.I) Dept dated 31.10.2015 is a VALID AP Government Order governing seignorage / mineral-cess recovery on works contracts. The clause correctly assigns escalation risk to the department (not the contractor) and aligns with the central Statutory Variations principle (CLAUSE-STATUTORY-VARIATIONS-001). Verifier shall PASS this clause and record the GO citation in the audit trail.",
+      "expected_remediation": "No remediation. Verifier optionally cross-references GO Ms No 100/2015 in the rule's source-clause field for traceability when this clause appears in future tenders.",
+      "ap_acceptable": true,
+      "notes": "First AP-GO citation found in the Vizag corpus. Verifier should track AP-GO references across the e_procurement extraction set to build an AP-GO catalogue."
+    },
+    {
+      "case_id": "AP-TC-005",
+      "title": "Tender forbidding JV / Foreign / SPV participation entirely — narrow restriction warning",
+      "tender_excerpt": "Section 'General Requirements' (Judicial Academy bid): 'Participation in this tendering process by forming Joint Venture or Consortium or Special Purpose Vehicle is not allowed. Any contractor from abroad not be permitted.'",
+      "tender_metadata": {
+        "tender_type": "Works",
+        "contract_type": "Item-Rate",
+        "tender_state": "Andhra Pradesh",
+        "estimated_value_cr": 45,
+        "source": "Bid Document of Judicial Academy (APCRDA)"
+      },
+      "rules_under_test": [
+        "MPW-039",
+        "MPS-011",
+        "CLAUSE-CONSORTIUM-JV-001",
+        "CLAUSE-WORKS-BIDDER-ELIGIBILITY-001",
+        "CLAUSE-AP-NO-JV-CONSORTIUM-001"
+      ],
+      "expected_verdict": "FAIL_WARNING",
+      "expected_typology": "Criteria-Restriction-Narrow",
+      "expected_severity": "WARNING",
+      "expected_reason": "MPW 2022 §3.3.6(f) and §4.5.1(iii) explicitly PERMIT JV participation for works above ₹10 crore (this tender is ₹45 cr — well within the JV-eligible band). Banning JV/Consortium/SPV outright AND barring foreign bidders is a NARROW eligibility criterion that ARTIFICIALLY RESTRICTS competition without recorded justification. Verifier shall flag as `Criteria-Restriction-Narrow` WARNING. Acceptance requires (a) explicit recorded rationale in the procurement file; OR (b) documented sectoral GO permitting AP-only single-entity bidding for this work category.",
+      "expected_remediation": "Either (a) remove the JV/foreign-bidder bar and re-publish; OR (b) attach recorded justification showing why this work category cannot support JV participation.",
+      "ap_acceptable": false,
+      "notes": "This is NOT acceptable as an AP-state norm — it is a tender-instance restriction. Distinguishes from AP-TC-003 (utility-owner registration is acceptable) by being a procurement-side eligibility narrowing without state-level legal basis."
+    }
+  ],
+  "verdict_taxonomy": {
+    "PASS": "Rule satisfied — no action.",
+    "PASS_AP_ACCEPTABLE": "Tender clause departs from central MPW/GFR default but is a legitimate AP-state legal-infrastructure variant. Logged as advisory; does NOT block publication.",
+    "FAIL_WARNING": "Rule violated at WARNING severity — reviewer must address before publication.",
+    "FAIL_HARD_BLOCK": "Rule violated at HARD_BLOCK severity — publication blocked until corrected.",
+    "ADVISORY": "Best-practice gap — surfaced for reviewer awareness only."
+  },
+  "ap_acceptable_legal_basis": [
+    "APSS — Andhra Pradesh Standard Specifications (R&B Department)",
+    "AP DFPR — Delegation of Financial Powers Rules of AP",
+    "AP-PWD SoR — current year",
+    "GO Ms No 100, Industries & Commerce (M.I) Dept dated 31.10.2015 — seignorage charges",
+    "AP Procurement Preference Order (current notification)",
+    "APSPDCL/APEPDCL/APTRANSCO licensing standards (utility-owner mandates)"
+  ]
+}

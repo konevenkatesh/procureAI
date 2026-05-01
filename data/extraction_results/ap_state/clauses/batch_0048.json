@@ -1,0 +1,30 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CSP-DELIVERY-EXTENSION-001",
+    "title": "AP CSP Delivery-Period Extension Authority",
+    "text_english": "Extension of delivery period under this contract shall be sanctioned only as follows: (a) The Director of Printing, Stationery and Stores Purchase, is authorised to extend the delivery period UP TO A MAXIMUM of {{director_extension_months}} (default 6) months. (b) The Assistant Directors are authorised to extend the delivery period up to a maximum of {{ad_extension_months}} (default 3) months PROVIDED that the value of the purchase falls within their delegated powers, viz., does NOT exceed Rs.{{ad_value_ceiling}} (default Rs.25,000). (c) All other cases requiring extension beyond the period shown in (a) and (b) above SHALL be placed before the STORES PURCHASE COMMITTEE for its approval. Extension of delivery period shall NOT be given as a matter of rule and shall be RESORTED TO ONLY IN RARE AND EXCEPTIONAL CASES.",
+    "parameters": [
+      {"name": "director_extension_months", "param_type": "months", "formula": null, "cap": 6, "label": "Director Max Extension (Months)", "example": "6"},
+      {"name": "ad_extension_months", "param_type": "months", "formula": null, "cap": 3, "label": "Assistant Director Max Extension (Months)", "example": "3"},
+      {"name": "ad_value_ceiling", "param_type": "currency", "formula": null, "cap": 25000, "label": "Assistant Director Value Ceiling (Rs.)", "example": "25000"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 45,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-144"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-CSP-EMERGENCY-PURCHASE-001",
+    "title": "AP CSP Emergency Direct Purchase",
+    "text_english": "In CASES OF EMERGENCY, the Heads of Departments are authorised to make DIRECT PURCHASE to an UNLIMITED EXTENT subject to: (a) PRIOR APPROVAL of the Stores Purchase Committee OR the Government in the concerned Secretariat Department in consultation with the Industries Department; (b) BUDGET REVISION as required to meet the emergency expenditure. Reasons for the emergency procurement shall be recorded in writing by the Head of Department and placed in the procurement file.",
+    "parameters": [],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 50,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-146"]
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-016",
+    "rule_text": "ELIGIBILITY of Bidders: NATIONALITY shall be in accordance with ITB 4.4 — must be MET by both Single Entity and JV Lead/Other members. Documentation: Form ELI-1.1 and ELI-1.2 with attachments.",
+    "source_clause": "Section III §1.1 (Eligibility — Nationality)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Form ELI-1.1 + ELI-1.2 are attached for each bidder/JV member. FAIL on missing nationality declaration.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-017",
+    "rule_text": "CONFLICT OF INTEREST: NO conflicts of interest in accordance with ITB 4.2 SHALL exist. The Bidder shall declare no COI in the Letter of Bid — applicable to Single Entity, JV Lead and Other members.",
+    "source_clause": "Section III §1.2 (Eligibility — Conflict of Interest)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Letter of Bid contains COI declaration. FAIL on missing or conditional COI declaration.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "COI-PMC-Works",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-018",
+    "rule_text": "ELIGIBILITY: The Bidder MUST NOT have been DECLARED INELIGIBLE by the Authority per ITB 4.5 — applicable to Single Entity, JV Lead and Other members. Declaration in Letter of Bid.",
+    "source_clause": "Section III §1.3 (Eligibility — Ineligibility Status)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Authority's debarment list checked against bidder. FAIL if bidder appears on Authority's blacklist/debarment list.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-019",
+    "rule_text": "The bidder SHALL FURNISH the GST REGISTRATION CERTIFICATE issued by the GOVERNMENT OF ANDHRA PRADESH along with the tender.",
+    "source_clause": "Section III (Eligibility — GST Registration AP)",
+    "condition_when": "TenderType=Works AND TenderState=AP",
+    "verification_method": "PASS if AP-state GST certificate uploaded with bid. FAIL on out-of-state GSTIN or missing certificate.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "GVSCCL-020",
+    "rule_text": "Form PER-2 (Resume and Declaration) is REQUIRED for EACH KEY PERSONNEL listed in the bid — including PERSONAL information (Name, DOB, Address, Email), PROFESSIONAL/ACADEMIC qualifications, LANGUAGE PROFICIENCY (speaking/reading/writing levels), and EMPLOYMENT details (Authority address/phone, contact, fax, job title, years with employer).",
+    "source_clause": "Section III — Form PER-2",
+    "condition_when": "TenderType=Works AND KeyPersonnelRequired=true",
+    "verification_method": "PASS if every named key personnel has a complete PER-2 form. FAIL on missing fields or unsigned declaration.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

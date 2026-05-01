@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-UTILITY-SHIFT-CONTRACTOR-001",
+    "title": "AP-Registered Grade A/C Electrical + Grade-I Works Contractor for Utility Shifting",
+    "text_english": "SHIFTING of OBSTRUCTING UTILITIES: The Contractor SHALL — per Applicable Laws and with assistance of the Authority — SHIFT any UTILITY (electric lines, water pipes, telephone cables) at his OWN RISK and COST. The Contractor SHALL ENGAGE REGISTERED CONTRACTORS of the concerned utility Agency. (i) For SHIFTING of ELECTRICAL UTILITIES, contractors REGISTERED WITH the GOVERNMENT OF ANDHRA PRADESH and HOLDING {{electrical_grade}} (default 'C OR A') GRADE LICENSE SHALL be EMPLOYED. (ii) For such WORKS, contractors REGISTERED WITH the GOVERNMENT OF ANDHRA PRADESH with {{works_grade}} (default 'GRADE I') QUALIFICATION SHALL be EMPLOYED. The Authority SHALL ASSIST in obtaining required permissions for shifting from the concerned utility Agency including submission of application on Project name. Identified utility shifts: {{utility_shift_list}}.",
+    "parameters": [
+      {"name": "electrical_grade", "param_type": "text", "formula": null, "cap": null, "label": "Electrical Contractor License Grade", "example": "C or A"},
+      {"name": "works_grade", "param_type": "text", "formula": null, "cap": null, "label": "Works Contractor Registration Grade", "example": "Grade I"},
+      {"name": "utility_shift_list", "param_type": "text", "formula": null, "cap": null, "label": "Identified Utility Shifts", "example": "33 kV overhead at Ch 4+200; 600mm water main at Ch 7+800; BSNL OFC along Beach Rd"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 50,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-086"]
+  }
+]

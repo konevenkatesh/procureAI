@@ -1,0 +1,19 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-COT-PASS-BOOK-001",
+    "title": "AP Contractor — Commissioner of Tenders Pass Book Requirement",
+    "text_english": "The COMMISSIONER OF TENDERS (COT) SHALL maintain a centralised website containing the experience, financial capacity, and performance details of all AP-registered contractors. EXISTING CONTRACTORS SHALL submit details of their experiences with an AFFIDAVIT before the COT WITHIN {{affidavit_submission_months}} (default 3) MONTHS from the date of issue of GO Ms No 94/2003. The COT SHALL ISSUE PASS BOOKS to each contractor containing all the details covering experience, financial capacity etc. CONTRACTORS SHALL ENCLOSE a Xerox copy of the PASS BOOK along with the tender application. Works AWARDED / CANCELLED SHALL be ENTERED in the passbook by an officer NOT LOWER THAN the rank of EXECUTIVE ENGINEER. The details in the passbook SHALL TALLY with those in the website. DUPLICATE PASS BOOKS may be issued on payment of Rs.{{duplicate_first_fee}} (default Rs.5,000) on the FIRST OCCASION and Rs.{{duplicate_subsequent_fee}} (default Rs.25,000) SUBSEQUENTLY. False information by a contractor renders him liable for BLACKLISTING. False objections by other parties shall be PENALISED up to Rs.{{false_objection_penalty}} (default Rs.10,000).",
+    "parameters": [
+      {"name": "affidavit_submission_months", "param_type": "months", "formula": null, "cap": 3, "label": "Affidavit Submission Window (Months)", "example": "3"},
+      {"name": "duplicate_first_fee", "param_type": "currency", "formula": null, "cap": 5000, "label": "Duplicate Pass Book — First (Rs.)", "example": "5000"},
+      {"name": "duplicate_subsequent_fee", "param_type": "currency", "formula": null, "cap": 25000, "label": "Duplicate Pass Book — Subsequent (Rs.)", "example": "25000"},
+      {"name": "false_objection_penalty", "param_type": "currency", "formula": null, "cap": 10000, "label": "False Objection Penalty (Rs.)", "example": "10000"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 48,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-110", "AP-GO-111", "AP-GO-112"]
+  }
+]

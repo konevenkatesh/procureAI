@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-039",
+    "rule_text": "GO Ms No 94/2003 (I&CAD PW-COD) is the comprehensive AP foundational order on tender procedures and contractor registration — superseding GO 521/1984, GO 132/1998, GO 23/1999, and GO 8/2003.",
+    "source_clause": "GO Ms No 94 / I&CAD (PW-COD) Dept dated 01-07-2003, Order Para 3",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Treat GO 94/2003 as the original/legacy AP works tender authority; later AP GOs (62/2021, 57/2024, 79/2020) modify specific portions but baseline procedures fall back to GO 94 unless overridden",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EPROCUREMENT-STORES-1LAKH-001",
+    "title": "AP E-Procurement Mandate — Stores ≥ Rs.1 Lakh",
+    "text_english": "All MATERIALS / STORES costing more than Rs.{{eproc_stores_threshold}} (default Rs.1,00,000 i.e. Rs.1 Lakh) SHALL BE PROCURED through the e-procurement platform ONLY (apeprocurement.gov.in). This applies to all Departments, Public Sector Undertakings, Societies, Universities, Local Bodies, and Institutions of the Government of Andhra Pradesh, in supersession of any earlier department-specific thresholds. (Source: GO Ms No 258, Finance (TFR) Department, dated 20-09-2013, amending Rule III(7) of Article 125 of AP Financial Code Volume-I.)",
+    "parameters": [
+      {"name": "eproc_stores_threshold", "param_type": "currency", "formula": null, "cap": 100000, "label": "E-Procurement Threshold for Stores (Rs.)", "example": "100000"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 12,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-010", "AP-GO-011"]
+  }
+]

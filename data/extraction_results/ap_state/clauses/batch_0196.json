@@ -1,0 +1,29 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PA-DI-PIPES-001",
+    "title": "AP Price Adjustment — DI Pipes Monthly Pig-Iron Formula",
+    "text_english": "For DI PIPES, Price Adjustment shall be allowed on a MONTHLY BASIS using the formula: P2 = P1 + (CPI2 − CPI1) × M × {{pig_iron_factor}} / 1000; where: P2 = Revised pipe price in Rupees per Meter; P1 = Pipe Price in Rupees per Meter as per SSR / Agreement; CPI2 = Price of Pig Iron at the time of delivery; CPI1 = Price of Pig Iron considered in the estimate; M = Weight of pipe in Kgs per Meter as per IS:8329-1994; {{pig_iron_factor}} = {{pig_iron_factor_default}} (default 0.96) — i.e., 0.96 MT of Pig Iron is required for manufacture of 1 MT of DI Pipes.",
+    "parameters": [
+      {"name": "pig_iron_factor", "param_type": "text", "formula": null, "cap": null, "label": "Pig-Iron / DI Pipe Conversion Factor (MT)", "example": "0.96"},
+      {"name": "pig_iron_factor_default", "param_type": "text", "formula": null, "cap": null, "label": "Default Conversion Factor", "example": "0.96"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 98,
+    "cross_references": ["CLAUSE-AP-PRICE-ADJUSTMENT-COMPREHENSIVE-001"],
+    "rule_ids": ["AP-GO-029"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-PA-LABOUR-CPI-IW-001",
+    "title": "AP Price Adjustment — Labour Component via CPI-IW",
+    "text_english": "For LABOUR component of Price Adjustment, the adjustment shall be allowed on a MONTHLY BASIS using the CONSUMER PRICE INDEX FOR INDUSTRIAL WORKERS (CPI-IW) published by the Labour Department of the Government of India. The formula uses: Vl = Variation in labour cost (amount to be paid/deducted); R = Value of Work done during the specified month (Gross Bill Amount LESS CPOH LESS tender premium LESS reimbursable items such as seignorage and GST); Pp = Component of Labour expressed as a percentage of the total value of work excluding CPOH and Tender Premium; Lo = CPI-IW as on the date of sanction of Estimate; Li = CPI-IW as on the date of recording of measurements.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 99,
+    "cross_references": ["CLAUSE-AP-PRICE-ADJUSTMENT-COMPREHENSIVE-001"],
+    "rule_ids": ["AP-GO-030", "AP-GO-031"]
+  }
+]

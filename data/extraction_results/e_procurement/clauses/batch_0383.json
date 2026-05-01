@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EMD-VALIDITY-DLP-001",
+    "title": "AP Works — EMD + Additional Security Validity Beyond DLP",
+    "text_english": "The EARNEST MONEY DEPOSIT (EMD) AND ADDITIONAL SECURITY (for discount tender percentage beyond {{discount_threshold_pct}}% (default 15%)) SHALL be PROVIDED to the Department NOT LATER THAN the date specified in the LETTER OF ACCEPTANCE, and SHALL be issued in an AMOUNT AND FORM AND BY A BANK ACCEPTABLE to the Department. The EARNEST MONEY shall be VALID UNTIL a date {{emd_post_dlp_days}} (default 28) DAYS from the date of EXPIRY OF DEFECTS LIABILITY PERIOD, AND the ADDITIONAL SECURITY shall be VALID UNTIL a date {{additional_post_completion_days}} (default 28) DAYS from the date of ISSUE OF THE CERTIFICATE OF COMPLETION.",
+    "parameters": [
+      {"name": "discount_threshold_pct", "param_type": "percentage", "formula": null, "cap": 15, "label": "Discount Threshold for Additional Security (%)", "example": "15"},
+      {"name": "emd_post_dlp_days", "param_type": "days", "formula": null, "cap": 28, "label": "EMD Validity Beyond DLP (Days)", "example": "28"},
+      {"name": "additional_post_completion_days", "param_type": "days", "formula": null, "cap": 28, "label": "Additional Security Validity Beyond Completion Cert (Days)", "example": "28"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 25,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

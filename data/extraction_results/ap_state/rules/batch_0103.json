@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-040",
+    "rule_text": "Standard Schedules of Rates (SSR) for AP works must be finalized before June every year, with mandatory association of Construction Industry representatives, National Academy of Construction, and Institution of Engineers (India) AP State Centre during finalization.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 1(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check estimate uses SSR rates dated within current FY (April-March) finalized before June; tender file must contain SSR version reference",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-041",
+    "rule_text": "AP works estimates must include statutory tax provisions: 2% for canal digging/lining/road earthwork, and 4% for all other works.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 1(c)(i)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check estimate's tax provision: 2% for earthwork-canal works, 4% for other; reject if not stated",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-042",
+    "rule_text": "AP works estimates must include lump-sum provisions for: (i) Insurance covering agreement period + DLP (2-yr original works, 1-yr maintenance), (ii) Technical Personnel wages per SSR, (iii) Banker's Charges for BGs, (iv) 1% of cement cost for temporary store shed.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 1(c)(ii)-(v)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check abstract estimate contains the four lump-sum heads; verify tender BDS specifies reimbursement-against-evidence conditions",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-043",
+    "rule_text": "Reimbursement to contractor against the four lump-sum estimate heads (Insurance, Technical Personnel, Banker's Charges, Store Shed) requires production of supporting evidence — Insurance policy copies, appointment orders + payment vouchers, Bank Guarantees; failing which reimbursement is denied AND penalty imposed for non-engagement of technical personnel; the Engineer-in-Charge may take Insurance at contractor cost via bill deduction.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 1(d)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC contains evidence-driven reimbursement clauses + non-compliance penalty mechanism",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-027",
+    "rule_text": "PoL Price Adjustment for AP works uses 15% as the PoL component (Pf) for all works except EPC works of Water Resources Department, where Pf is approved by the State Level Standing Committee (SLSC).",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 3(c)(ii) PoL formula",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true AND Material=PoL",
+    "verification_method": "Verify Pf=15 for non-EPC works; for WRD EPC works, check SLSC-approved Pf attached to tender file",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-028",
+    "rule_text": "PoL/HSD reference price (Fo, Fi) for AP price adjustment is the average fortnightly wholesale price of High Speed Diesel at the consumer pumping stations located in the District Head Quarters nearest to the worksite.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 3(c)(ii) — Fo/Fi definitions",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true AND Material=PoL",
+    "verification_method": "Check PA bill uses HSD wholesale rate from nearest-DHQ pumping station, NOT retail or non-PSU rate",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-029",
+    "rule_text": "DI Pipe Price Adjustment is computed monthly using Pig Iron price ratio (CPI2/CPI1) and the standard 0.96 MT Pig Iron / 1 MT DI Pipe conversion factor; pipe weight per metre per IS:8329-1994 is the M factor.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 3(c)(iii) DI Pipes",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true AND Material=DIPipes",
+    "verification_method": "Check DI pipe PA bill uses Pig-Iron ratio formula with 0.96 MT factor and IS:8329 unit weight; reject other formulas",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-030",
+    "rule_text": "Labour Price Adjustment in AP works is computed monthly using the Consumer Price Index for Industrial Workers (CPI-IW) published by the Government of India Labour Department.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 3(c)(iv) Labour",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true",
+    "verification_method": "Check labour PA uses GoI CPI-IW for L0/L1 indices; reject state CPI or unspecified indices",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-031",
+    "rule_text": "All AP price-adjustment formulas use Net Bill Value R = (Gross Bill - CPOH - Tender Premium - Reimbursable Items like Seignorage and GST) as the multiplier base.",
+    "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, R-definitions in Steel/Cement/PoL/Labour formulas",
+    "condition_when": "TenderState=AndhraPradesh AND PriceAdjustmentApplicable=true",
+    "verification_method": "Check PA computation excludes Contractor Profit-Overhead, tender premium, seignorage and GST from R; reject if Gross Bill is used directly",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-COMPLETION-BONUS-001",
+    "title": "AP Capital City Works — Early Completion Bonus",
+    "text_english": "The Contractor SHALL be PAID a BONUS calculated at the rate per CALENDAR DAY stated in the PCC for each day (LESS any days for which the Contractor is paid for acceleration) that the COMPLETION is EARLIER than the INTENDED COMPLETION DATE. The Project Manager SHALL CERTIFY that the Works are complete, although they may not be due to be complete. The Bonus shall be paid only after FINAL TAKE-OVER and after due verification by the Project Manager.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 155,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

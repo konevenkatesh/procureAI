@@ -1,0 +1,37 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PBG-2POINT5-001",
+    "title": "AP-Vizag Performance Security at 2.5% (SCC Override)",
+    "text_english": "PERFORMANCE SECURITY (Construction Period): The Contractor SHALL — DURING the CONSTRUCTION PERIOD — PROVIDE to the Authority a PERFORMANCE SECURITY equal to {{ps_pct_of_bid}}% (default 2.5%) of the BID AMOUNT at the TIME of SIGNING the Contract — in the shape of an UNCONDITIONAL and IRREVOCABLE BANK GUARANTEE valid UNTIL {{ps_validity_post_dlp_days}} (default 60) DAYS AFTER COMPLETION of the DEFECT LIABILITY PERIOD AND the Authority's Engineer has CERTIFIED that ALL DEFECTS notified before end of period have been CORRECTED. NOTE: This 2.5% rate is a TENDER-LEVEL OVERRIDE BELOW the MPW 2022 standard 5-10% range; verifiers SHALL flag this as `PBG-Shortfall` WARNING unless a specific GO/SoPP relaxation is on file.",
+    "parameters": [
+      {"name": "ps_pct_of_bid", "param_type": "percentage", "formula": null, "cap": 10, "label": "Performance Security (% of Bid)", "example": "2.5"},
+      {"name": "ps_validity_post_dlp_days", "param_type": "days", "formula": null, "cap": 60, "label": "PS Validity Post-DLP (Days)", "example": "60"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 50,
+    "cross_references": ["CLAUSE-WORKS-PBG-001", "CLAUSE-PBG-001"],
+    "rule_ids": ["GVSCCL-076"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-RETENTION-7POINT5-001",
+    "title": "AP-Vizag Retention Money — 7.5% Running Bills with 5%/2.5% Split + BG Substitution Slabs",
+    "text_english": "RETENTION MONEY (Construction Period): The Authority SHALL RETAIN from EACH PAYMENT due to the Contractor at {{retention_pct}}% (default 7.5%) of bill amount until completion of the Works. ON COMPLETION of WHOLE WORKS, of total amount retained: {{post_completion_release_pct}}% (default 5%) shall be RE-PAID along with FINAL BILL; balance {{dlp_retention_pct}}% (default 2.5%) shall be PAID after COMPLETION of the {{dlp_years}} (default 2)-YEAR DEFECT LIABILITY PERIOD. BG SUBSTITUTION: retention amount IN EXCESS of {{retention_floor_pct}}% (default 2.5%) of value of work done SHALL be RELEASED against UNCONDITIONAL BG in MULTIPLES of: ₹{{bg_multiple_lt100cr_lakh}} LAKHS (default ₹25 lakh) for contracts ≤ ₹100 crores; ₹{{bg_multiple_gt100cr_lakh}} LAKHS (default ₹50 lakh) for contracts > ₹100 crores — IF rate of progress is MAINTAINED.",
+    "parameters": [
+      {"name": "retention_pct", "param_type": "percentage", "formula": null, "cap": 7.5, "label": "Retention from Each Bill (%)", "example": "7.5"},
+      {"name": "post_completion_release_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Released at Final Bill (%)", "example": "5"},
+      {"name": "dlp_retention_pct", "param_type": "percentage", "formula": null, "cap": 2.5, "label": "Held Until DLP End (%)", "example": "2.5"},
+      {"name": "dlp_years", "param_type": "integer", "formula": null, "cap": null, "label": "DLP Period (Years)", "example": "2"},
+      {"name": "retention_floor_pct", "param_type": "percentage", "formula": null, "cap": 2.5, "label": "Retention Floor (%)", "example": "2.5"},
+      {"name": "bg_multiple_lt100cr_lakh", "param_type": "currency", "formula": null, "cap": null, "label": "BG Multiple ≤ ₹100 Cr Contracts (₹ Lakhs)", "example": "25"},
+      {"name": "bg_multiple_gt100cr_lakh", "param_type": "currency", "formula": null, "cap": null, "label": "BG Multiple > ₹100 Cr Contracts (₹ Lakhs)", "example": "50"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 55,
+    "cross_references": ["CLAUSE-RETENTION-MONEY-WORKS-001"],
+    "rule_ids": ["GVSCCL-077", "GVSCCL-078"]
+  }
+]

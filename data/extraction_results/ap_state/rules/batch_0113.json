@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-095",
+    "rule_text": "AP contractor must be REMOVED FROM APPROVED LIST if: (i) he has on more than one occasion failed to execute a contract or executed unsatisfactorily, (ii) failed to abide by registration conditions or gave false information, (iii) persistently violates contract conditions, (iv) is responsible for construction defects in multiple cases, (v) is bankrupt/insolvent/wound-up/dissolved/partitioned, (vi) persistently violates labour regulations — EMD also forfeited.",
+    "source_clause": "GO Ms No 94/2003 Annexure-II, Section 4",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check bidder is NOT on AP-removed-contractors list at tender date; cross-reference Commissioner of Tenders (COT) website",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-096",
+    "rule_text": "Only the administrative Department (i.e. Head Chief Engineer with Government approval) may BLACKLIST an AP contractor; grounds include malpractice (ring formation, bribery, corruption, fraud, smuggling, pilfering of materials), continuous refusal to pay Government dues, court conviction for moral-turpitude offence, or security/disloyalty considerations; EMD also forfeited.",
+    "source_clause": "GO Ms No 94/2003 Annexure-II, Section 5(a)",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check bidder is NOT on AP-blacklisted-contractors list (including allied concerns under same effective influence); ENC publishes quarterly additions/revocations",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-097",
+    "rule_text": "Blacklisting of an AP contractor extends to all his partners and allied concerns coming within his effective influence; the Engineer-in-Chief maintains the consolidated blacklist and circulates updates every quarter to all engineering departments.",
+    "source_clause": "GO Ms No 94/2003 Annexure-II, Section 5(c) and (i)",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Verify bidder + all partners + allied entities cross-checked against ENC's consolidated blacklist (refreshed quarterly)",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-098",
+    "rule_text": "Blacklisting orders for an AP contractor are ORDINARILY NOT REVOKED unless: (i) Government on review opines existing punishment is adequate, OR (ii) the accused has been honourably acquitted by a court of law for the same offence; restoration on merits is at the discretion of the original ordering authority.",
+    "source_clause": "GO Ms No 94/2003 Annexure-II, Sections 5(h), 6",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check restoration orders on file with restoration justification matching one of two grounds; otherwise treat blacklisting as still active",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

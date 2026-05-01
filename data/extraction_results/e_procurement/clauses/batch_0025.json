@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-VIZAG-COMPLETION-PERIOD-001",
+    "title": "Vizag UGSS — 18-Month Completion Including Monsoon",
+    "text_english": "TIME for COMPLETION: The TOTAL period of completion is {{completion_months}} (default 18) MONTHS from the APPOINTED DATE — INCLUDING the MONSOON PERIOD. Work SHALL be PROGRAMMED such as to ACHIEVE the MILESTONES. The DATE of COMMENCEMENT of the Contractor's programme SHALL be the DATE for CONCLUDING the AGREEMENT. After signing, the Contractor SHALL FORTHWITH BEGIN the work and SHALL REGULARLY and CONTINUOUSLY PROCEED. NO claim for compensation on account of delays SHALL LIE except as defined. EOT shall be allowed for unavoidable delays in the opinion of the Executive Engineer (assessment 25% in excess of actual period lost where caused by Engineer's written instructions). Project Reference: {{project_ref}}.",
+    "parameters": [
+      {"name": "completion_months", "param_type": "months", "formula": null, "cap": null, "label": "Total Completion Period (Months)", "example": "18"},
+      {"name": "project_ref", "param_type": "text", "formula": null, "cap": null, "label": "Project Reference", "example": "GVSCCL/Projects/395"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-3/Datasheet",
+    "position_order": 80,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-092"]
+  }
+]

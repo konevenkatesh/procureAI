@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-TENDER-PREMIUM-CEILING-001",
+    "title": "AP Works — Tender Premium 10% Ceiling + Discount Tender 15% Threshold",
+    "text_english": "TENDER PREMIUM CEILING under this Contract: For all works the CEILING of TENDER PREMIUM shall be {{tender_premium_ceiling_pct}}% (default 10%). If, EVEN AFTER TWO CALLS, the tender premium quoted is MORE THAN {{tender_premium_ceiling_pct}}%, the matter SHALL BE REFERRED to the GOVERNMENT, and the Government may order for a fresh call OR may constitute a committee to entrust the work on NOMINATION to a reputed contractor from the list maintained by the Department on the basis of performance of contractors. DISCOUNT TENDERS (Percentage less than estimated cost): Tenders UP TO {{discount_acceptance_pct}}% (default 15%) less than the estimate may be ACCEPTED. For tenders which are LESS THAN BY MORE THAN {{discount_acceptance_pct}}% of the estimate, an ADDITIONAL BANK GUARANTEE OR DEMAND DRAFT for the DIFFERENCE between the tendered amount and ({{retention_threshold_pct}}% (default 85%) of the estimate value) SHALL be TAKEN — so that if the tenderer leaves the work midway and the department is forced to call for tenders again, the bank guarantee or demand draft shall be USED TO FINANCE the re-tendered work.",
+    "parameters": [
+      {"name": "tender_premium_ceiling_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Tender Premium Ceiling (%)", "example": "10"},
+      {"name": "discount_acceptance_pct", "param_type": "percentage", "formula": null, "cap": 15, "label": "Discount Tender Acceptance Threshold (%)", "example": "15"},
+      {"name": "retention_threshold_pct", "param_type": "percentage", "formula": null, "cap": 85, "label": "BG/DD Threshold (% of Estimate)", "example": "85"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-4/Evaluation",
+    "position_order": 25,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-069", "AP-GO-070"]
+  }
+]

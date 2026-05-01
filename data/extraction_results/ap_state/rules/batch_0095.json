@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-010",
+    "rule_text": "All materials/stores procurement above Rs.1,00,000/- (Rs.1 lakh) by AP Government departments must be done through the e-procurement platform.",
+    "source_clause": "GO Ms No 258 / Finance (TFR) Dept dated 20-09-2013, Order Para 3",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND EstimatedValue>100000",
+    "verification_method": "Check tender contains apeprocurement.gov.in tender_id and electronic-bid-submission proof",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "E-Procurement-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-011",
+    "rule_text": "GO Ms No 258/2013 amends Rule III(7) under Article 125 of AP Financial Code Vol-I — establishing the Rs.1 lakh e-procurement threshold for stores procurement.",
+    "source_clause": "GO Ms No 258 / Finance (TFR) Dept dated 20-09-2013 read with Article 125 AP Financial Code Vol-I",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Treat AP Financial Code Article 125 Rule III(7) as the current binding provision (post-2013 amendment) for AP Goods procurement",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "E-Procurement-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

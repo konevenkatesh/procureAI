@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-218",
+    "rule_text": "AP Government promissory note / Municipal debenture / Port Trust bond securities furnished by contractors must be revalued ANNUALLY in May at lower-of-(market-price-on-1-May-of-year, face-value); if the securities' total value falls short of (required security + 5% buffer) by Rs.100 or more, the depositor must be called upon to furnish additional security; securities are only returnable if appreciation exceeds Rs.100 face value.",
+    "source_clause": "AP Financial Code Vol-I, Article 289",
+    "condition_when": "TenderState=AndhraPradesh AND SecurityForm IN [PromissoryNote, MunicipalDebenture, PortTrustBond]",
+    "verification_method": "Check annual May valuation record; verify additional-security demand if shortfall; reject return of unappreciated securities",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-219",
+    "rule_text": "AP Security Deposit must NOT be paid back / re-transferred / disposed of without special orders of competent authority OR strict adherence to terms of the security bond/agreement; departmental authority returning security must obtain depositor's signed-and-witnessed acknowledgment; percentage deduction from contractor's bills held as security under piece-work contract MUST NOT be refunded until final bills are prepared and passed.",
+    "source_clause": "AP Financial Code Vol-I, Article 290",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check SD return is per agreement terms with witnessed acknowledgment; piece-work bill-deductions retained until final bill",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

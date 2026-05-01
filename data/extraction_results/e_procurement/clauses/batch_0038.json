@@ -1,0 +1,21 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-INTERIM-PAYMENT-001",
+    "title": "AP-Vizag — 92.5% / 7.5% Interim Payment + 2.5% Final Retention",
+    "text_english": "PAYMENTS and CERTIFICATES: PAYMENTS SHALL be ADJUSTED for RECOVERY of advance payments, LIQUIDATED DAMAGES per tender conditions and SECURITY DEPOSIT for due fulfillment. INTERMEDIATE PAYMENT SHALL be a SUM EQUAL to {{intermediate_payment_pct}}% (default 92.5%) of the value of work done as certified — and BALANCE {{retention_balance_pct}}% (default 7.5%) SHALL be WITHHELD as SECURITY for due fulfillment. ON COMPLETION of entire works, the Contractor SHALL RECEIVE FINAL PAYMENT — except EMD retained as security and a sum equal to {{final_retention_pct}}% (default 2.5%) of total value of work done. The amount withheld from final bill SHALL be RETAINED under DEPOSITS and PAID together with interest after the {{dlp_years}}-YEAR DLP. ADVANCE LOAN REPAYMENT: deduction commences in next interim payment after total payments to contractor reach {{advance_trigger_pct}}% (default 10%) of contract amount AND at rate {{advance_deduction_pct}}% (default 20%) of interim payments — until loan + interest fully repaid prior to completion.",
+    "parameters": [
+      {"name": "intermediate_payment_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Intermediate Payment (%)", "example": "92.5"},
+      {"name": "retention_balance_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Retention Balance (%)", "example": "7.5"},
+      {"name": "final_retention_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Final Retention (%)", "example": "2.5"},
+      {"name": "dlp_years", "param_type": "integer", "formula": null, "cap": null, "label": "DLP (Years)", "example": "2"},
+      {"name": "advance_trigger_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Advance Recovery Trigger (%)", "example": "10"},
+      {"name": "advance_deduction_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Advance Deduction Rate (%)", "example": "20"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 70,
+    "cross_references": ["CLAUSE-RUNNING-BILL-AD-HOC-PAYMENT-001"],
+    "rule_ids": ["GVSCCL-107", "GVSCCL-108"]
+  }
+]

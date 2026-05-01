@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-117",
+    "rule_text": "GO 94/2003 explicitly requires that orders issued by Information Technology and Communication Department (and other departments) on e-procurement be implemented by ALL Engineering Departments to the extent applicable — establishing the foundation for AP's portal-based tender processes that GO 258/2013 and GO 2/2014 later harden into a Rs.1 lakh mandate.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 15 (Training/closing remarks)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "GO 94/2003 sets the baseline policy direction toward e-procurement; the operational threshold (Rs.1 lakh) and mandate are governed by AP-GO-010, AP-GO-012",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "E-Procurement-Bypass",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

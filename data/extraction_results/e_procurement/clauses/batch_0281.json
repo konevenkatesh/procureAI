@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-RFP-SINGLE-STAGE-TWO-SUBSTAGE-001",
+    "title": "AP RFP — Single-Stage Two-Sub-Stage Bid Process via E-Procurement",
+    "text_english": "The Authority has adopted a SINGLE-STAGE BID PROCESS for identification of the Selected Bidder for award of the Project, divided into TWO SUB-STAGES. The Bid Process shall be conducted by way of E-PROCUREMENT — all interested parties are required to register online on the E-Procurement Portal to submit a Bid. Bidders shall download the RFP from the E-Procurement Portal where it appears in the 'Tenders' section. The EVALUATION of the Bids will be carried out in 2 sub-stages: (a) FIRST SUB-STAGE — qualification of Bidders based on evaluation of QUALIFICATION PROPOSALS to determine compliance with Eligibility Criteria and Qualification Criteria; only those Bidders found to MEET both criteria sets will be qualified for the next sub-stage. (b) SECOND SUB-STAGE — evaluation of FINANCIAL PROPOSALS of QUALIFIED BIDDERS as per the Bid Parameter prescribed in the RFP. The bidder offering the most attractive Bid Parameter (as defined) shall be declared the Selected Bidder.",
+    "parameters": [],
+    "applicable_tender_types": ["EPC", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

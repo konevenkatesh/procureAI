@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-BLACKLIST-DISCLOSURE-FORM-001",
+    "title": "Bidder Blacklist Disclosure Form — BOT/EPC/General",
+    "text_english": "Bidder/Applicant SHALL DISCLOSE the following in a TABULAR FORMAT (Yes/No with details): (1) Has the Bidder been BARRED by the [Central/State] Government, or any entity controlled by it, OR World Bank OR ADB, from PARTICIPATING in any project (BOT, EPC or otherwise)? (2) If the answer to (1) is YES, does the BAR SUBSIST as on the DATE of BID? (3) UPDATED DETAILS of any ON-GOING PROCESS of BLACKLISTING (if any) under any contract with Authority/Government/World Bank/ADB. (4) STATEMENT by the Bidder DISCLOSING MATERIAL NON-PERFORMANCE or CONTRACTUAL NON-COMPLIANCE in PAST PROJECTS, contractual disputes, and litigation/arbitration in the recent past. Bidder name: {{bidder_name}}; bid reference: {{bid_ref}}.",
+    "parameters": [
+      {"name": "bidder_name", "param_type": "text", "formula": null, "cap": null, "label": "Bidder Name", "example": "M/s ABC Construction Pvt Ltd"},
+      {"name": "bid_ref", "param_type": "text", "formula": null, "cap": null, "label": "Bid Reference", "example": "JA/2026/CIVIL-WORKS/001"}
+    ],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-5/Forms",
+    "position_order": 112,
+    "cross_references": ["CLAUSE-AP-OTHER-REQUIREMENTS-001"],
+    "rule_ids": []
+  }
+]

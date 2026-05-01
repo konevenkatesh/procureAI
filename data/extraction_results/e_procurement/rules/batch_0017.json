@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-083",
+    "rule_text": "ACCESS to AUTHORITY and AUTHORITY's REPRESENTATIVE: Site access given to Contractor SHALL ALWAYS be SUBJECT to the Authority's RIGHT OF ACCESS for INSPECTION, VIEWING and EXERCISE of rights. The Contractor SHALL ENSURE — subject to safety procedures — that the Authority has UNRESTRICTED ACCESS to the Site DURING ANY EMERGENCY SITUATION as decided by the Authority's Representative.",
+    "source_clause": "GCC §8.5 Access to Authority",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Authority's unrestricted-access right is explicit. FAIL on conditional access.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-084",
+    "rule_text": "GEOLOGICAL and ARCHAEOLOGICAL FINDS: MINING, GEOLOGICAL or ARCHAEOLOGICAL RIGHTS DO NOT FORM PART of this Agreement. The Contractor SHALL NOT have any mining rights or interest in underlying minerals, fossils, antiquities, structures or remnants. Such rights, interest and property SHALL VEST in and BELONG to the Authority or concerned Government Instrumentality. The Contractor SHALL TAKE ALL REASONABLE PRECAUTIONS to prevent removal/damage AND SHALL INFORM the Authority FORTHWITH of any DISCOVERY. CHANCE FINDS PROCEDURES (developed as part of ESMS) SHALL be APPLIED.",
+    "source_clause": "GCC §8.6 Geological and archaeological finds",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if chance-finds procedure included in ESMS. FAIL on missing chance-finds clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-085",
+    "rule_text": "EXISTING UTILITIES and ROADS: the Contractor SHALL ENSURE that respective ENTITIES OWNING the existing roads, right of way, level crossings, structures or utilities ON, UNDER or ABOVE the Site are ENABLED to KEEP THEM in CONTINUOUS SATISFACTORY USE — IF NECESSARY by PROVIDING SUITABLE TEMPORARY DIVERSIONS with the AUTHORITY of the controlling body of that road, right of way or utility.",
+    "source_clause": "GCC §8.7 Existing utilities and roads",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if utility-continuity obligation + temporary-diversion authorisation explicit. FAIL on missing.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-086",
+    "rule_text": "SHIFTING of OBSTRUCTING UTILITIES: The Contractor SHALL — per Applicable Laws and with assistance of the Authority — SHIFT any UTILITY (electric lines, water pipes, telephone cables) to an APPROPRIATE LOCATION/ALIGNMENT if such utility ADVERSELY AFFECTS execution at his OWN RISK and COST. The Contractor SHALL ENGAGE REGISTERED CONTRACTORS of the concerned utility Agency. For SHIFTING of ELECTRICAL UTILITIES, contractors REGISTERED WITH the GOVERNMENT OF ANDHRA PRADESH and HOLDING C OR A GRADE LICENSE SHALL be EMPLOYED. For such works, contractors REGISTERED WITH the GOVERNMENT OF ANDHRA PRADESH with GRADE I qualification SHALL be EMPLOYED.",
+    "source_clause": "GCC §8.8 Shifting of obstructing utilities",
+    "condition_when": "TenderType=Works AND TenderState=AP",
+    "verification_method": "PASS if AP-registered Grade A/C electrical contractor + Grade-I works contractor employed for utility shifts. FAIL on out-of-state or unregistered sub-contractor.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Geographic-Restriction",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

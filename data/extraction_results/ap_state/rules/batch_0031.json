@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-181",
+    "rule_text": "Physical verification of all AP Government stores must be done at least ONCE A YEAR before close of financial year, with cent-percent verification by count, measurement, or weight; verification report must address consumable articles in stock over a year, excess stock, unserviceable/obsolete/surplus articles, and depreciation.",
+    "source_clause": "AP Financial Code Vol-I, Articles 137-143 read with Memo No 10970/228/TFR/90-1 dated 10-11-1992",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level check; not directly tender-verifiable",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-182",
+    "rule_text": "On receipt of stores in AP, the store-keeper must ensure: (i) regular purchase order exists, (ii) supply within specified time, (iii) supply at correct receiving point, (iv) material conforms to spec/nomenclature/part-number/description in firm's challan tallied with PO; followed by 100% quantity check + quality inspection by Stores Inspecting Officer.",
+    "source_clause": "AP Financial Code Vol-I, Article 138 / Inspection at Receipt (A)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender SCC includes 4-point receipt verification + 100% qty check + spec-conformance inspection clauses",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

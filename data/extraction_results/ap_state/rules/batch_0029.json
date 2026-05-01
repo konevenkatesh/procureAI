@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-176",
+    "rule_text": "AP Accountant-General will EXAMINE contracts as part of audit and REPORT to the Government any case where: (a) competitive tenders were not invited though they should have been under the rules, OR (b) a tender other than the lowest was accepted without sufficient justification, OR (c) any other material irregularity was committed in connection with a contract.",
+    "source_clause": "AP Financial Code Vol-I, Article 130",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Tender file must withstand AG audit on these three grounds — competitive tender invited (or exception documented), L1 acceptance (or recorded reasons), no material irregularity",
+    "severity": "ADVISORY",
+    "pattern_type": "P4",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-177",
+    "rule_text": "Form 9 of AP Financial Code is the GENERAL TENDER + AGREEMENT FORM for AP stores procurement; this form shall be used for every invitation to tender where no other special form has been duly prescribed.",
+    "source_clause": "AP Financial Code Vol-I, Article 131",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender uses Form 9 unless special form is prescribed; reject ad-hoc tender forms",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-178",
+    "rule_text": "For AP stores procured under F.O.R. (free on rail) contracts: consignees are responsible for verifying loss/damage at delivery, securing Railway certificates if needed, intimating supplier + purchasing officer + Accounts Officer promptly, and preferring formal claim against carrying Railway; Accounts Officer deducts appropriate sum from contractor's outstanding/future bill on damage intimation.",
+    "source_clause": "AP Financial Code Vol-I, Article 132-A",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND DeliveryTerms=FOR",
+    "verification_method": "Check tender SCC includes F.O.R. damage-handling protocol with consignee/Accounts-Officer/purchasing-officer responsibilities",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

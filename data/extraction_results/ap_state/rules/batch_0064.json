@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-216",
+    "rule_text": "Whenever any AP private person/firm contracts with Government to supply stores or execute work, he/it shall be required to give SECURITY for the due fulfilment of the contract — UNLESS exempted by competent authority; suitable security provisions must be incorporated in the agreement (read with Articles 128 and 166); reference to the agreement must be recorded in the Register of Security Deposits.",
+    "source_clause": "AP Financial Code Vol-I, Article 278",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check tender contract has Security Deposit clause + Register of Security Deposits entry; verify HOD-exemption order if SD waived",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "PBG-Shortfall",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-217",
+    "rule_text": "Acceptable forms of AP contractor security: (1) Cash (no interest paid by Government), (2) Promissory notes/Municipal Debentures/Port Trust Bonds/State Financial Corp Bonds/APSEB bonds (accepted at 5% below market price OR face value, whichever is less, endorsed in favour of EE/PWD or Disbursing Officer/Electricity or DFO/Forest), (3) Government securities, (4) Post Office Savings Bank deposits, (5) Post Office Cash Certificates, (6) other prescribed forms.",
+    "source_clause": "AP Financial Code Vol-I, Article 279",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Check Security Deposit form matches one of the prescribed types; promissory notes must be endorsed properly",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "PBG-Shortfall",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

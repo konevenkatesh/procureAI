@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EPC-PANEL-EMPANELMENT-001",
+    "title": "AP EPC Works — Government-Approved Panel of Firms (Reviewed Every 2 Years)",
+    "text_english": "For ENTRUSTMENT of EPC contracts, the Government may approve a PANEL of firms/agencies based on prescribed eligibility criteria. This empanelment SHALL be REVIEWED at a periodicity of NOT MORE THAN {{empanelment_review_years}} (default 2) YEARS. In respect of EPC works, LIMITED TENDER system inviting bids from the approved panel of firms/agencies under each category, OR OPEN TENDER system, shall be followed. The form of bid documents and contract format APPROVED SPECIALLY for EPC mode of works SHALL be used. In respect of pre-qualified agencies, FINANCIAL BID EVALUATION shall be done. In respect of OPEN CATEGORY tenders, TECHNICAL EVALUATION shall be done first following the criteria specified in the bid document, and FINANCIAL BID EVALUATION shall be done in respect of those who are qualified in technical bid evaluation.",
+    "parameters": [
+      {"name": "empanelment_review_years", "param_type": "integer", "formula": null, "cap": 2, "label": "Panel Review Periodicity (Years)", "example": "2"}
+    ],
+    "applicable_tender_types": ["EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 8,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-222", "AP-GO-223"]
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-JUDICIAL-PREVIEW-SECTORS-001",
+    "title": "AP Judicial Preview — 25 Eligible Infrastructure Sectors",
+    "text_english": "AP Judicial Preview applies to infrastructure projects of Rs.100 crore and above in the following 25 ENUMERATED SECTORS (per Schedule to AP Judicial Preview Act 2019), including PPP Projects: (1) Roads (State Highways, Major District Roads, Other District Roads, Village Roads), Bridges and Bypasses; (2) Health; (3) Land reclamation; (4) Canals, Dams, Tanks, Reservoirs; (5) Water supply, treatment and distribution; (6) Waste management; (7) Sewerage, drainage; (8) Public Markets; (9) Trade Fair, Convention, Exhibition and Cultural Centers; (10) Public Buildings; (11) Inland water transport; (12) Gas and Gas works; (13) Sports and recreation infrastructure, public gardens and parks; (14) Real Estate; (15) e-Governance Projects, IT Infrastructure; (16) Urban Development through JV with private sector; (17) Telecommunication and Broadband Internet Services including Fiber Grid, WiFi Services; (18) Power-Generation, Transmission and Distribution including renewable (Solar & Wind) energy projects; (19) Other Highways Projects including housing or other activities part of Highway Project; (20) Transport Terminus and depots; (21) Railway system including Urban transit Projects; (22) Ports, Inland Ports; (23) Airports including logistic hubs and Free Trade Zones; (24) Urban Development Projects including Smart City Projects; (25) Educational Institutions.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 3,
+    "cross_references": ["CLAUSE-AP-JUDICIAL-PREVIEW-MANDATE-001"],
+    "rule_ids": ["AP-GO-009"]
+  }
+]

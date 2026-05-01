@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-048",
+    "rule_text": "EXPANSION JOINTS of suitable gap at INTERVALS NOT MORE THAN {{expansion_joint_interval_m}} (default 30) METRES SHALL be PROVIDED in WALLS, FLOORS and ROOF SLABS of WATER RETAINING STRUCTURES. CONSTRUCTION JOINTS SHALL be PROVIDED at RIGHT ANGLES to the general direction of the member. To AVOID SEGREGATION of concrete in walls, HORIZONTAL CONSTRUCTION JOINTS SHALL be PROVIDED at EVERY 2 m HEIGHT. WATER STOPS: GI 18-gauge / PVC water stops of suitable type, MINIMUM 230 mm WIDTH and 6 mm THICK SHALL be USED for walls and base slabs.",
+    "source_clause": "Volume II — Joints (Water Retaining Structures)",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if structural drawings show ≤30 m expansion-joint spacing + 230×6 mm water stops. FAIL on out-of-spec.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-049",
+    "rule_text": "WATER RETAINING / CONVEYING STRUCTURES (including roof slabs of chambers, channels) SHALL be DESIGNED by the UNCRACKED METHOD per IS 3370 and IS 6494. BASEMENT RC walls and slabs below ground SHALL ALSO be DESIGNED by the uncracked method as liquid-retaining structures. SHEAR SHALL be CHECKED by the WORKING-STRESS METHOD per IS 456. MINIMUM TEMPERATURE and SHRINKAGE REINFORCEMENT SHALL be {{min_t_s_steel_pct}}% (default 0.3%) in EACH DIRECTION.",
+    "source_clause": "Volume II — Water Retaining Structures (Design Method)",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if structural calcs use uncracked method per IS 3370/6494 + 0.3% min steel. FAIL on cracked-method shortcut.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-050",
+    "rule_text": "MINIMUM DEPTH of FOUNDATIONS for ALL structures, equipment buildings, frame foundations and load-bearing walls SHALL be PER IS 1094. PLINTH LEVEL of all structures / TOP of TANKS SHALL be at LEAST {{min_plinth_above_fl_mm}} (default 600) mm ABOVE FORMATION LEVEL.",
+    "source_clause": "Volume II — Foundation",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if drawings show ≥600 mm plinth above FL + IS-1094 compliant foundation depth. FAIL on under-spec.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-051",
+    "rule_text": "MINIMUM CONCRETE GRADES: All LIQUID RETAINING structures SHALL be DESIGNED per IS 3370 with MINIMUM GRADE M{{lrs_concrete_grade}} (default 30) — UNLESS OTHERWISE STATED in the BoQ. All BUILDINGS, PIPE PEDESTALS, THRUST BLOCKS, PUMP FOUNDATIONS and other structures SHALL be DESIGNED per IS 456 with MINIMUM GRADE M{{other_concrete_grade}} (default 30) — UNLESS OTHERWISE STATED in the BoQ. The MAXIMUM FREE WATER-CEMENT RATIO SHALL NOT EXCEED {{max_w_c_ratio}} (default 0.5) for ALL liquid retaining structures.",
+    "source_clause": "Volume II — Concrete Grade and W/C Ratio",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if BoQ + structural calcs use ≥M30 grade + ≤0.5 w/c. FAIL on M25 substitution or weaker mix.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-052",
+    "rule_text": "BEDDING and LEVELLING CONCRETE thickness SHALL be MINIMUM 100 mm in PCC GRADE M10 for BUILDINGS AND MINIMUM 150 mm in CONCRETE GRADE M20 for WATER RETAINING STRUCTURES per IS 3370 (Part 1)-2009 latest version. ALL STRUCTURAL REINFORCED CONCRETE SHALL be with a MAXIMUM 20 mm AGGREGATE SIZE for footings, base slabs, water-retaining structures and other structural members.",
+    "source_clause": "Volume II — Bedding and Aggregate Size",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if BoQ specifies 100/150 mm PCC + 20 mm max aggregate. FAIL on under-spec.",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

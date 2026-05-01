@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-NAC-CONTRIBUTION-001",
+    "title": "AP Works — National Academy of Construction 0.10% Contribution",
+    "text_english": "An amount of {{nac_pct}}% (default 0.10%) of the GROSS BILLS SHALL BE DEDUCTED from the Contractor's running and final bills as their CONTRIBUTION to the NATIONAL ACADEMY OF CONSTRUCTION, Hyderabad. (Source: GO Ms No 27, T,R&B (Roads-III) Department, dated 29-06-2015.)",
+    "parameters": [
+      {"name": "nac_pct", "param_type": "percentage", "formula": null, "cap": 0.1, "label": "NAC Contribution (% of Gross Bill)", "example": "0.10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 168,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-109",
+    "rule_text": "Specialisation-based registration for AP Special Class and Class-I contractors is DISPENSED with — these contractors are eligible for ALL categories of works unless tender process specifies a particular specialisation requirement.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII (R&B Modified Rules) Section 1",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Special Class and Class-I bidders are eligible across categories; reject only if tender QR specifies specialisation requirement",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Criteria-Restriction-Narrow",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-110",
+    "rule_text": "AP Commissioner of Tenders (COT) maintains a centralised contractor-experience website; existing contractors must submit experience details with affidavit within 3 months; COT publishes details, accepts objections within 1 month, finalises within 1 month after objections; false-information submissions are liable to blacklisting; false objections are penalised up to Rs.10,000.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 2",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Verification of bidder experience must use COT-maintained website data, not third-party agencies; reject manual external verification",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-111",
+    "rule_text": "AP Commissioner of Tenders issues Pass Books to each registered contractor recording experience, financial capacity, awards, cancellations; bidders must enclose Pass Book Xerox copy with tender applications; entries must be made by EE-rank+ officer; Pass Book details must tally with COT website.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 2",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender bid file contains contractor's COT-issued Pass Book copy; cross-reference Pass Book entries with COT website at evaluation",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-112",
+    "rule_text": "Duplicate Pass Book issuance fees: Rs.5,000 first occasion; Rs.25,000 each subsequent occasion — to discourage repeat losses.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 2",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "If duplicate Pass Book in use, check the relevant fee was paid; documentary requirement only",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-113",
+    "rule_text": "Two-stage EMD collection (1% at tender-document issue + 1.5% at agreement, total 2.5%) under GO 94/2003 applies EVEN IN E-PROCUREMENT — confirming that e-procurement does not waive the AP-state EMD-collection mechanism.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 5",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check e-procurement tenders also implement two-stage EMD via apeprocurement.gov.in payment gateway; reject single-EMD e-tenders",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "EMD-Shortfall",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

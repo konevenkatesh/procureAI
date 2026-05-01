@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PA-POL-FORTNIGHTLY-001",
+    "title": "AP Price Adjustment — POL/Bitumen Fortnightly PSU-Published Rates Formula",
+    "text_english": "For BITUMEN AND PETROLEUM/LUBRICANTS (PoLs), Price Adjustment shall be allowed on a FORTNIGHTLY BASIS, using the prices PUBLISHED on websites of PUBLIC SECTOR UNDERTAKINGS (PSUs — IOCL/HPCL/BPCL). For PoL Price Adjustment, the formula is: Vf = (Pf / 100) × R × (Fi − 0.95 × Fo) / Fo (negative adjustment) — and analogously for positive adjustment with 1.05 multiplier; where: Vf = Price Adjustment amount for fuel to be paid/deducted; Pf = Percentage of PoL component of the work — shall be taken as {{pol_component_pct}}% (default 15%) for all Works EXCEPT in case of EPC works of Water Resources Department, for which Pf shall be as approved by the State Level Standing Committee (SLSC); R = Value of Work done (Gross Bill Amount LESS Contractor's Profit and Overhead Charges (CPOH) LESS Tender Premium LESS all reimbursable items such as Seignorage charges, GST etc.); Fo = Average fortnightly wholesale price of HIGH SPEED DIESEL at the existing Consumer pumping stations located in the District Head Quarters NEAREST to worksite as on the date of sanction of Estimate; Fi = Same metric as on the date of recording of measurements.",
+    "parameters": [
+      {"name": "pol_component_pct", "param_type": "percentage", "formula": null, "cap": 15, "label": "PoL Component (%)", "example": "15"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 97,
+    "cross_references": ["CLAUSE-AP-PRICE-ADJUSTMENT-COMPREHENSIVE-001"],
+    "rule_ids": ["AP-GO-026", "AP-GO-027", "AP-GO-028"]
+  }
+]

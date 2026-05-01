@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-075",
+    "rule_text": "Price Adjustment under GO 94/2003 was originally granted only for works with administered prices, estimated above Rs.2 crore AND completion period >18 months — applicable within original or department-extended period only. (NOTE: superseded by GO Ms No 62/2021 which lowers threshold to Rs.40 lakh AND 6 months — see AP-GO-019.)",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 16",
+    "condition_when": "TenderState=AndhraPradesh AND TenderDate<2021-11-30",
+    "verification_method": "For pre-30-Nov-2021 agreements: PA applies only if ECV>Rs.2cr AND period>18mo; post-2021 use GO 62/2021 thresholds (Rs.40L, 6mo)",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-PVC-Clause",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": ["AP-GO-019"],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-076",
+    "rule_text": "Mobilization Advance under GO 94/2003 is permitted up to 10% of contract value for AP works costing more than Rs.1 crore, against Bank Guarantee, attracting suitable interest, recoverable from contractor's bills in installments. (Forms baseline restored by GO 57/2024 after 2019-2024 cancellation gap.)",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 17",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>10000000",
+    "verification_method": "For tenders pre-17-Dec-2019 OR post-27-Nov-2024: MA <= 10% AND BG-backed AND interest-charged AND installment recovery",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-077",
+    "rule_text": "Construction materials (cement, steel, bitumen, sand, metal, soils) for AP works must be procured by the contractor at his own cost — department does NOT supply principal materials.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 18",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC explicitly assigns cement/steel/bitumen/sand procurement to contractor; reject if dept-supplied materials specified",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-078",
+    "rule_text": "Seignorage charges in AP works are recovered from contractor's bills at rates prescribed in contract documents for materials actually used; production of seignorage-payment evidence and 5× penalty (under GO Ms No 243/1986) is DISPENSED with — bill-deduction is sufficient.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 19",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender SCC: seignorage recovered via bill-deduction at contracted rates; reject if 5× penalty clause for missing payment-evidence is still present",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

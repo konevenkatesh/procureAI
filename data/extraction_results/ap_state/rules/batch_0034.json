@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-190",
+    "rule_text": "Public Works Department in AP is responsible for execution of all works which Government has not specifically allotted to other departments; PWD-allotted works may be executed by another department only by inter-departmental agreement (typically in Scheduled Areas or for Industries/Agriculture works).",
+    "source_clause": "AP Financial Code Vol-I, Article 149",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender ITB confirms execution by PWD or has on-file inter-departmental allotment order",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-191",
+    "rule_text": "Jail works in AP exceeding Rs.5,000 contract value must be carried out by the Public Works Department; when such jail works are executed under contract, the tender notice must STIPULATE that the contractor shall employ JAIL LABOUR on all unskilled items of work connected with the contract as far as possible.",
+    "source_clause": "AP Financial Code Vol-I, Article 149 Note",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND Sector=Jail AND EstimatedValue>5000",
+    "verification_method": "Check NIT for jail works > Rs.5,000: PWD-execution + jail-labour-utilisation clause for unskilled items",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-192",
+    "rule_text": "All AP electrical works connected with Government buildings shall AS A RULE be executed by the Electricity Department; if a department wishes to execute electrical works itself, Government allotment is required, and the work must be put to a LUMP-SUM CONTRACT after open tendering.",
+    "source_clause": "AP Financial Code Vol-I, Article 154(a)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND Sector=Electrical",
+    "verification_method": "Electrical works tender: check Electricity-Dept-execution OR Government-allotment-order + Lump-sum-contract method",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

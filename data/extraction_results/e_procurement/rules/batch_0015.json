@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-074",
+    "rule_text": "DISCLOSURE OBLIGATION: In the EVENT that ANY OCCURRENCE or CIRCUMSTANCE comes to the ATTENTION of either Party that RENDERS any of its REPRESENTATIONS or WARRANTIES UNTRUE or INCORRECT, such Party SHALL IMMEDIATELY NOTIFY the other Party. Such notification SHALL NOT have the EFFECT of REMEDYING any breach NOR shall it ADVERSELY AFFECT or WAIVE any obligation under this Agreement.",
+    "source_clause": "GCC §5.3 (Disclosure)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if disclosure-on-occurrence clause is present + non-waiver clarification. FAIL otherwise.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-075",
+    "rule_text": "DISCLAIMER (Contractor's Acknowledgement): the Contractor ACKNOWLEDGES that PRIOR to execution of this Agreement, the Contractor has — AFTER COMPLETE and CAREFUL EXAMINATION — made an INDEPENDENT EVALUATION of the Bid, BoQ, Scope of Project, Specifications, Site, local conditions, physical qualities of ground, subsoil and geology, traffic volumes, suitability of access routes and ALL information provided by the Authority. The Authority MAKES NO REPRESENTATION (express, implicit or otherwise) regarding accuracy, adequacy, correctness, reliability or completeness of any information.",
+    "source_clause": "GCC §6 Disclaimer",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if disclaimer clause shifts due-diligence risk to contractor. FAIL on Authority-warranted site conditions without indemnity.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-076",
+    "rule_text": "PERFORMANCE SECURITY: The Contractor SHALL — DURING the CONSTRUCTION PERIOD — PROVIDE to the Authority a PERFORMANCE SECURITY equal to {{ps_pct_of_bid}}% (default 2.5%) of the BID AMOUNT at the TIME of SIGNING the Contract — in the shape of an UNCONDITIONAL and IRREVOCABLE BANK GUARANTEE valid UNTIL {{ps_validity_post_dlp_days}} (default 60) DAYS AFTER COMPLETION of the DEFECT LIABILITY PERIOD AND the Authority's Engineer has CERTIFIED that ALL DEFECTS notified before end of period have been CORRECTED.",
+    "source_clause": "GCC §7.1 Security (Performance)",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if PS = 2.5% of bid as unconditional/irrevocable BG valid till DLP+60 days. FAIL on shorter validity or conditional BG.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "PBG-Shortfall",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-077",
+    "rule_text": "RETENTION MONEY (Construction Period): The Authority SHALL RETAIN from EACH PAYMENT due to the Contractor at {{retention_pct}}% (default 7.5%) of bill amount until completion of the Works. ON COMPLETION of WHOLE WORKS, of total amount retained ({{retention_pct}}%): {{post_completion_release_pct}}% (default 5%) shall be RE-PAID along with FINAL BILL; balance {{dlp_retention_pct}}% (default 2.5%) shall be PAID after COMPLETION of the 2-YEAR DEFECT LIABILITY PERIOD.",
+    "source_clause": "GCC §7.2 Retention Money — Construction Period",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if SCC enforces 7.5% retention with 5%/2.5% split. FAIL on different retention regime.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-078",
+    "rule_text": "RETENTION MONEY — BG SUBSTITUTION: The retention amount IN EXCESS of {{retention_floor_pct}}% (default 2.5%) of value of work done SHALL be RELEASED against UNCONDITIONAL BG in MULTIPLES of: ₹{{bg_multiple_lt100cr_lakh}} LAKHS (default ₹25 lakh) for contracts ≤ ₹100 crores; ₹{{bg_multiple_gt100cr_lakh}} LAKHS (default ₹50 lakh) for contracts > ₹100 crores — IF the rate of progress is MAINTAINED. The unconditional irrevocable BG SHALL be for the period TILL the amounts become DUE for REPAYMENT. In the FINAL BILL, 2.50% of value of work done is to be RETAINED and KEPT under DEPOSITS.",
+    "source_clause": "GCC §7.2 Retention Money — BG Substitution",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if BG-substitution thresholds + denomination multiples in SCC. FAIL on missing/incorrect thresholds.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "BG-Validity-Gap",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

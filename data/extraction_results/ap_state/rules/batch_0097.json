@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-014",
+    "rule_text": "Contractors for works exceeding Rs.1.00 crore estimated contract value are permitted to avail Mobilization Advance up to 10% of contract value against an unconditional and irrevocable Bank Guarantee.",
+    "source_clause": "GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024 read with Para-17 Annexure-I of GO Ms No 94/2003 (I&CAD)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND EstimatedValue>10000000",
+    "verification_method": "Check tender BDS/SCC: mobilization_advance_pct <= 10 AND BG validity covers full MA recovery period AND BG is unconditional+irrevocable",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-015",
+    "rule_text": "Mobilization Advance is permitted only against an unconditional Bank Guarantee that remains valid until the entire MA is recovered from the contractor.",
+    "source_clause": "GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024, Para 7(i)",
+    "condition_when": "TenderState=AndhraPradesh AND MobilizationAdvanceProvided=true",
+    "verification_method": "Check BG validity_end >= contract MA-recovery completion date AND BG is unconditional",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "BG-Validity-Gap",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-016",
+    "rule_text": "Mobilization Advance BG must include a time-frame for encashment if the contractor fails to commence work without valid reasons.",
+    "source_clause": "GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024, Para 7(ii)",
+    "condition_when": "TenderState=AndhraPradesh AND MobilizationAdvanceProvided=true",
+    "verification_method": "Check tender contains BG-encashment-trigger clause tied to non-commencement of work",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-017",
+    "rule_text": "Interest on pending Mobilization Advance must be charged at the prevailing one-year MCLR of State Bank of India (9% w.e.f. 15-Nov-2024).",
+    "source_clause": "GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024, Para 7(iii)",
+    "condition_when": "TenderState=AndhraPradesh AND MobilizationAdvanceProvided=true",
+    "verification_method": "Check tender specifies MA interest = SBI 1-year MCLR (current 9%); reject lower or unspecified rates",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-018",
+    "rule_text": "GO Ms No 57/2024 restores the Mobilization Advance provision that was cancelled by GO Ms No 83 dated 17-12-2019; the 2019 cancellation is no longer in force for new works.",
+    "source_clause": "GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024, Para 7",
+    "condition_when": "TenderState=AndhraPradesh AND TenderDate>=2024-11-27",
+    "verification_method": "For tenders issued post-27-Nov-2024, MA is permissible; for tenders dated 17-Dec-2019 to 26-Nov-2024 MA was disallowed (verify via NIT date)",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

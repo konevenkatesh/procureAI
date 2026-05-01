@@ -1,0 +1,36 @@
+[
+  {
+    "clause_id": "CLAUSE-DI-K9-PIPE-SPEC-001",
+    "title": "Ductile Iron K-9 Pipe Specification (UGSS Sewerage)",
+    "text_english": "PIPE MATERIAL: SUPPLY, LOWERING and LAYING of DUCTILE IRON (DI) K-9 GRADE PIPES per IS 8329 / ISO 2531 — along with ALL SPECIALS and VALVES (AIR VALVE, SCOUR VALVE, SLUICE VALVE / ISOLATION VALVE) per the alignment drawing AND with INVERT LEVEL of the pipeline per APPROVED DRAWINGS. Pipe diameter range: {{pipe_dia_range}}. Test pressure: {{test_pressure_bar}} bar.",
+    "parameters": [
+      {"name": "pipe_dia_range", "param_type": "text", "formula": null, "cap": null, "label": "Pipe Diameter Range", "example": "DN 100 — DN 1200"},
+      {"name": "test_pressure_bar", "param_type": "text", "formula": null, "cap": null, "label": "Hydraulic Test Pressure (bar)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 21,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-039"]
+  },
+  {
+    "clause_id": "CLAUSE-WATER-RETAINING-DESIGN-001",
+    "title": "Water-Retaining Structures — Uncracked Method per IS 3370/6494",
+    "text_english": "WATER-RETAINING / CONVEYING STRUCTURES (including roof slabs of chambers, channels) SHALL be DESIGNED by the UNCRACKED METHOD per IS 3370 and IS 6494. BASEMENT RC walls and slabs below ground SHALL ALSO be DESIGNED by the uncracked method as liquid-retaining structures. SHEAR SHALL be CHECKED by the WORKING-STRESS METHOD per IS 456. MINIMUM TEMPERATURE and SHRINKAGE REINFORCEMENT SHALL be {{min_t_s_steel_pct}}% (default 0.3%) in EACH DIRECTION. EXPANSION JOINTS at INTERVALS NOT MORE THAN {{expansion_joint_interval_m}} (default 30) METRES. WATER STOPS: GI 18-gauge / PVC, MINIMUM {{water_stop_w_mm}} mm × {{water_stop_t_mm}} mm (default 230×6 mm). CONCRETE GRADE: minimum M{{lrs_grade}} (default 30) per IS 3370 — MAXIMUM W/C ratio = {{max_w_c}} (default 0.5).",
+    "parameters": [
+      {"name": "min_t_s_steel_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Min Temperature/Shrinkage Steel (%)", "example": "0.3"},
+      {"name": "expansion_joint_interval_m", "param_type": "integer", "formula": null, "cap": 30, "label": "Expansion Joint Max Interval (m)", "example": "30"},
+      {"name": "water_stop_w_mm", "param_type": "integer", "formula": null, "cap": null, "label": "Water Stop Width (mm)", "example": "230"},
+      {"name": "water_stop_t_mm", "param_type": "integer", "formula": null, "cap": null, "label": "Water Stop Thickness (mm)", "example": "6"},
+      {"name": "lrs_grade", "param_type": "integer", "formula": null, "cap": null, "label": "Min Concrete Grade (M-)", "example": "30"},
+      {"name": "max_w_c", "param_type": "text", "formula": null, "cap": null, "label": "Max Water-Cement Ratio", "example": "0.5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 22,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-049", "GVSCCL-051"]
+  }
+]

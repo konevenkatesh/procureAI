@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-103",
+    "rule_text": "COMPLETION CERTIFICATE: Upon completion of all Works (including Punch List items) AND Authority's Representative determining the Tests SUCCESSFUL, it SHALL FORTHWITH ISSUE to the Contractor and Authority a COMPLETION CERTIFICATE in the form set forth in Schedule-L. Upon receiving the Completion Certificate, the Contractor SHALL REMOVE its EQUIPMENT, MATERIALS, DEBRIS and TEMPORARY WORKS from the Site within {{site_clear_days}} (default 30) DAYS — failing which the Authority MAY REMOVE such items and RECOVER from the Contractor an amount equal to {{recovery_pct}}% (default 120%) of the ACTUAL COST of removal.",
+    "source_clause": "GCC §13 Completion Certificate + Site Clearance",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 30-day site clearance + 120% recovery on contractor explicit. FAIL on softer site-clearance terms.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-104",
+    "rule_text": "BILL OF QUANTITIES (BoQ): The BoQ SHALL CONTAIN ITEMS for the construction work to be done by the Contractor. The Contractor SHALL be PAID for the QUANTITY of WORK DONE at the ESTIMATE RATE in the BoQ for each item PLUS or MINUS the TENDER PERCENTAGE. The OPERATION & MAINTENANCE BILL SHALL be PAID QUARTERLY based on ACTUAL QUANTITIES executed per the BoQ.",
+    "source_clause": "GCC §15 Bill of Quantities",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if BoQ structure + payment formula explicit; O&M bill quarterly. FAIL on monthly O&M or absent BoQ format.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-105",
+    "rule_text": "CHANGES IN QUANTITIES — SUPPLEMENTAL ITEMS: The Contractor IS BOUND to EXECUTE all SUPPLEMENTAL WORKS that are FOUND ESSENTIAL, INCIDENTAL and INEVITABLE during execution of main work. PAYMENT for SUPPLEMENTAL ITEMS shall be REGULATED: items DIRECTLY DEDUCIBLE from similar items in original agreement — RATES SHALL be DERIVED by ADDING TO or SUBTRACTING FROM the agreement rate of such similar item the COST DIFFERENCE in QUANTITY of materials and labour between the new items and similar items.",
+    "source_clause": "GCC §15 Changes in Quantities",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if SCC defines supplemental-rate derivation formula. FAIL on ambiguous variation pricing.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-106",
+    "rule_text": "TRAFFIC REGULATION by CONTRACTOR: The Contractor SHALL TAKE all REQUIRED MEASURES and ARRANGEMENTS for SAFETY of USERS during construction and maintenance per MORTH SPECIFICATIONS. SHALL PROVIDE, ERECT and MAINTAIN BARRICADES, SIGNS, MARKINGS, FLAGS and LIGHTS as required by Good Industry Practice. ALL WORKS SHALL be CARRIED OUT in a manner CREATING LEAST INTERFERENCE to traffic. Where construction is on the carriageway, the Contractor SHALL ENSURE PROPER PASSAGE for traffic. Where it is NOT POSSIBLE/SAFE to allow traffic on part-width, a TEMPORARY DIVERSION of PROPER SPECIFICATIONS SHALL be CONSTRUCTED at Contractor's cost.",
+    "source_clause": "GCC §16 Traffic regulation",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if traffic management plan per MORTH specs included. FAIL on missing traffic-safety scope.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

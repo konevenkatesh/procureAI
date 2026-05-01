@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-NIT-PUBLICATION-LANGUAGES-001",
+    "title": "AP Works NIT — Bilingual Publication by Value Slab",
+    "text_english": "For Works tenders under this Contract: (a) For works COSTING UP TO Rs.{{nit_district_threshold_lakh}} LAKHS (default Rs.50 lakh) — the tender notice SHALL be PUBLISHED in DISTRICT EDITIONS of TWO TELUGU DAILIES with the LARGEST CIRCULATION; (b) For works COSTING MORE THAN Rs.{{nit_district_threshold_lakh}} LAKHS — the tender notices SHALL be PUBLISHED in ONE TELUGU DAILY AND ONE ENGLISH DAILY having the largest STATE-LEVEL circulation. To reduce the cost of each publication, the FORMAT for the tender notice in the newspaper SHALL BE FINALISED by the BOARD OF CHIEF ENGINEERS so that the cost of advertisement is kept to the MINIMUM. The Tender NOTICE / NIT shall be APPROVED by the Engineers competent to accord Technical Sanction.",
+    "parameters": [
+      {"name": "nit_district_threshold_lakh", "param_type": "currency", "formula": null, "cap": 50, "label": "NIT District / State Threshold (Rs. Lakhs)", "example": "50"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 6,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-048"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-BOQ-TENDER-PERCENTAGE-001",
+    "title": "AP Works BOQ — Department Rates Shown + Single Tender Percentage Quote",
+    "text_english": "The TENDER SCHEDULE (BOQ) under this Contract SHALL CONTAIN: (a) the QUANTITIES; (b) the RATES worked out by the Department; (c) the AMOUNT for each item; AND (d) the TOTAL VALUE of the contract. The tenderer SHALL NOT be required to quote ITEM-WISE. The tenderer SHALL INDICATE his willingness to do the work either: (i) at the ESTIMATED VALUE of the work; (ii) at a PERCENTAGE IN EXCESS of the estimated value; OR (iii) at a PERCENTAGE LESS than the estimated value.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-5/BOQ",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-049"]
+  }
+]

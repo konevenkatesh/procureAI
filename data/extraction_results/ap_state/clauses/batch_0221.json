@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-CLASS-LIMITS-001",
+    "title": "AP Civil Contractor Class Monetary Limits + Registration Authority",
+    "text_english": "AP Civil Contractors are graded into 6 CLASSES with the following MONETARY TENDERING LIMITS and REGISTERING AUTHORITIES (per GO Ms No 8/2003 effective rates): SPECIAL CLASS — works ABOVE Rs.{{special_class_min_cr}} CRORE (default Rs.10 crore), registered by Committee of Engineer-in-Chief and Commissioner, Commissionerate of Tenders; CLASS-I — Rs.2 crore to Rs.10 crore, registered by Committee of ENC and COT; CLASS-II — Rs.1 crore to Rs.2 crore, registered by Committee of CE concerned + another CE + Member nominated by COT; CLASS-III — Rs.50 lakh to Rs.1 crore, registered by District-level Committee of available SEs + COT representative; CLASS-IV — Rs.10 lakh to Rs.50 lakh, registered by District-level Committee of SEs + COT representative; CLASS-V — UP TO Rs.10 lakh, registered by Executive Engineer of the Division concerned. Special Class, Class-I, Class-II and Class-III contractors are eligible to take up works THROUGHOUT THE STATE; CLASS-IV AND CLASS-V contractors can tender for works ONLY WITHIN the CIRCLE where their registration was issued. Registration is VALID for {{registration_validity_years}} (default 5) YEARS — renewals required thereafter; registration window opens TWICE A YEAR (January and June). The SOLVENCY CERTIFICATE for each class shall be {{solvency_pct}}% (default 10%) of the minimum monetary limit of that class. CONTRACTORS OF OTHER STATES SHALL get themselves registered in AP State BEFORE offering tender for works in AP.",
+    "parameters": [
+      {"name": "special_class_min_cr", "param_type": "currency", "formula": null, "cap": 10, "label": "Special Class Minimum (Rs. Crore)", "example": "10"},
+      {"name": "registration_validity_years", "param_type": "integer", "formula": null, "cap": 5, "label": "Registration Validity (Years)", "example": "5"},
+      {"name": "solvency_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Solvency Certificate (% of Class Minimum)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 45,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-087", "AP-GO-088", "AP-GO-089", "AP-GO-090", "AP-GO-091", "AP-GO-092"]
+  }
+]

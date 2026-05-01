@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-SITE-SELECTION-001",
+    "title": "AP Works — Site Selection Prior to Detailed Plans",
+    "text_english": "The site for any new building under this Contract shall, IF POSSIBLE, be FIXED BEFORE the detailed plans and estimates are prepared. The local authority concerned SHALL ALWAYS BE CONSULTED as to the suitability of the site, except when the proposed new building is to be erected within a reserved forest. When it is proposed to erect a work or building in the neighbourhood of a fort or cantonment, the local Military Works Officer SHALL be requested to give his opinion from the military point of view, and the matter SHALL be REPORTED TO GOVERNMENT and their orders awaited.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-193"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-ESTIMATE-PROVISIONS-001",
+    "title": "AP Works Estimate — Mandatory Provisions",
+    "text_english": "Every estimate prepared under this Contract, whether for an ORIGINAL WORK or for REPAIR, SHALL provide for: (a) the REMOVAL OF ALL RUBBISH which may have accumulated, FILLING IN UNSIGHTLY PITS as necessary, at the site of the work; (b) all WORKS ESTABLISHMENT employed specially on the work; (c) any INCIDENTAL EXPENDITURE required, such as the cost of SHEDS for workmen and stores; (d) under separate sub-heads, all WATCHMEN sanctioned by competent authority for the care of vacant buildings, guarding works, working sluices, etc. The estimate shall be prepared in COMMON FORM 150, except when a special form is required for a very large work or has been specially prescribed for a particular kind of work.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 10,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-194"]
+  }
+]

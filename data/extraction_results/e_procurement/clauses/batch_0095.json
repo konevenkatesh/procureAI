@@ -1,0 +1,31 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-LUMPSUM-PERCENTAGE-BID-001",
+    "title": "AP-Tender Bid Form — Lump-Sum / Percentage on ECV with 3-Month Validity",
+    "text_english": "TENDER (BIDDER's Form): I/We do hereby TENDER and if this tender be ACCEPTED, undertake to EXECUTE the work specified in the NIT as shown in drawings and described in specifications deposited in the Office of {{authority_office}} — with such VARIATIONS by way of alterations or additions to and omissions from the said works and METHOD of PAYMENT as provided in the Conditions of Contract. (i) I/We AGREE to EXECUTE the work when the LUMP-SUM PAYMENT under the terms of the agreement. (ii) I/We have QUOTED PERCENTAGE EXCESS OR LESS on E.C.V. (Estimated Contract Value) / LUMP-SUM, BOTH IN WORDS AND FIGURES. In CASE of any DISCREPANCY between the Percentage in WORDS and FIGURES, the RATES QUOTED IN WORDS ONLY SHALL PREVAIL. (iii) I/We AGREE to KEEP the OFFER VALID for a period of {{validity_months}} (default 3) MONTHS mentioned in the tender notice and NOT to MODIFY the bid.",
+    "parameters": [
+      {"name": "authority_office", "param_type": "text", "formula": null, "cap": null, "label": "Authority Office", "example": "Managing Director, AGICL, Amaravati"},
+      {"name": "validity_months", "param_type": "months", "formula": null, "cap": null, "label": "Bid Validity (Months)", "example": "3"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-5/Forms",
+    "position_order": 110,
+    "cross_references": [],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-BIDDERS-CERT-001",
+    "title": "AP-Tender Bidder's Certificate — Site Inspection + APCRDA Compliance",
+    "text_english": "BIDDER'S CERTIFICATE: I/WE hereby DECLARE that I/We have PERUSED in DETAIL and EXAMINED CLOSELY the CONDITIONS OF CONTRACT, all clauses of the PRELIMINARY SPECIFICATIONS with all amendments AND have either EXAMINED all the STANDARD SPECIFICATIONS or WILL EXAMINE all the STANDARD SPECIFICATIONS for items for which I/We tender — BEFORE I/We submit such tender — and AGREE to be BOUND and COMPLY with all such specifications for this agreement which I/We execute in {{tender_authority}} (default APCRDA). I/WE CERTIFY that I/We have INSPECTED the SITE OF THE WORK BEFORE QUOTING the price; I/We have SATISFIED about the QUALITY, AVAILABILITY and TRANSPORT FACILITIES for STONES, SAND and OTHER MATERIALS. I/WE am/are PREPARED to FURNISH DETAILED DATA in support of all my quoted rates if and when called upon — without ANY RESERVATION. I/WE DECLARE that I/We will PAY an ADDITIONAL SECURITY DEPOSIT in terms of contract.",
+    "parameters": [
+      {"name": "tender_authority", "param_type": "text", "formula": null, "cap": null, "label": "Tender Authority", "example": "APCRDA / GVSCCL / GVMC"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-5/Forms",
+    "position_order": 111,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

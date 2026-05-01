@@ -1,0 +1,30 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-EMD-TWO-STAGE-001",
+    "title": "AP Works — Two-Stage EMD Collection (1% at Issue + 1.5% at Agreement)",
+    "text_english": "EARNEST MONEY DEPOSIT (EMD) under this Contract SHALL be collected in TWO STAGES to discourage purchase of tender documents by NON-SERIOUS BIDDERS: (a) STAGE 1 — Tender documents SHALL be ISSUED to contractors only ON PAYMENT of EMD at {{emd_stage1_pct}}% (default 1%) of the ESTIMATED CONTRACT VALUE at the time of issuing tender documents; (b) STAGE 2 — The Successful Bidder SHALL pay BALANCE EMD of {{emd_stage2_pct}}% (default 1.5%) of the contract value at the TIME OF CONCLUDING THE AGREEMENT. The total EMD shall thus aggregate to {{emd_total_pct}}% (default 2.5%) of the estimated/contract value. THIS REQUIREMENT IS APPLICABLE EVEN IN E-PROCUREMENT.",
+    "parameters": [
+      {"name": "emd_stage1_pct", "param_type": "percentage", "formula": null, "cap": 1, "label": "EMD Stage-1 (% at Document Issue)", "example": "1"},
+      {"name": "emd_stage2_pct", "param_type": "percentage", "formula": null, "cap": 1.5, "label": "EMD Stage-2 (% at Agreement)", "example": "1.5"},
+      {"name": "emd_total_pct", "param_type": "percentage", "formula": null, "cap": 2.5, "label": "Total EMD (%)", "example": "2.5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 8,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-050", "AP-GO-113"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-COLLUSION-PREVENTION-EMD-FORFEITURE-001",
+    "title": "AP Works — Anti-Collusion Tender Schedule Issuance + EMD Forfeiture",
+    "text_english": "To PREVENT COLLUSION or formation into a ring by contractors: (a) Tender schedules SHALL be issued ONLY UNTIL A DATE PRIOR TO the last date of submission of tenders; (b) Once a contractor BUYS A TENDER SCHEDULE, he SHALL NOT BE PERMITTED to RETURN THE SCHEDULE; (c) After buying a tender schedule, if a contractor DOES NOT TENDER for the work, his EMD SHALL BE FORFEITED (cash, bank guarantee, or both).",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 12,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-051"]
+  }
+]

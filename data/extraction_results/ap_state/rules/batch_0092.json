@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-227",
+    "rule_text": "AP EPC tender acceptance must follow the procedure specifically prescribed by Government for EPC tenders (not the generic stores tender procedure of Articles 127-128).",
+    "source_clause": "AP Financial Code Vol-I, Note 1 under Article 193",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC",
+    "verification_method": "Check EPC tender acceptance follows Government-prescribed EPC procedure; reject application of generic Article-127 procedure to EPC",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-228",
+    "rule_text": "AP EPC additional-items rules: (1) additional items CONTINGENT to main work AND WITHIN scope of contract — contractor must execute at NO EXTRA COST (cost deemed included in contract price); (2) additional items contingent to main work BUT OUTSIDE scope — entrustment requires PRIOR Government approval and price decided by Government; (3) additional items NOT CONTINGENT and OUTSIDE scope — referred to Government for final decision on entrustment and price.",
+    "source_clause": "AP Financial Code Vol-I, addendum to Article 195 — EPC additional-items",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC AND AdditionalItemsRequested=true",
+    "verification_method": "EPC additional-items: contingent-within-scope → no extra cost; contingent-outside-scope → Govt approval before entrustment; non-contingent-outside → Govt referral",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

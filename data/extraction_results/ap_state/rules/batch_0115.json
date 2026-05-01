@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-105",
+    "rule_text": "Class-I and Special Class (Civil) AP contractor registration must be approved by the Board of Chief Engineers; the Chairman BoCE issues the registration order specifying the upper monetary tendering limit.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VI (Form of Registration Order)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check Class-I/Special-Class registration order is signed by BoCE Chairman with monetary-limit specified",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-106",
+    "rule_text": "Changes in partnership of an AP-registered Contractor firm must be intimated to the registering authority within ONE MONTH of the change AND fresh Solvency Certificate must be produced in the name of substituting partners; failure to notify within one month → automatic forfeiture of registration AND debarment from tendering.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VI (Form of Registration Order)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check partnership-change record on file matches dates within 1 month; verify fresh solvency certificate at partner-substitution",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Solvency-Stale",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-107",
+    "rule_text": "Renewal of AP contractor registration must be applied for at least ONE MONTH before expiry of the 5-year validity period.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VI (Form of Registration Order)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check renewal application date <= (registration_expiry - 30 days); reject late-renewal-restored registrations bidding mid-gap",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-108",
+    "rule_text": "AP-registered contractors who fail to furnish a valid Income Tax Clearance Certificate when required may be removed from the approved contractor list — formal removal letter is issued and Security Deposit released.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VII(b) (Removal Form Case ii)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check bidder has not been removed from approved list for ITC failure; cross-reference COT website",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Blacklist-Not-Checked",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

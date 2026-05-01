@@ -1,0 +1,29 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-TENDER-INVITATION-001",
+    "title": "AP Works — Mandatory Tender Invitation Above Rs.2,500",
+    "text_english": "Before this Work is given on contract, the Government servant who is competent to enter into contract on behalf of the Government SHALL HAVE the necessary CONTRACT DOCUMENTS prepared. He SHALL INVARIABLY INVITE TENDERS when the amount involved in the contract is Rs.{{tender_threshold}} (default Rs.2,500) OR MORE, unless a competent authority has given SPECIAL PERMISSION to dispense with tenders. When the amount involved is LESS than Rs.{{tender_threshold}}, the authority competent to sanction the work has discretion to decide whether or not tenders should be invited, as seems desirable in each case. A WORK SHALL NOT BE SPLIT UP into parts costing less than Rs.{{tender_threshold}} each, with a view to giving contracts without calling for tenders. When tenders are called for, SEALED TENDERS shall invariably be invited as PUBLICLY AS POSSIBLE — by ADVERTISEMENT in the Andhra Pradesh GAZETTE and the LOCAL NEWSPAPERS, and by POSTING NOTICES in English and the Indian languages used in the neighbourhood in public places. INTENDING TENDERERS shall be given FREE ACCESS to copies of the contract documents. If the contract is a LARGE one, the latest date for submission of tenders shall be at LEAST {{large_contract_min_days}} (default 30) days from the date when publicity is first given to the invitation to tender.",
+    "parameters": [
+      {"name": "tender_threshold", "param_type": "currency", "formula": null, "cap": 2500, "label": "Mandatory Tender Threshold (Rs.)", "example": "2500"},
+      {"name": "large_contract_min_days", "param_type": "days", "formula": null, "cap": 30, "label": "Large Contract Minimum Notice (Days)", "example": "30"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-210", "AP-GO-211"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-AGREEMENT-RATES-001",
+    "title": "AP Works Agreement — No Excess Rates + Termination on Refusal",
+    "text_english": "Rates IN EXCESS of those stated in this Agreement SHALL ON NO ACCOUNT BE PAID, since the payment of rates not due under the contract would NULLIFY this contract. When a piece-work contractor REFUSES to execute any work at the rates stated in his piece-work agreement, the Government servant in charge of the work SHALL TERMINATE the agreement and have the work already done MEASURED UP and PAID FOR at the rates included in the sanctioned agreement. He SHALL ALSO FORFEIT the contractor's SECURITY according to the terms of the agreement, unless a competent authority orders that the forfeiture be waived. He shall NOT enter into any contract for the execution of the remaining work at higher rates, unless he has PUBLICLY INVITED TENDERS and obtained the most favourable rates that are available. As a general rule, NO RATE STATED in an accepted agreement shall be revised whilst the agreement is in force.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 75,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-212"]
+  }
+]

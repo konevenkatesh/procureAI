@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-EPC-SEWERAGE-SCOPE-001",
+    "title": "EPC Sewerage Scope — Design through O&M Take-Over",
+    "text_english": "The Bidder SHALL be RESPONSIBLE for: (i) DESIGN, ENGINEERING (considering already-laid sewerage network and using materials available at project site); (ii) MANUFACTURING, SHOP FABRICATION, ASSEMBLY, TESTING and INSPECTION at supplier's works; (iii) PACKING, DISPATCH, SHIPPING, INDIAN PORT delivery/unloading (for imported equipment) AND SITE delivery/unloading (for indigenous equipment); (iv) STORAGE at site; (v) INSURANCE up to TIME of TAKE-OVER/HAND-OVER by Employer at the END of O&M PERIOD; (vi) HANDLING at site; (vii) COMPLETE ERECTION, START-UP, COMMISSIONING, PERFORMANCE TESTING and HANDING OVER of the FULL PACKAGE; (viii) WARRANTY and DEFECT LIABILITY PERIOD. Upon issue of COMPLETION CERTIFICATE, the Bidder SHALL be RESPONSIBLE for {{om_years}} (default 2) YEARS of OPERATION AND MAINTENANCE of the complete Facility from the date of issue.",
+    "parameters": [
+      {"name": "om_years", "param_type": "integer", "formula": null, "cap": null, "label": "O&M Period (Years)", "example": "2"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-3/Scope",
+    "position_order": 11,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-030", "GVSCCL-031"]
+  }
+]

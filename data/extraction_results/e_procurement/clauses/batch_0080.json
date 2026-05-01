@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-MULTI-BID-RESTRICTION-001",
+    "title": "Multi-Bid Restriction — One Bid Per Bidder/JV-Member",
+    "text_english": "A FIRM that is a BIDDER (either INDIVIDUALLY or as a JV MEMBER) SHALL NOT PARTICIPATE in MORE THAN ONE BID. This INCLUDES participation as a SUB-CONTRACTOR in OTHER BIDS. Such participation SHALL RESULT in DISQUALIFICATION of ALL BIDS in which the firm is involved. EXCEPTION: a firm that is NOT a Bidder or a JV Member MAY PARTICIPATE as a SUB-CONTRACTOR in MORE THAN ONE bid.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 84,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

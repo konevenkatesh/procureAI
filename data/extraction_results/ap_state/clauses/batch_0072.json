@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-ESTIMATE-CONFIDENTIALITY-001",
+    "title": "AP Works — Estimate Rates and Amounts to be Treated Strictly Confidential",
+    "text_english": "All Government servants involved in the procurement and execution of this Work SHALL TREAT the RATE and the AMOUNT of cost entered against each item in the estimate, AND the abstract showing the total estimated cost of the work or part of the work, as STRICTLY CONFIDENTIAL. NO INFORMATION concerning estimate rates or amounts may be communicated on any account to any contractor, piece-worker or prospective tenderer.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 12,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-196"]
+  }
+]

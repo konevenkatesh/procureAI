@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-123",
+    "rule_text": "When AP Government property or right is sold by public auction, the conducting Government servant must (a) give adequate time before knocking down the bid in favour of the highest bidder, AND (b) obtain signatures of the successful bidder PLUS two other lower bidders in the sale register, with bid amounts written in words AND figures and duly dated.",
+    "source_clause": "AP Financial Code Vol-I, Article 22-A",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Auction AND DisposalSale=true",
+    "verification_method": "For auction-sale records: check sale register has 3 signatures (L1 + 2 lower bidders) + amount in words and figures + date",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

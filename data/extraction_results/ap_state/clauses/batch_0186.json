@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-JUDICIAL-PREVIEW-PROCESS-001",
+    "title": "AP Judicial Preview — 7-Day Public Domain + 8-Day Preview + 15-Day Total Window",
+    "text_english": "Tender documents referred for Judicial Preview SHALL be placed in PUBLIC DOMAIN for {{public_domain_days}} (default 7) DAYS to invite suggestions before preview decisions are issued. Within {{preview_decision_days}} (default 8) DAYS of such public-domain publication, the tender document(s) SHALL be PREVIEWED. After due discussion with the Government / Local Body and due examination, the Hon'ble Judge MAY SUGGEST such MODIFICATIONS as may be required, which WILL BE BINDING on the Government. The ENTIRE EXERCISE for each tender SHALL BE COMPLETED within {{total_preview_days}} (default 15) DAYS from the date of submission of tender documents. The Government / Local Authority SHALL FURNISH the tender documents as specified, prepare and provide a list of experts required for the purpose of Judicial Preview, AND ASSIST the Hon'ble Judge for QUICK AND TRANSPARENT DISPOSAL.",
+    "parameters": [
+      {"name": "public_domain_days", "param_type": "days", "formula": null, "cap": 7, "label": "Public Domain Window (Days)", "example": "7"},
+      {"name": "preview_decision_days", "param_type": "days", "formula": null, "cap": 8, "label": "Preview Decision Window (Days)", "example": "8"},
+      {"name": "total_preview_days", "param_type": "days", "formula": null, "cap": 15, "label": "Total Preview Window (Days)", "example": "15"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 2,
+    "cross_references": ["CLAUSE-AP-JUDICIAL-PREVIEW-MANDATE-001"],
+    "rule_ids": ["AP-GO-006", "AP-GO-007", "AP-GO-008"]
+  }
+]

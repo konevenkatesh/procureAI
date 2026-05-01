@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-115",
+    "rule_text": "CROSS LIABILITIES: Any insurance maintained or effected SHALL INCLUDE a CROSS-LIABILITY CLAUSE such that the insurance SHALL APPLY to the Contractor and to the Authority as SEPARATELY INSURED.",
+    "source_clause": "GCC §20.7 Cross liabilities",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if cross-liability clause explicit. FAIL on absent CL clause.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-116",
+    "rule_text": "ACCIDENT or INJURY to WORKMEN: The Authority SHALL NOT be LIABLE for or in respect of any DAMAGES or COMPENSATION payable to any WORKMAN or OTHER PERSON in the EMPLOYMENT of the Contractor or Sub-contractor — SAVE AND EXCEPT for DEATH or INJURY resulting from any ACT, OMISSION or DEFAULT of the Authority, its agents or servants. The Contractor SHALL INDEMNIFY and KEEP INDEMNIFIED the Authority from and against ALL such CLAIMS, PROCEEDINGS, DAMAGES, COSTS, CHARGES and EXPENSES.",
+    "source_clause": "GCC §20.8 Accident or injury to workmen",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Authority's exclusion + Contractor's indemnity explicit. FAIL on Authority's residual liability.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-117",
+    "rule_text": "INSURANCE AGAINST ACCIDENT TO WORKMEN: The Contractor SHALL EFFECT and MAINTAIN during the Agreement such insurances as may be REQUIRED to INSURE the CONTRACTOR's PERSONNEL and any OTHER PERSONS employed by it on Project Works against any LIABILITY incurred. Sub-contractor's personnel are also COVERED — Contractor's obligation discharged if Sub-contractor INSURES with policy under which Authority is INDEMNIFIED. Contractor SHALL REQUIRE Sub-contractor to PRODUCE BEFORE Authority such policy + premium receipt within {{wc_proof_days}} (default 10) DAYS of demand.",
+    "source_clause": "GCC §20.9 Insurance against accident to workmen",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if WC insurance covers contractor + sub-contractor personnel + Authority indemnified. FAIL on partial cover.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-118",
+    "rule_text": "APPLICATION of INSURANCE PROCEEDS: The PROCEEDS from ALL INSURANCE CLAIMS — except for LIFE and INJURY — SHALL be APPLIED for any necessary REPAIR, RECONSTRUCTION, REINSTATEMENT, REPLACEMENT, IMPROVEMENT, DELIVERY or INSTALLATION of the Project Works. Provisions of the Agreement on construction shall apply MUTATIS MUTANDIS to works undertaken out of insurance proceeds.",
+    "source_clause": "GCC §20.10 Application of insurance proceeds",
+    "condition_when": "TenderType=Works AND InsuranceClaimReceived=true",
+    "verification_method": "PASS if proceeds-application clause explicit. FAIL on contractor diverting proceeds.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

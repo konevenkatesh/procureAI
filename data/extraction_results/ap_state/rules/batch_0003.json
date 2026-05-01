@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-122",
+    "rule_text": "When the AP Government renders a service or incurs a charge on behalf of a local body, public body or private body/person, the estimated amount must ORDINARILY be recovered IN ADVANCE before service is provided.",
+    "source_clause": "AP Financial Code Vol-I, Article 12",
+    "condition_when": "TenderState=AndhraPradesh AND DepositWorks=true",
+    "verification_method": "For deposit-works tenders: check Memorandum of Agreement / Deposit-Receipt Voucher confirming advance recovery prior to NIT publication",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

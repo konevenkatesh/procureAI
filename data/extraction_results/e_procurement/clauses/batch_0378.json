@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-AWARD-COT-CLEARANCE-001",
+    "title": "AP Works — Award of Contract via L1 + COT Clearance",
+    "text_english": "The SUPERINTENDING ENGINEER / CHIEF ENGINEER WILL AWARD or RECOMMEND to the COMPETENT TENDER ACCEPTING AUTHORITY the AWARD OF CONTRACT to the tenderer who is FOUND TECHNICALLY QUALIFIED as per the tender conditions AND whose PRICE BID IS LOWEST (L1), AND AFTER CLEARANCE BY the COMMISSIONER OF TENDERS (CoT) as per the rules in force. The TENDER ACCEPTING AUTHORITY RESERVES THE RIGHT to ACCEPT OR REJECT any tender or all tenders, AND to CANCEL the tendering process at any time prior to award of contract — without thereby incurring any liability to the affected tenderers.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 100,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-055"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-TENDER-CHECKLIST-001",
+    "title": "AP Works Tender — Mandatory Checklist Documents",
+    "text_english": "The Bidder SHALL ATTACH the following MANDATORY DOCUMENTS along with the Tender (per the Checklist): (a) Copy of Contractor's VALID REGISTRATION under appropriate Class with Government of Andhra Pradesh; (b) EMD CERTIFICATE; (c) TRANSACTION FEE CERTIFICATE; (d) Copy of PAN CARD with proof of latest INCOME TAX RETURNS submitted; (e) Copy of REGISTRATION under GST ACT 2017 (Taxpayer Identification Number); (f) Details of CIVIL ENGINEERING WORKS executed during the LAST {{experience_years}} (default 10) FINANCIAL YEARS in the tenderer's name (Statement-I); (g) all other prescribed Statements (II to X) as per the bid document. Failure to enclose any of the above SHALL render the tender LIABLE TO REJECTION.",
+    "parameters": [
+      {"name": "experience_years", "param_type": "integer", "formula": null, "cap": 10, "label": "Past Experience Period (Years)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-5/Forms",
+    "position_order": 5,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

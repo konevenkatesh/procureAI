@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-195",
+    "rule_text": "AP Government servants subordinate to the Government must NOT use their delegated power to sanction works expenditure to EVADE the necessity for higher-authority sanction by sanctioning IN INSTALMENTS a group of connected works/alterations/purchases whose total cost would exceed the delegated authority.",
+    "source_clause": "AP Financial Code Vol-I, Article 158(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Audit-level check: aggregate sanction-orders for connected works at same site/period vs delegated-authority limit; flag pattern of just-under-limit splits",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Bid-Splitting-Pattern",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-196",
+    "rule_text": "All AP Government servants must treat the RATE and AMOUNT of cost entered against each item in an estimate AND the abstract showing total estimated cost as STRICTLY CONFIDENTIAL; no information may be communicated on any account to any contractor, piece-worker or prospective tenderer.",
+    "source_clause": "AP Financial Code Vol-I, Article 160",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Tender confidentiality audit: check estimate-leaked-to-bidders complaints; tender file should NOT show pre-bid discussions of item rates",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Spec-Tailoring",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-197",
+    "rule_text": "Anticipated/actual savings in a sanctioned AP works estimate must NOT be applied to additional unrelated work without special sanction of the competent authority; savings from abandonment of a substantial section (5% or more of total sanctioned cost) cannot be redirected without that authority's special sanction.",
+    "source_clause": "AP Financial Code Vol-I, Article 161",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND SavingsRedirected=true",
+    "verification_method": "Check special sanction order on file when sanctioned-estimate savings are applied to other heads; verify abandoned-section size <= 5% threshold for routine reallocation",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

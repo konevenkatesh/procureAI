@@ -1,0 +1,30 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-LABOUR-SELF-ARRANGEMENT-001",
+    "title": "AP Capital City Works — Contractor Self-Arrangement of Labour",
+    "text_english": "The Contractor SHALL make their OWN ARRANGEMENTS for the engagement of all STAFF AND LABOUR — local or other — and for their PAYMENT, HOUSING, FEEDING and TRANSPORT. Labour importation and amenities to labour and the Contractor's staff SHALL BE TO THE CONTRACTOR'S ACCOUNT. The Contractor's QUOTED PERCENTAGE SHALL INCLUDE the expenditure towards importation, labour amenities, and staff. The Contractor SHALL, if required by the Employer/Employer's Representative, deliver to the Employer's Representative a WRITTEN STATEMENT in the prescribed form and at intervals showing the labour engaged on the works. The Contractor SHALL OBSERVE the prevailing LABOUR LAWS and Model Rules for protection of health and sanitary arrangements; in the event of breach, the Contractor SHALL — without prejudice to any other liability — PAY to the Government a sum NOT EXCEEDING Rs.{{labour_default_penalty}} (default Rs.500) for every default, breach, or filing of materially incorrect statements.",
+    "parameters": [
+      {"name": "labour_default_penalty", "param_type": "currency", "formula": null, "cap": 500, "label": "Per-Default Penalty for Labour Breach (Rs.)", "example": "500"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 95,
+    "cross_references": [],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKER-SAFETY-MEASURES-001",
+    "title": "AP Capital City Works — Worker Safety Measures",
+    "text_english": "The Contractor SHALL TAKE NECESSARY PRECAUTIONS for the SAFETY OF WORKERS and PRESERVING THEIR HEALTH while working in jobs requiring special protection — including (but not limited to): (a) PROVIDING PROTECTIVE FOOTWEAR to workers in situations like mixing and placing of mortar or concrete; (b) PROVIDING PROTECTIVE GOGGLES to welders/grinders/sandblasters; (c) HELMETS to all workers on construction site; (d) SAFETY HARNESSES for working at heights above {{harness_height_m}} (default 3) METRES; (e) SAFETY NETS, BARRICADES and EDGE-PROTECTION at all open edges and excavations; (f) FIRE-EXTINGUISHERS and FIRST-AID at site at all times; (g) ANY OTHER measures directed by the Employer's Representative. The Contractor SHALL ADD TO and AUGMENT these precautions on his own initiative where necessary, and SHALL COMPLY with directions issued by the Employer's Representative from time to time and at all times.",
+    "parameters": [
+      {"name": "harness_height_m", "param_type": "integer", "formula": null, "cap": 3, "label": "Safety Harness Mandate Height (Metres)", "example": "3"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 100,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-111",
+    "rule_text": "EVIDENCE OF INSURANCE COVER: All insurances SHALL be MAINTAINED with insurers per Good Industry Practice. WITHIN {{insurance_evidence_days}} (default 10) DAYS from the APPOINTED DATE, the Contractor SHALL FURNISH to the Authority NOTARISED TRUE COPIES of CERTIFICATES of INSURANCE, copies of insurance POLICIES and PREMIA PAYMENT RECEIPTS. NO insurance SHALL be CANCELLED, MODIFIED, or ALLOWED to EXPIRE/LAPSE until the EXPIRATION of AT LEAST {{cancellation_notice_days}} (default 45) DAYS after notice of such proposed cancellation/modification/non-renewal has been DELIVERED by the Contractor to the Authority.",
+    "source_clause": "GCC §20.3 Evidence of Insurance Cover",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 10-day evidence + 45-day cancellation-notice explicit. FAIL on shorter notice.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-112",
+    "rule_text": "REMEDY for FAILURE TO INSURE: If the Contractor FAILS to EFFECT and KEEP IN FORCE all required insurances, the Authority SHALL HAVE the OPTION to EITHER (i) KEEP IN FORCE such insurances AND PAY PREMIA and RECOVER the costs from the Contractor; OR (ii) in the event of computation of a TERMINATION PAYMENT, TREAT an AMOUNT equal to the INSURANCE COVER as DEEMED to have been RECEIVED by the Contractor.",
+    "source_clause": "GCC §20.4 Remedy for failure to insure",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if Authority has option to procure-and-recover OR deem-received-by-contractor. FAIL on missing remedy.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-113",
+    "rule_text": "WAIVER OF SUBROGATION: All insurance policies obtained by the Contractor SHALL INCLUDE a WAIVER of any/all RIGHTS of SUBROGATION or RECOVERY of the insurers against (inter alia) the AUTHORITY and its assigns, successors, undertakings and their subsidiaries, AFFILIATES, employees, insurers and underwriters — and of any right of insurers to set-off / counterclaim / deduction (whether by attachment or otherwise) in respect of any liability covered by such policies.",
+    "source_clause": "GCC §20.5 Waiver of subrogation",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if subrogation-waiver clause is explicit in all insurance policies. FAIL on missing waiver.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-114",
+    "rule_text": "CONTRACTOR's WAIVER: The Contractor RELEASES, ASSIGNS and WAIVES any/all RIGHTS of SUBROGATION or RECOVERY against (inter alia) the Authority and its assigns/affiliates/insurers — which the Contractor may otherwise have or acquire in connection with any LOSS, LIABILITY or OBLIGATION covered by INSURANCE POLICIES MAINTAINED or REQUIRED to be MAINTAINED (other than third party liability insurance policies) or because of DEDUCTIBLE CLAUSES in or INADEQUACY OF LIMITS of any such policies.",
+    "source_clause": "GCC §20.6 Contractor's waiver",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if Contractor's reciprocal waiver explicit. FAIL on absent or partial waiver.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

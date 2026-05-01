@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-134",
+    "rule_text": "CONTRACTOR's CLAIMS — 28-DAY NOTICE: If the Contractor considers himself ENTITLED to any EXTENSION OF TIME and/or any ADDITIONAL PAYMENT, the Contractor SHALL GIVE NOTICE to the Authority's Representative DESCRIBING the EVENT or CIRCUMSTANCE giving rise to the claim — AS SOON AS PRACTICABLE and NOT LATER THAN {{contractor_claim_notice_days}} (default 28) DAYS after the Contractor BECAME AWARE (or SHOULD HAVE BECOME AWARE) of the event. If the Contractor FAILS to GIVE NOTICE within 28 days: (i) Time for Completion SHALL NOT be EXTENDED; (ii) Contractor SHALL NOT be ENTITLED to additional payment; AND (iii) the Authority SHALL be DISCHARGED from ALL LIABILITY in connection with the claim.",
+    "source_clause": "GCC §26.1 Contractor's claims (28-day notice)",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 28-day claim notice with strict consequence is in SCC. FAIL on no time bar.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-135",
+    "rule_text": "DISPUTE BOARD (DB) REFERENCE: If a DISPUTE arises between the Parties in connection with the Contract or execution of Works (including any dispute as to certificate, determination, instruction, opinion or valuation of the Authority's Representative), EITHER PARTY MAY REFER the dispute IN WRITING to the DB for its decision (with copies to the other Party and Authority's Representative). The DB SHALL be DEEMED to have RECEIVED such reference on the date the chairman of the DB receives it. WITHIN {{db_decision_days}} (default 84) DAYS after receiving such reference (or such other period as may be PROPOSED by the DB and APPROVED by both Parties), the DB SHALL ISSUE its DECISION. The DB SHALL be DEEMED to be NOT ACTING AS ARBITRATOR(s).",
+    "source_clause": "GCC §26.2 Dispute Board (DB) Reference",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if DB reference + 84-day decision window + non-arbitrator status explicit. FAIL on missing DB step.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-136",
+    "rule_text": "ARBITRATION TRIBUNAL (3 ARBITRATORS): Each dispute submitted to ARBITRATION SHALL be HEARD by an ARBITRATION TRIBUNAL composed of THREE (3) ARBITRATORS — Authority and Contractor SHALL EACH APPOINT ONE arbitrator; the two arbitrators SHALL JOINTLY APPOINT the THIRD arbitrator who SHALL CHAIR the tribunal. If the named arbitrators DO NOT SUCCEED in appointing a third arbitrator within {{third_arbitrator_days}} (default 30) DAYS after the latter of the two has been appointed, the THIRD ARBITRATOR SHALL — at the request of either Party — be APPOINTED by the SECRETARY of the INDIAN COUNCIL OF ARBITRATION, NEW DELHI. If one Party FAILS to APPOINT its arbitrator within {{single_arbitrator_days}} (default 30) DAYS after the other Party has appointed, the Party which has named an arbitrator may APPLY to the Secretary, Indian Council of Arbitration.",
+    "source_clause": "GCC §26 Arbitration Tribunal",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 3-arbitrator + ICA fallback in SCC. FAIL on absent fallback or 1-arbitrator default.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Arbitration-Clause-Violation",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-137",
+    "rule_text": "SETTLEMENT OF CLAIMS — VALUE-BASED ESCALATION: (i) Claims UP TO ₹{{se_max_value}} (default ₹10,000) — Superintending Engineer; (ii) Claims ABOVE ₹{{se_max_value}} and UP TO ₹{{ce_max_value}} (default ₹50,000) — Chief Engineer; (iii) ALL CLAIMS of ABOVE ₹{{ce_max_value}} ARE TO BE SETTLED BY a CIVIL COURT of competent jurisdiction by way of CIVIL SUIT and NOT BY ARBITRATION. The arbitration SHALL be CONDUCTED per the INDIAN ARBITRATION AND CONCILIATION ACT 1996 or any statutory modification. The arbitrator SHALL STATE HIS REASONS in passing the award. A reference for adjudication under this clause SHALL be MADE by the contractor WITHIN {{adjudication_window_months}} (default 6) MONTHS from the date of intimating the contractor of preparation of final bill or his having accepted payment, whichever is earlier.",
+    "source_clause": "GCC Settlement of claims (Value-based Arbitration Threshold)",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND TenderState=AP",
+    "verification_method": "PASS if SE/CE/Civil-Court arbitration ladder is explicit + 6-month adjudication window. FAIL on flat arbitration without value tiers.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Arbitration-Clause-Violation",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

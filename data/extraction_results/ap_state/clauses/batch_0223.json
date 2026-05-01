@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CONTRACTOR-BLACKLIST-001",
+    "title": "AP Contractor Blacklisting — Grounds + Allied Concerns + Quarterly Updates",
+    "text_english": "BLACKLISTING of AP Contractors: Only the ADMINISTRATIVE DEPARTMENT (i.e., Head Chief Engineer with Government approval) may BLACKLIST a contractor on the following grounds: (i) sufficient and strong reasons to believe that the contractor or his employee has been guilty of MALPRACTICE — such as IRREGULAR PRACTICES INCLUDING FORMATION OF RING, BRIBERY, CORRUPTION, FRAUD INCLUDING SUBSTITUTION IN TENDERS, SMUGGLING, PILFERING OF UNAUTHORIZED USE OR DISPOSAL OF GOVERNMENT MATERIALS issued for specific work; (ii) the contractor CONTINUOUSLY REFUSES to PAY GOVERNMENT DUES without showing adequate reasons; (iii) the contractor or his partner/representative has been CONVICTED by a court of law for offence involving MORAL TURPITUDE in relation to business dealings; (iv) SECURITY CONSIDERATIONS including SUSPECTED DISLOYALTY to the State warrant blacklisting; (v) the EMD shall ALSO be FORFEITED. The contractor SHALL be given an opportunity of {{notice_weeks}} (default 2) WEEKS for offering his explanation BEFORE final decision. Copies of blacklisting orders SHALL be FORWARDED to the Secretary of the concerned administrative department, who SHALL INTIMATE other Departments for IMMEDIATE CESSATION of all future business. Blacklisting EXTENDS to ALL PARTNERS and ALLIED CONCERNS coming within the EFFECTIVE INFLUENCE of the blacklisted contractor. The Engineer-in-Chief SHALL maintain the up-to-date BLACKLIST and CIRCULATE it PERIODICALLY to all engineering departments — with QUARTERLY updates of additions and revocations.",
+    "parameters": [
+      {"name": "notice_weeks", "param_type": "weeks", "formula": null, "cap": 2, "label": "Notice Period for Explanation (Weeks)", "example": "2"}
+    ],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 110,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-095", "AP-GO-096", "AP-GO-097", "AP-GO-098"]
+  }
+]

@@ -1,0 +1,36 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-PHASED-CONSTRUCTION-001",
+    "title": "Phased Construction with Milestone Damages (AP-Vizag)",
+    "text_english": "The Contractor SHALL CONSTRUCT per Schedule-B and Schedule-C in conformity with Specifications and Standards in Schedule-D. CONSTRUCTION SHALL be CARRIED OUT in {{num_phases}} (default 3) PHASES — and the Contractor AGREES that construction of EACH PHASE SHALL be COMPLETED on or before the SCHEDULED COMPLETION DATE of that Phase (including any extension). In the event the Contractor FAILS to ACHIEVE any PROJECT MILESTONE or the SCHEDULED COMPLETION DATE — UNLESS such failure has occurred due to FORCE MAJEURE or for reasons SOLELY ATTRIBUTABLE to the AUTHORITY — DAMAGES SHALL be PAYABLE per Schedule-J. Phase 1 completion: {{phase1_date}}; Phase 2: {{phase2_date}}; Phase 3 (final): {{phase3_date}}.",
+    "parameters": [
+      {"name": "num_phases", "param_type": "integer", "formula": null, "cap": null, "label": "Number of Construction Phases", "example": "3"},
+      {"name": "phase1_date", "param_type": "date", "formula": null, "cap": null, "label": "Phase 1 Completion Date", "example": "2026-12-31"},
+      {"name": "phase2_date", "param_type": "date", "formula": null, "cap": null, "label": "Phase 2 Completion Date", "example": "2027-06-30"},
+      {"name": "phase3_date", "param_type": "date", "formula": null, "cap": null, "label": "Phase 3 (Final) Completion Date", "example": "2027-10-31"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 65,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-089"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-EOT-25-EXCESS-001",
+    "title": "AP Tender — EOT Assessment with 25% Excess Allowance for Engineer's Delay",
+    "text_english": "REASONABLE EXTENSION of TIME SHALL be ALLOWED by the {{eot_authority}} (default Chief Engineer, GVMC) — or office competent to sanction the extension — for UNAVOIDABLE DELAYS resulting from causes UNDOUBTEDLY BEYOND the Contractor's CONTROL in the opinion of the EXECUTIVE ENGINEER. Where delay/hindrance is caused by WRITTEN INSTRUCTIONS issued by the Engineer, the Executive Engineer SHALL ASSESS the period of delay at {{eot_excess_pct}}% (default 25%) IN EXCESS of the actual working period so lost. If the Executive Engineer FAILS to ISSUE necessary instructions — thereby causing delay — the Contractor SHALL have the RIGHT to CLAIM ASSESSMENT by the {{appellate_authority}} (default Chief Engineer, GVMC) whose decision SHALL be FINAL and BINDING. The Contractor SHALL LODGE in writing a STATEMENT of CLAIM with the Executive Engineer within {{claim_window_days}} (default 28) days.",
+    "parameters": [
+      {"name": "eot_authority", "param_type": "text", "formula": null, "cap": null, "label": "EOT Sanctioning Authority", "example": "Chief Engineer, GVMC"},
+      {"name": "eot_excess_pct", "param_type": "percentage", "formula": null, "cap": 25, "label": "EOT Excess Allowance (%)", "example": "25"},
+      {"name": "appellate_authority", "param_type": "text", "formula": null, "cap": null, "label": "Appellate Authority for Engineer Inaction", "example": "Chief Engineer, GVMC"},
+      {"name": "claim_window_days", "param_type": "days", "formula": null, "cap": 28, "label": "Claim Lodging Window (Days)", "example": "28"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 66,
+    "cross_references": ["CLAUSE-EOT-PROMPT-001"],
+    "rule_ids": ["GVSCCL-090", "GVSCCL-093"]
+  }
+]

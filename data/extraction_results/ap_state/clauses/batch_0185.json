@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-JUDICIAL-PREVIEW-MANDATE-001",
+    "title": "AP Judicial Preview — Mandatory Pre-Tender Review for Projects ≥ Rs.100 Crore",
+    "text_english": "INFRASTRUCTURE PROJECTS of value Rs.{{judicial_preview_threshold_cr}} CRORE (default Rs.100 crore) AND ABOVE — undertaken by Andhra Pradesh Government, AP Public Undertakings, Joint Ventures (JV), Special Purpose Vehicles (SPV) of the Government of Andhra Pradesh, AND Public Private Partnership (PPP) projects — SHALL UNDERGO JUDICIAL PREVIEW by a person who IS or HAS BEEN a HON'BLE JUDGE OF THE HIGH COURT, PRIOR to inviting tenders, to ensure CONFORMITY in PROCEDURE, RULES, and GUIDELINES prescribed by State and Central Governments from time to time. The LEAD CONSORTIUM MEMBER in any Bidding Consortium SHALL hold NOT LESS THAN {{lead_member_min_equity_pct}}% (default 26%) equity stake AND SHALL hold the HIGHEST EQUITY STAKE among all consortium members. Any project SHALL NOT be split, segregated, divided, or tendered separately to evade this Rs.{{judicial_preview_threshold_cr}}-crore threshold; any such part is DEEMED an INTEGRAL PART of the original project requiring preview.",
+    "parameters": [
+      {"name": "judicial_preview_threshold_cr", "param_type": "currency", "formula": null, "cap": 100, "label": "Judicial Preview Threshold (Rs. Crore)", "example": "100"},
+      {"name": "lead_member_min_equity_pct", "param_type": "percentage", "formula": null, "cap": 26, "label": "Lead Consortium Member Min Equity (%)", "example": "26"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-1/NIT",
+    "position_order": 1,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-001", "AP-GO-002", "AP-GO-003"]
+  }
+]

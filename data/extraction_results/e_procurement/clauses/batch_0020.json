@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-LOCAL-LABOUR-PREF-001",
+    "title": "AP Tender — Local Villager Preference for Unskilled Labour + Quarterly Gender-Disaggregated Reporting",
+    "text_english": "The Contractor SHALL ENSURE that personnel engaged are APPROPRIATELY QUALIFIED, SKILLED and EXPERIENCED per Good Industry Practice. The Contractor SHALL GIVE PREFERENCE to LOCAL VILLAGERS for UNSKILLED LABOUR REQUIREMENT. The Contractor SHALL PROVIDE a QUARTERLY REPORT to the Authority Engineer on the DETAILS of PERSON-DAYS of EMPLOYMENT provided to local villagers — DISAGGREGATED FOR MEN AND WOMEN SEPARATELY. Reporting cadence: every {{report_quarter_months}} months (default 3). Local-villager threshold: {{local_pref_pct}}% (default 80%) of unskilled person-days.",
+    "parameters": [
+      {"name": "report_quarter_months", "param_type": "months", "formula": null, "cap": 3, "label": "Reporting Quarter (Months)", "example": "3"},
+      {"name": "local_pref_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Local-Villager Preference Floor (% Unskilled Person-Days)", "example": "80"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 51,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-067"]
+  }
+]

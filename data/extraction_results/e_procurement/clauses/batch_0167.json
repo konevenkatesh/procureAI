@@ -1,0 +1,20 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-ESMP-PENALTY-LAPSES-001",
+    "title": "AP Capital City Works — ESMP Penalty Schedule for Compliance Lapses",
+    "text_english": "An amount of MINIMUM Rs.{{minor_min_penalty}} (default Rs.10,000) and MAXIMUM Rs.{{minor_max_penalty}} (default Rs.10,00,000 i.e. Rs.10 lakh) for EACH MINOR NON-COMPLIANCE with the Contractor's Environment & Social Management Plan (C-ESMP), AND MINIMUM Rs.{{major_min_penalty}} (default Rs.10,00,000 i.e. Rs.10 lakh) and MAXIMUM Rs.{{major_max_penalty}} (default Rs.50,00,000 i.e. Rs.50 lakh) for ALL MAJOR NON-COMPLIANCES with C-ESMP, in the part bill SHALL be WITHHELD. The amount SHALL be RELEASED ONLY if the identified non-compliances are RECTIFIED within the duration specified by the ESMU/PMC. Duration specified shall consider the environmental damage/risks associated with the non-compliances. SUCH SPECIFIED DURATION SHALL NOT BE MORE THAN {{rectification_max_days}} (default 15) DAYS.",
+    "parameters": [
+      {"name": "minor_min_penalty", "param_type": "currency", "formula": null, "cap": 10000, "label": "Minor Non-Compliance Min Penalty (Rs.)", "example": "10000"},
+      {"name": "minor_max_penalty", "param_type": "currency", "formula": null, "cap": 1000000, "label": "Minor Non-Compliance Max Penalty (Rs.)", "example": "1000000"},
+      {"name": "major_min_penalty", "param_type": "currency", "formula": null, "cap": 1000000, "label": "Major Non-Compliance Min Penalty (Rs.)", "example": "1000000"},
+      {"name": "major_max_penalty", "param_type": "currency", "formula": null, "cap": 5000000, "label": "Major Non-Compliance Max Penalty (Rs.)", "example": "5000000"},
+      {"name": "rectification_max_days", "param_type": "days", "formula": null, "cap": 15, "label": "Rectification Max Window (Days)", "example": "15"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 172,
+    "cross_references": ["CLAUSE-AP-CONTRACTOR-ESMP-RESPONSIBILITIES-001"],
+    "rule_ids": []
+  }
+]

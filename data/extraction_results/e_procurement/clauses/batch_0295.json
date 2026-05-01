@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-RFP-EXCLUSIVE-JURISDICTION-001",
+    "title": "AP RFP — Exclusive Jurisdiction in AP Courts",
+    "text_english": "The COMPETENT COURTS at ANDHRA PRADESH SHALL HAVE EXCLUSIVE JURISDICTION over all DISPUTES arising under, pursuant to, and/or in connection with this Bid Process, this RFP, and the Bids submitted hereunder.",
+    "parameters": [],
+    "applicable_tender_types": ["EPC", "Services", "Works", "Goods", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 130,
+    "cross_references": [],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-RFP-BID-VALIDITY-180-001",
+    "title": "AP RFP — Bid Validity 180 Days",
+    "text_english": "The Bids SHALL REMAIN VALID for a period of {{bid_validity_days}} (default 180) DAYS from the BID DUE DATE. A Bid valid for a SHORTER PERIOD SHALL BE REJECTED by the Authority as being NON-RESPONSIVE. In exceptional circumstances, prior to the expiry of the Bid validity period, the Authority MAY REQUEST Bidders to EXTEND the Bid validity period. A Bidder MAY CHOOSE to ACCEPT or REJECT the Authority's request for extension. If the Bidder agrees to an extension, the EARNEST MONEY DEPOSIT (Bid Security) SHALL ALSO BE EXTENDED for a period equal to the extension. A Bidder who refuses to extend the Bid validity period without forfeiting the EMD shall be deemed to have withdrawn the Bid.",
+    "parameters": [
+      {"name": "bid_validity_days", "param_type": "days", "formula": null, "cap": 180, "label": "Bid Validity Period (Days)", "example": "180"}
+    ],
+    "applicable_tender_types": ["EPC", "Services", "Works", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 30,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

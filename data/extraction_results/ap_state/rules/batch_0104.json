@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-044",
+    "rule_text": "Machine rates must be adopted for earthwork excavation in AP works where quantities exceed 1,000 cum, except for narrow-band canal/foundation works (lining seating 0.10-0.15m, silt removal <0.30m, restricted foundations, model sections/chutes).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 1(e)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND ItemType=EarthworkExcavation AND Quantity>1000",
+    "verification_method": "For tender BOQ: if earthwork item qty > 1000 cum, rate must be machine-rate (unless item matches one of the 5 listed exceptions)",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Spec-Tailoring",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-045",
+    "rule_text": "Administrative Approval for major/medium AP irrigation and R&B schemes must be granted in two stages: Stage-I (investigation, EIA/EMP, designs, clearances, land acquisition, R&R) and Stage-II (project prioritization + funding) — Stage-II approval requires Stage-I completion or certified bypass.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 2(a)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND Sector IN [Irrigation, RoadsBridges]",
+    "verification_method": "Check AA file contains both Stage-I and Stage-II approval orders (or Engineer-in-Chief certification that Stage-I was bypassable)",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-046",
+    "rule_text": "Technical Sanction monetary delegation in AP works: Executive Engineer up to Rs.10 lakh; Superintending Engineer up to Rs.50 lakh; Chief Engineer up to value of Administrative Approval.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 2(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check Technical Sanction officer rank matches delegation: EE <= Rs.10L, SE <= Rs.50L, CE up to AA value; reject if signed by lower-rank officer",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-047",
+    "rule_text": "AP works must be inspected by departmental officials before Technical Sanction is accorded — by Executive Engineer (up to Rs.50 lakh), Superintending Engineer (Rs.50 lakh to <Rs.500 lakh), and Engineer-in-Chief/Chief Engineer (Rs.500 lakh and above).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 2(c)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check pre-TS inspection report on file by officer of correct rank-tier matching estimated cost band",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

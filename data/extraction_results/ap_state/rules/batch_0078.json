@@ -1,0 +1,30 @@
+[
+  {
+    "rule_id": "AP-GO-220",
+    "rule_text": "AP Form 9 'Tender for the Supply of Goods' is the standard agreement template — contractor agrees to supply goods to the Government, forwards EARNEST MONEY refundable if tender not accepted, with description, quality, rate, and total quantity specified.",
+    "source_clause": "AP Financial Code Vol-I, Form 9 (under Article 131)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Goods supply agreements should follow Form 9 structure with EMD-attached + 4-column quality/rate/quantity table",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-221",
+    "rule_text": "AP Goods supply contracts have these binding clauses: (a) breach by contractor — contract terminable without compensation, (b) Government may end contract at any time on giving N day's notice, (c) goods must equal contracted samples and Government-officer approval, (d) delivery free of charge to Government at contractor's risk, (e) rejection-removal at contractor's expense within 7 days, (f) Government may reject and purchase from elsewhere on contractor failure (extra cost charged to contractor).",
+    "source_clause": "AP Financial Code Vol-I, Form 9 / Conditions of contract clauses 1-5",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods",
+    "verification_method": "Check tender SCC/agreement contains these 6 mandatory clauses; reject contracts missing rejection / breach-termination / delivery-at-contractor-risk provisions",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

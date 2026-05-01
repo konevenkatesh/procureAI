@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-025",
+    "rule_text": "The BANK GUARANTEE by Bidders SHALL be GIVEN on NON-JUDICIAL STAMP PAPER per the stamp duty applicable at the place of issue. The non-judicial stamp paper SHALL be IN THE NAME OF THE ISSUING BANK.",
+    "source_clause": "Volume I — BG Submission (Bidders' BGs)",
+    "condition_when": "TenderType=Works AND BGFurnished=true",
+    "verification_method": "PASS if BG stamp paper is in the issuing bank's name. FAIL on stamp paper in contractor's name or unstamped BG.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "BG-Validity-Gap",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-026",
+    "rule_text": "ALL BANK GUARANTEES and FURTHER COMMUNICATIONS regarding BG SHALL be FORWARDED ONLY TO the MD&CEO, Greater Visakhapatnam Smart City Corporation Limited (GVSCCL).",
+    "source_clause": "Volume I — BG Routing Address",
+    "condition_when": "TenderType=Works AND ProjectAuthority=GVSCCL",
+    "verification_method": "PASS if BG addressee is MD&CEO, GVSCCL. FAIL on unaddressed BG or wrong addressee.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-027",
+    "rule_text": "Issuing bank's FULL ADDRESS along with TELEX/FAX NUMBER and EMAIL ADDRESS SHALL be MENTIONED on the Bank Guarantee. A BG VERIFICATION CHECKLIST (duly filled in) SHALL be ENCLOSED with the Bank Guarantee.",
+    "source_clause": "Volume I — BG Verification Checklist",
+    "condition_when": "TenderType=Works AND BGFurnished=true",
+    "verification_method": "PASS if BG carries issuing-bank contact + verification checklist. FAIL on missing verification trail.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "BG-Validity-Gap",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-028",
+    "rule_text": "ELIGIBILITY OF PROCUREMENT for projects financed by Government of India and/or State Government of Andhra Pradesh: bidders SHALL CHECK ELIGIBILITY of the COUNTRY of origin for goods/works/non-consulting services with respect to GoI declarations of PROHIBITED/INELIGIBLE trade/procurement. During contract agreement, IF GoI declares prohibition for any country, the prohibition SHALL apply WITH EFFECT FROM the GoI-declared enforcement date.",
+    "source_clause": "ITB 4.8 / ITB 5.1 — Source-Country Eligibility (GoI + AP)",
+    "condition_when": "TenderType=Works AND TenderState=AP AND FundingSource=GoI_or_AP",
+    "verification_method": "PASS if bid checks country-of-origin against GoI prohibition list. FAIL on missing country-eligibility check.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "GVSCCL-029",
+    "rule_text": "FRAUD AND CORRUPTION (ITB Section VI §6.1): The Authority SHALL REJECT a Bid, WITHDRAW the LoA/Letter of Award, OR TERMINATE the Contract Agreement WITHOUT BEING LIABLE in any manner if it determines that the Bidder/Contractor/Concessionaire has DIRECTLY or INDIRECTLY (or through an agent) ENGAGED IN: CORRUPT PRACTICE, FRAUDULENT PRACTICE, COERCIVE PRACTICE, UNDESIRABLE PRACTICE or RESTRICTIVE PRACTICE in the Bidding Process. In such event, the Authority SHALL FORFEIT and APPROPRIATE the Bid Security or Performance Security as PRE-ESTIMATED COMPENSATION AND DAMAGES.",
+    "source_clause": "Section VI §6.1 (Fraud and Corruption)",
+    "condition_when": "TenderType=Works AND ProhibitedPracticeDetected=true",
+    "verification_method": "PASS if §6.1 is verbatim in bid + signed by bidder. FAIL on watered-down or absent fraud-and-corruption clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

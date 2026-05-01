@@ -1,0 +1,30 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-REVISED-ESTIMATE-5PCT-001",
+    "title": "AP Works — Revised Estimate Triggered at 5% Variance",
+    "text_english": "A REVISED ESTIMATE shall be submitted under this Contract when the SANCTIONED ESTIMATE is likely to be EXCEEDED by MORE THAN {{revision_trigger_pct}}% (default 5%) for any cause whatever, OR when material developments or deviations have necessitated revised administrative approval. A REPORT shall be sent with it showing the PROGRESS made up to date and EXPLAINING FULLY why the revision is necessary. The revised estimate need not contain details of items not altered, but shall include a comparative statement for items that ARE altered. The sanctioned estimate shall always be sent with the revised estimate. If the likelihood of excess becomes known only at such an advanced stage that submission of a revised estimate would be useless, the facts SHALL be EXPLAINED in the COMPLETION REPORT.",
+    "parameters": [
+      {"name": "revision_trigger_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Revised Estimate Trigger (% over Sanctioned)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 80,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-213"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-LAPSE-SANCTION-5YR-001",
+    "title": "AP Works Sanction — 5-Year Lapse for Unstarted Works",
+    "text_english": "The APPROVAL or SANCTION to an estimate for any work other than ordinary annual repair SHALL, unless the work has been STARTED, CEASE TO BE IN FORCE {{sanction_lapse_years}} (default 5) YEARS after the date when the sanction was accorded. The sanction to an estimate for ORDINARY ANNUAL REPAIRS to a road or building shall LAPSE on the LAST DAY of the financial year. (Special working-year-end dates apply for irrigation works in certain divisions: Dowlaishwaram Division (Visakhapatnam and Godavari) — 31 January; All other divisions — 30 November; Vijayawada Circle — 31 March.)",
+    "parameters": [
+      {"name": "sanction_lapse_years", "param_type": "integer", "formula": null, "cap": 5, "label": "Sanction Validity (Years)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 85,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-214"]
+  }
+]

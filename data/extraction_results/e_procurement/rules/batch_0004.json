@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-021",
+    "rule_text": "Form FIN-3.1 (Financial Situation and Performance) SHALL be FURNISHED — including HISTORIC FINANCIAL DATA for the lookback period (currency, exchange rate, INR-equivalent amount). Each JV Member SHALL submit a SEPARATE Form FIN-3.1.",
+    "source_clause": "Section III — Form FIN-3.1",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if FIN-3.1 attached with multi-year audited turnover converted to INR. FAIL on missing CA-attestation or missing JV-member sub-forms.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-022",
+    "rule_text": "Form CON-2 (History of Litigation) SHALL be FURNISHED — disclosing for each litigation/arbitration: contract identification, name and address of Authority, matter in dispute, party who initiated dispute (Authority/Contractor), reasons for litigation and award decision, and amount.",
+    "source_clause": "Section III — Form CON-2",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if CON-2 fully completed (or 'Nil litigation' declared). FAIL on selective omission of disputes.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-023",
+    "rule_text": "For SUB-CONTRACTORS performing KEY ACTIVITIES per ITB 33.2/33.3 and Section III Sub-Factor 4.2, the sub-contractor SHALL COMPLETE Form EXP-4.2(a) detailing: contract identification, award date, completion date, role (Prime Contractor / Member in JV / Management Contractor / Sub-contractor), total contract amount in INR, year-wise quantities performed, and percentage participation.",
+    "source_clause": "Section III — Form EXP-4.2(a) (Sub-contractor Key Activities)",
+    "condition_when": "TenderType=Works AND SubContractorKeyActivity=true",
+    "verification_method": "PASS if every key-activity sub-contractor has completed EXP-4.2(a). FAIL on missing sub-contractor experience evidence.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-024",
+    "rule_text": "BANK GUARANTEE FOR MOBILISATION ADVANCE: the Contractor shall DEPOSIT with the Authority a Bank Guarantee guaranteeing PROPER and FAITHFUL PERFORMANCE for an amount equal to the mobilisation advance. The bank shall agree UNCONDITIONALLY and IRREVOCABLY to guarantee as PRIMARY OBLIGATOR (not merely as Surety).",
+    "source_clause": "Volume I — BG for Mobilisation Advance (Form)",
+    "condition_when": "TenderType=Works AND MobilisationAdvanceRequested=true",
+    "verification_method": "PASS if BG form is unconditional, irrevocable, primary-obligator. FAIL on conditional/secondary-obligator wording.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "BG-Validity-Gap",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

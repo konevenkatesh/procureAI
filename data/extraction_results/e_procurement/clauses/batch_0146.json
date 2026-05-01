@@ -1,0 +1,16 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CHANGE-IN-LAW-001",
+    "title": "AP Capital City Works — Change in Law (Cost Adjustment)",
+    "text_english": "If as a RESULT OF CHANGE IN LAW, the Contractor SUFFERS ANY ADDITIONAL COSTS in the execution of the Works or in relation to the performance of its other obligations under this Agreement, the Contractor SHALL — within {{notification_days}} (default 15) DAYS from the date it becomes reasonably aware of such addition in cost — NOTIFY the Engineer-in-Charge with a copy to the Authority's Engineer of such additional cost due to Change in Law. If as a result of Change in Law the Contractor BENEFITS from any reduction in cost or expenses, the Contractor SHALL likewise notify the Engineer-in-Charge within {{notification_days}} days. After due verification by the Authority's Engineer, the Authority SHALL adjust the Contract Price upwards or downwards, as the case may be.",
+    "parameters": [
+      {"name": "notification_days", "param_type": "days", "formula": null, "cap": 15, "label": "Change-in-Law Notification Window (Days)", "example": "15"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 130,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

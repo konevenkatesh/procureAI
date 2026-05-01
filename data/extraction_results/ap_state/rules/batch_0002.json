@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-121",
+    "rule_text": "AP Financial Code defines 'Contract' to include any kind of undertaking — written or verbal, expressed or implied — by a non-Government person/syndicate/firm to construct, maintain or repair works, supply stores, or perform services in connection with works/stores execution.",
+    "source_clause": "AP Financial Code Vol-I, Article 6 — definition of 'Contract'",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Foundational definition; treat verbal/implied agreements with same legal status as written contracts when applying AP Financial Code rules",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

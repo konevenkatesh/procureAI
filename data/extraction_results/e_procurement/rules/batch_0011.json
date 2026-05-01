@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-058",
+    "rule_text": "MEASUREMENTS and CALCULATIONS in this contract SHALL be in the METRIC SYSTEM. Calculations SHALL be DONE TO 2 DECIMAL PLACES — with the THIRD DIGIT of 5 OR ABOVE being ROUNDED UP and BELOW 5 being ROUNDED DOWN.",
+    "source_clause": "GCC §1.3 Measurements and arithmetic conventions",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if BoQ/measurement sheet uses metric to 2 dp with stated rounding. FAIL on imperial/non-rounding usage.",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-059",
+    "rule_text": "PRIORITY of CONTRACT DOCUMENTS in case of CONFLICT (highest to lowest): (1) Contract Agreement; (2) Letter of Acceptance; (3) Bill of Quantities; (4) Drawings; (5) Scope of Work; (6) Special Conditions of Contract; (7) General Conditions of Contract including Schedules; (8) Any other documents forming part of the contract.",
+    "source_clause": "GCC §1.4 Priority of agreements and errors/discrepancies",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if priority order in GCC matches the 8-item list. FAIL on missing or reordered priorities.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-060",
+    "rule_text": "The ENGINEER-IN-CHARGE — namely the CHIEF ENGINEER — SHALL DECIDE contractual matters between GVSCCL and the Contractor in the role REPRESENTING GVSCCL — except where otherwise specifically stated.",
+    "source_clause": "GCC §1.4 (Engineer-in-Charge designation)",
+    "condition_when": "TenderType=Works AND ProjectAuthority=GVSCCL",
+    "verification_method": "PASS if GCC names Chief Engineer GVSCCL as Engineer-in-Charge. FAIL on ambiguous EiC designation.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Jurisdiction-Ambiguous",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-061",
+    "rule_text": "JOINT and SEVERAL LIABILITIES of JV partners: JV partners SHALL be 'JOINTLY AND SEVERALLY' RESPONSIBLE for the project. The LEAD PARTNER SHALL have a MINIMUM {{lead_partner_min_share_pct}}% (default 51%) STAKE in the JV; OTHER Joint-Venture partners SHALL have AT LEAST {{other_partner_min_share_pct}}% (default 20%) AND ABOVE. JV partners SHALL be LIABLE INDIVIDUALLY proportionate to their share AND JOINTLY for 100% share.",
+    "source_clause": "GCC §1.5 Joint and several liabilities",
+    "condition_when": "TenderType=Works AND BidderType=JV",
+    "verification_method": "PASS if JV agreement shows lead ≥51% + other(s) ≥20% + J&S liability clause. FAIL on lower lead share or absent J&S liability.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-062",
+    "rule_text": "SCOPE of the PROJECT — Sewerage Package 2 balance works (phase-I, Gajuwaka area): 'Investigation Survey, Design, Construction & Commissioning of Sewerage collection and Conveyance system in Gajuwaka area with 2 years O&M'. Project consists of: (i) HOUSE SERVICE CONNECTIONS; (ii) SEWER NETWORK approximately 103.32 km; (iii) 3 SEWAGE PUMPING STATIONS at APHB Colony, Autonagar, KIMS backside; (iv) 2 LIFT STATIONS at Sheela Nagar and Police Station back side; (v) Sewage Transmission — in conformity with Specifications and Standards per the Tender.",
+    "source_clause": "GCC Article 2 §2.1 Scope of the Project",
+    "condition_when": "TenderType=Works AND ProjectRef=GVSCCL/Projects/395",
+    "verification_method": "PASS if SoW section enumerates all 5 components + SPS/LS locations + 103.32 km. FAIL on under-scoped definition.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

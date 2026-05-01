@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-LAND-BORDER-COUNTRY-RESTRICTION-001",
+    "title": "AP RFP — Land-Border-Country Bidder Restriction (DoE OM 2020)",
+    "text_english": "Per Office Memorandum F.No.6/18/2019-PPD dated 23 July 2020 issued by the Ministry of Finance, Department of Expenditure, Public Procurement Division, Government of India: ANY BIDDER from a country which SHARES A LAND BORDER WITH INDIA SHALL be ELIGIBLE to bid in this tender ONLY IF the Bidder is REGISTERED with the COMPETENT AUTHORITY (the Registration Committee constituted by the Department for Promotion of Industry and Internal Trade, GoI). This restriction does NOT apply to countries to which GoI has extended LINES OF CREDIT or in which GoI is engaged in DEVELOPMENT PROJECTS. Each Bidder SHALL FURNISH a CERTIFICATE of registration with the Competent Authority along with the Bid; FAILURE to furnish such certificate shall make the Bid INELIGIBLE.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "Goods", "Services", "EPC", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 22,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

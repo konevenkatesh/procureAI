@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-186",
+    "rule_text": "AP stores verification shall NEVER be entrusted to: (i) a low-paid subordinate, (ii) the custodian / ledger-keeper / accountant responsible for stores being verified, or to nominee/employee under them, (iii) anyone not conversant with classification, nomenclature, and connected technique of the stores; large-value/important-stores verification should be by a responsible officer INDEPENDENT of the executive officer in charge of stores.",
+    "source_clause": "AP Financial Code Vol-I, Article 144",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level; verifier-independence requirement",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "COI-PMC-Works",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-187",
+    "rule_text": "AP library books may be purchased from reputed and standard book sellers on prevalent terms WITHOUT calling for tenders, subject to delegated financial powers of Head of Department; loss of 3 volumes per 1,000 issued/consulted in a year is reasonable; loss of any book > Rs.200 must invariably be investigated.",
+    "source_clause": "AP Financial Code Vol-I, Article 144 Note",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=Goods AND Material=Books",
+    "verification_method": "For library-book procurement: tender process not mandatory; HOD financial-powers ceiling check + reputed-bookseller record",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Single-Source-Undocumented",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-188",
+    "rule_text": "AP store-verification deficiency investigations must be FINALISED WITHIN SIX MONTHS of detection; further extensions require Government order; controlling authority must prescribe time limits and ensure strict implementation.",
+    "source_clause": "AP Financial Code Vol-I, Article 145 — GO Ms No 347 / Finance dated 1-12-1975",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit-level; not tender-verifiable",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-189",
+    "rule_text": "AP Financial Code defines 'Works' broadly to include: construction and repair of buildings, roads, irrigation projects; manufacture, supply, carriage and repair of tools, plant, and stores required for works; generating stations, transmission and distribution lines, service connections — primarily classified as 'Original Works' OR 'Repairs and Maintenance' (with Repairs further classified as Ordinary Repairs OR Special Repairs).",
+    "source_clause": "AP Financial Code Vol-I, Article 147",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Foundational definition; treat all listed activities under AP Works rules",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

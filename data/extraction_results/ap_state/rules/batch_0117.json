@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-114",
+    "rule_text": "Bidders apprehensive of physical tender-box submission may send their tender by POST with EMD reaching one day prior to bid-receipt close date — and may participate in person at tender opening; tender authority must accept such postal submissions to prevent cartel intimidation.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 6 (Cartel Prevention)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender NIT explicitly permits postal submission with day-prior cut-off; reject NITs that bar postal submission",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-115",
+    "rule_text": "AP Commissioner of Tenders must finalise grading modalities for AP contractors within 60 days of GO 94/2003; contractor grading must be UPDATED EVERY YEAR on 1st June.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 8",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check bidder's grading certificate is current (issued/refreshed in latest 1-June cycle); flag stale grading > 1 year",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-116",
+    "rule_text": "GO 94/2003 (R&B amendment) RAISES the Chief Engineer / Engineer-in-Chief tender-finalisation power from Rs.100 lakh (Rs.1 cr, original) to Rs.200 lakh (Rs.2 cr) due to cost escalation; National Highways works retain their separate orders.",
+    "source_clause": "GO Ms No 94/2003 Annexure-VIII Section 12",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC] AND Sector!=NationalHighways",
+    "verification_method": "For AP non-NH works: CE/ENC may finalise tenders up to Rs.2 cr; works > Rs.2 cr → COT route (per AP-GO-055)",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

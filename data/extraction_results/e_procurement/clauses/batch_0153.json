@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-TAX-EXCLUSIVE-OF-GST-001",
+    "title": "AP Capital City Works — Rates Exclusive of GST + Tax-Change Adjustment",
+    "text_english": "The RATES QUOTED by the Contractor SHALL be DEEMED to be EXCLUSIVE OF GOODS AND SERVICES TAX (GST), Sales tax, and other taxes that the Contractor will have to pay for the performance of this Contract. The Employer WILL PERFORM such duties in regard to the DEDUCTION OF TAXES AT SOURCE (TDS) as per applicable law. The Project Manager SHALL ADJUST the CONTRACT PRICE if taxes, duties, and other levies are CHANGED between the deadline for submission of bids and the date of the last completion certificate — by the AMOUNT OF SUCH CHANGE if the change has a material effect upon the Contractor's costs of performing the Contract. The Contractor SHALL PRODUCE a VALID GST CLEARANCE CERTIFICATE before the payment of the FINAL BILL; otherwise PAYMENT to the Contractor SHALL be WITHHELD.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 150,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

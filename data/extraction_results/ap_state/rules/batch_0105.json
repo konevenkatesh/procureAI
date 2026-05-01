@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-048",
+    "rule_text": "Tender Notice (NIT) for AP works up to Rs.50 lakh must be published in District editions of two Telugu dailies with the largest circulation; for works above Rs.50 lakh, in one Telugu daily and one English daily with the largest State-level circulation.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 4(a)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check NIT publication record: <=Rs.50L → 2 Telugu district editions; >Rs.50L → 1 Telugu + 1 English state-level. NIT format must follow BoCE-prescribed minimum-cost template.",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-049",
+    "rule_text": "Tender schedule (BOQ) in AP works must show department-computed item rates AND total contract value; bidder must NOT quote item-wise but must indicate willingness as a single tender percentage (excess/equal/less than the estimated value).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 4(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check BOQ format: dept rates shown + total estimate shown + bidder quotes single 'percentage above/below' (not item-wise)",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-050",
+    "rule_text": "EMD for AP works tender documents is collected in two slabs: 1% of estimated contract value paid at issue of tender documents to discourage non-serious bidders; balance 1.5% paid by successful bidder at agreement-signing — total 2.5% EMD.",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 5",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender BDS specifies 1% EMD at document issue + 1.5% at agreement; reject if 0%/single-stage/different-percentage",
+    "severity": "ADVISORY",
+    "pattern_type": "P1",
+    "typology_code": "EMD-Shortfall",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-051",
+    "rule_text": "Tender schedules for AP works must NOT be issuable on the last date of submission — issuance must close on a date prior; once a contractor purchases a tender schedule he cannot return it; if he then fails to submit a tender, his EMD shall be forfeited (cash or BG or both).",
+    "source_clause": "GO Ms No 94/2003 Annexure-I, Section 6(a)-(b)",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType IN [Works, EPC]",
+    "verification_method": "Check tender NIT timeline: tender_doc_issue_close_date < bid_submission_close_date; check SCC contains EMD-forfeiture clause for non-submission",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Bid-Splitting-Pattern",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

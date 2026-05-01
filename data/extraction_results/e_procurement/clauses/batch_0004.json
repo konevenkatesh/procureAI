@@ -1,0 +1,18 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-GST-CERT-001",
+    "title": "AP-State GST Registration Certificate — Mandatory at Bid Stage",
+    "text_english": "The bidder SHALL FURNISH the GST REGISTRATION CERTIFICATE issued by the GOVERNMENT OF ANDHRA PRADESH along with the tender. Out-of-state GSTINs are PERMITTED only where the bidder undertakes to obtain an AP GSTIN within {{ap_gstin_obtain_days}} (default 30) days of contract award. Bidder's AP GSTIN: {{ap_gstin}}; valid until: {{ap_gstin_validity}}.",
+    "parameters": [
+      {"name": "ap_gstin_obtain_days", "param_type": "days", "formula": null, "cap": null, "label": "Days to Obtain AP GSTIN Post-Award", "example": "30"},
+      {"name": "ap_gstin", "param_type": "text", "formula": null, "cap": null, "label": "Bidder's AP GSTIN", "example": "37ABCDE1234F1Z5"},
+      {"name": "ap_gstin_validity", "param_type": "date", "formula": null, "cap": null, "label": "AP GSTIN Validity", "example": "2027-03-31"}
+    ],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-3/Datasheet",
+    "position_order": 90,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-019"]
+  }
+]

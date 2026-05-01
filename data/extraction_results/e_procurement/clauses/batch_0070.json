@@ -1,0 +1,32 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-SEIGNORAGE-001",
+    "title": "AP Seignorage Charges — GO Ms No 100/2015 Reference",
+    "text_english": "SEIGNORAGE CHARGES — Per AP Government Order GO Ms No {{ap_seignorage_go_no}} (default 100), {{ap_seignorage_dept}} (default Industries and Commerce (M.I) Dept.) dated {{ap_seignorage_go_date}} (default 31.10.2015): the rates are LIABLE to be REVISED and AMENDED from time to time by the State Government by NOTIFICATION in the 'ANDHRA PRADESH GAZETTE'. If the REVISED seignorage fee is MORE than the rate at agreement date, the RECOVERY from the contractor's bills shall be PER REVISED RATES — without modifying the proposed seignorage charges as mentioned in the contract. Seignorage charges shall be RECOVERED as PROVIDED in the agreement. ANY ESCALATION beyond the agreement provisions SHALL be BORNE by the DEPARTMENT (debiting the escalated amount to the works estimate concerned). SEIGNORAGE COMPONENT loaded in PART-C of the estimate SHALL be ADDED in EACH BILL of the contractor and RECOVERED.",
+    "parameters": [
+      {"name": "ap_seignorage_go_no", "param_type": "text", "formula": null, "cap": null, "label": "AP GO Ms No (Seignorage)", "example": "100"},
+      {"name": "ap_seignorage_dept", "param_type": "text", "formula": null, "cap": null, "label": "Issuing Department", "example": "Industries and Commerce (M.I) Dept."},
+      {"name": "ap_seignorage_go_date", "param_type": "date", "formula": null, "cap": null, "label": "GO Date", "example": "2015-10-31"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 250,
+    "cross_references": [],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-GST-18-PCT-001",
+    "title": "AP-Tender GST at 18% with Statutory Variation",
+    "text_english": "GOODS & SERVICES TAX (GST): GST AT THE RATE OF {{gst_rate_pct}}% (default 18%). ANY CHANGES made in the GST structure between the AGREEMENT DATE and the CONTRACT EXECUTION period SHALL be ABSORBED into the contract per the STATUTORY VARIATION mechanism — the upward variation shall be REIMBURSED to the contractor on PROOF of payment to the GST authority; downward reductions shall be PASSED ON to the Authority. Bid price IS EXCLUSIVE of GST.",
+    "parameters": [
+      {"name": "gst_rate_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "GST Rate (%)", "example": "18"}
+    ],
+    "applicable_tender_types": ["Works", "EPC", "Goods", "Services"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 251,
+    "cross_references": ["CLAUSE-WORKS-GST-001"],
+    "rule_ids": []
+  }
+]

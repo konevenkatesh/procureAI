@@ -1,0 +1,20 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-QUALIFICATION-CRITERIA-001",
+    "title": "AP Works — Qualification Criteria + Bid Capacity Formula",
+    "text_english": "To QUALIFY for the award of this Contract, EACH BIDDER in its name SHALL HAVE — during the LAST FIVE YEARS preceding the financial year in which tenders are invited — (a) SATISFACTORILY COMPLETED as a PRIME CONTRACTOR similar works of value not less than {{similar_work_pct}}% (default 50%) of the Estimated Value of Contract, in any one year; (b) EXECUTED in any one year minimum quantities of principal items (typically {{quantity_pct}}% (default 50%) of expected peak quantities of construction per year) — including Cement Concrete, RCC, PSC, and Earth Work in both excavation and embankment. EACH BIDDER SHALL FURTHER DEMONSTRATE: (i) AVAILABILITY (owned, leased, or to be procured against mobilisation advances) of KEY EQUIPMENT for this work; (ii) AVAILABILITY of KEY PERSONNEL with adequate experience; (iii) LIQUID ASSETS / CREDIT FACILITIES (credit lines / letters of credit / solvency certificates from Banks) equivalent to the estimated cash flow for {{liquid_assets_months}} (default 3) MONTHS in peak construction period; (iv) EMD in the shape of BANK GUARANTEE for {{emd_pct}}% (default 1%) of the estimated contract value, valid for the period of completion plus defect liability period. ONLY EXPERIENCE relating to works executed in STATE / CENTRAL GOVERNMENT departments OR State / Central Government undertakings shall be considered. Available Bid Capacity = (A × N × 2) − B; where A = Maximum value of civil engineering works executed in any one year during the last five years (price-updated at {{annual_price_weightage_pct}}% (default 10%) per year); N = Number of years for completion of the works for which tenders are invited; B = Value of existing commitments and ongoing works due during the same period. The bidder QUALIFIES only if the AVAILABLE BID CAPACITY is MORE THAN the ESTIMATED VALUE.",
+    "parameters": [
+      {"name": "similar_work_pct", "param_type": "percentage", "formula": null, "cap": 50, "label": "Similar Works Min Value (% of ECV)", "example": "50"},
+      {"name": "quantity_pct", "param_type": "percentage", "formula": null, "cap": 50, "label": "Quantity Execution Min (% of Peak)", "example": "50"},
+      {"name": "liquid_assets_months", "param_type": "months", "formula": null, "cap": 3, "label": "Liquid Assets Cash Flow (Months)", "example": "3"},
+      {"name": "emd_pct", "param_type": "percentage", "formula": null, "cap": 1, "label": "EMD Bank Guarantee (% of ECV)", "example": "1"},
+      {"name": "annual_price_weightage_pct", "param_type": "percentage", "formula": null, "cap": 10, "label": "Annual Price-Level Weightage (%)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 40,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-059", "AP-GO-060", "AP-GO-061", "AP-GO-062", "AP-GO-063", "AP-GO-064", "AP-GO-065"]
+  }
+]

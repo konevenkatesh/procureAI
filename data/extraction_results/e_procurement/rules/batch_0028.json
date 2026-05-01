@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "GVSCCL-127",
+    "rule_text": "TERMINATION PAYMENT for FORCE MAJEURE: (i) NON-POLITICAL EVENT TERMINATION — Termination Payment = sum payable under Clause 23.5; if termination during Maintenance Period, only value of Works associated with Maintenance shall be determined. (ii) INDIRECT POLITICAL EVENT TERMINATION — Termination Payment INCLUDES (a) sums due under Clause 23.5; AND (b) REASONABLE COST (as determined by Authority's Representative) of PLANT and MATERIALS procured by Contractor and TRANSFERRED to the Authority for use in Construction or Maintenance — only if in conformity with Specifications and Standards.",
+    "source_clause": "GCC §21.8 Termination Payment for FM",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND FMTerminationOccurred=true",
+    "verification_method": "PASS if differential termination payments by FM type explicit. FAIL on flat termination payment.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-128",
+    "rule_text": "FORCE MAJEURE — DISPUTE RESOLUTION + EXCUSE FROM PERFORMANCE: In the event Parties are UNABLE TO AGREE in good faith about occurrence/existence of FM, the Dispute SHALL be FINALLY SETTLED per the Dispute Resolution Procedure — BURDEN OF PROOF on the Party CLAIMING relief. EXCUSE: Affected Party SHALL be EXCUSED from performance to the extent it is unable to perform — provided (i) suspension of performance shall be NO GREATER SCOPE and NO LONGER DURATION than reasonably required; (ii) Affected Party SHALL MAKE all reasonable efforts to MITIGATE/LIMIT damage and CURE with due diligence; (iii) when able to RESUME, SHALL GIVE NOTICE and PROMPTLY RESUME.",
+    "source_clause": "GCC §21.9 FM Dispute Resolution and Excuse",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND FMEventOccurred=true",
+    "verification_method": "PASS if BoP on claimant + mitigation duty explicit. FAIL on absent mitigation obligation.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-129",
+    "rule_text": "SUSPENSION of CONTRACTOR's RIGHTS: Where (i) the Contractor SUSPENDS the works WITHOUT SANCTION; (ii) SUB-LETS the work without sanction of the Engineer-in-Charge; (iii) NEGLECTS or FAILS to PROCEED with DUE DILIGENCE; (iv) CONTINUES to DEFAULT or REPEATS DEFAULTS per Clause 26 of APSS — the ENGINEER-IN-CHARGE SHALL TAKE ACTION per CLAUSE 61 of APSS. If Contractor STOPS WORK for 28 DAYS without Engineer's authorisation, the Contract SHALL be TERMINATED under CLAUSES 60 & 61 of APSS. If Contractor has DELAYED COMPLETION, the Contract SHALL be TERMINATED under Clauses 60 & 61 of APSS.",
+    "source_clause": "GCC Article 22 Suspension (APSS Clauses 26, 60 & 61)",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND TenderState=AP",
+    "verification_method": "PASS if SCC explicitly references APSS clauses 26, 60 & 61 for default termination. FAIL on missing APSS reference.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

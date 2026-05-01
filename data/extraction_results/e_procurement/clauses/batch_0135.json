@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-MULTI-CONTRACTOR-COORDINATION-001",
+    "title": "AP Capital City Works — Multi-Contractor Site Coordination & Cooperation",
+    "text_english": "The Contractor SHALL conduct their work in a manner that DOES NOT INTERFERE with or hinder the progress of work being performed by OTHER CONTRACTORS at the same site. The Contractor SHALL ARRANGE their work and workspace to avoid interference with the operations of other Contractors, ensuring a coordinated and acceptable approach. The Contractor SHALL COOPERATE with and PROVIDE NECESSARY FACILITIES to associated contractors and other agencies working on the site to facilitate smooth execution — including: ALLOWING the use of EXISTING SCAFFOLDING, TOILETS, SHEDS, and other facilities; PROVIDING ACCESS to power, water, and storage areas as agreed with the Employer's Representative; SHARING construction-area COMMON LOGISTICS as may be necessary. The Employer's Representative shall act as the COORDINATOR for inter-contractor disputes; his decision shall be FINAL AND BINDING.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 80,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

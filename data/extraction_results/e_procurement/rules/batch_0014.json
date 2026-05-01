@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-069",
+    "rule_text": "The PROJECT SITE or any PART thereof SHALL NOT be USED in any manner to ADVERTISE any COMMERCIAL PRODUCT or SERVICES.",
+    "source_clause": "GCC §3.5 Advertisement on Project Site",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if SCC bars commercial advertising on site. FAIL on absent advertising bar.",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-070",
+    "rule_text": "CONTRACTOR's CARE of the WORKS: The Contractor SHALL BEAR FULL RISK and TAKE FULL RESPONSIBILITY for CARE of the Works AND of the Materials, Goods and Equipment for incorporation therein — FROM the APPOINTED DATE UNTIL the date of PROVISIONAL CERTIFICATE (for works completed before issuance) AND/OR COMPLETION CERTIFICATE (for Punch List items) — SAVE AND EXCEPT to the extent that any loss/damage shall have ARISEN from any DEFAULT or NEGLECT of the Authority.",
+    "source_clause": "GCC §3.6 Contractor's Care of the Works",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if §3.6 clearly assigns risk to contractor with Authority-default carve-out. FAIL on absent risk-allocation clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-071",
+    "rule_text": "The Contractor SHALL be RESPONSIBLE for PROCURING ALL POWER, WATER and OTHER SERVICES that it may require during construction.",
+    "source_clause": "GCC §3.7 Electricity, water and other services",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if SCC assigns utility procurement to contractor. FAIL on Authority-supplied utilities without metering clause.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-072",
+    "rule_text": "OBLIGATIONS of the AUTHORITY: AT ITS OWN COST and EXPENSE — undertake, comply with and perform ALL its obligations. UPON WRITTEN REQUEST from the Contractor (and subject to Contractor compliance with Applicable Laws), PROVIDE REASONABLE SUPPORT to the Contractor in PROCURING APPLICABLE PERMITS required from any Government Instrumentality. PROVIDE REASONABLE ASSISTANCE in obtaining ACCESS to NECESSARY INFRASTRUCTURE FACILITIES and UTILITIES — including water and electricity at RATES and TERMS NO LESS FAVOURABLE than those generally available to commercial customers.",
+    "source_clause": "GCC §4 Obligations of the Authority",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Authority obligations include permit-procurement support + utility access. FAIL on one-sided obligations.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-073",
+    "rule_text": "REPRESENTATIONS and WARRANTIES of the CONTRACTOR (mandatory): (a) DULY ORGANISED and VALIDLY EXISTING under the LAWS OF INDIA; (b) FULL POWER and AUTHORITY to execute and perform; (c) all NECESSARY corporate/other actions taken; (d) Agreement constitutes LEGAL, VALID and BINDING obligation enforceable per its terms; (e) SUBJECT to the LAWS OF INDIA — EXPRESSLY and IRREVOCABLY WAIVES any IMMUNITY in any jurisdiction; (f) information furnished in the Bid is TRUE and ACCURATE in ALL MATERIAL RESPECTS.",
+    "source_clause": "GCC §5.1 Representations and Warranties of the Contractor",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if §5.1 R&W clauses verbatim. FAIL on missing immunity-waiver or law-of-India clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

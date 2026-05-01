@@ -1,0 +1,19 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-3-ARBITRATOR-ICA-001",
+    "title": "Three-Arbitrator Tribunal with Indian Council of Arbitration Fallback",
+    "text_english": "Each dispute submitted to ARBITRATION SHALL be HEARD by an ARBITRATION TRIBUNAL composed of {{num_arbitrators}} (default 3) ARBITRATORS. (a) Authority and Contractor SHALL EACH APPOINT ONE arbitrator; the two arbitrators SHALL JOINTLY APPOINT the THIRD arbitrator who SHALL CHAIR the tribunal. (b) If the named arbitrators DO NOT SUCCEED in appointing a third arbitrator within {{third_arbitrator_days}} (default 30) DAYS after the latter of the two has been appointed, the THIRD ARBITRATOR SHALL — at the request of either Party — be APPOINTED by the SECRETARY of the {{fallback_institution}} (default Indian Council of Arbitration, New Delhi). (c) If one Party FAILS to APPOINT its arbitrator within {{single_arbitrator_days}} (default 30) DAYS after the other Party has appointed, the Party which has named an arbitrator may APPLY to the Secretary of the fallback institution.",
+    "parameters": [
+      {"name": "num_arbitrators", "param_type": "integer", "formula": null, "cap": null, "label": "Number of Arbitrators", "example": "3"},
+      {"name": "third_arbitrator_days", "param_type": "days", "formula": null, "cap": 30, "label": "Third Arbitrator Appointment Window (Days)", "example": "30"},
+      {"name": "fallback_institution", "param_type": "text", "formula": null, "cap": null, "label": "Fallback Appointing Institution", "example": "Indian Council of Arbitration, New Delhi"},
+      {"name": "single_arbitrator_days", "param_type": "days", "formula": null, "cap": 30, "label": "Party-Default Window (Days)", "example": "30"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 196,
+    "cross_references": ["CLAUSE-ARB-TRIBUNAL-COMPOSITION-001"],
+    "rule_ids": ["GVSCCL-136"]
+  }
+]

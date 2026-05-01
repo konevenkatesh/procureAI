@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-091",
+    "rule_text": "INCOMPLETE WORKS: In the event the Contractor FAILS to COMPLETE Works per the Project Completion Schedule (including any Time Extension granted), the Contractor SHALL ENDEAVOR to COMPLETE the BALANCE WORK EXPEDITIOUSLY and SHALL PAY DAMAGES to the Authority per Clause 10.3.2 for delay of EACH DAY until Works are completed. Recovery of damages under this clause SHALL be WITHOUT PREJUDICE to the Authority's right to TERMINATION under Clause 23.1.",
+    "source_clause": "GCC §10.3 Incomplete Works",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if SCC includes per-day damages + termination right. FAIL on absent damages quantum.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-LD-Clause",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-092",
+    "rule_text": "TIME FOR COMPLETION: The TOTAL period of completion is {{completion_period_months}} (default 18) MONTHS from the APPOINTED DATE — INCLUDING MONSOON PERIOD. Work SHALL be PROGRAMMED to ACHIEVE the MILESTONES. The DATE of COMMENCEMENT of the contractor's programme SHALL be the DATE for CONCLUDING the AGREEMENT. After signing, the Contractor SHALL FORTHWITH BEGIN the work and SHALL REGULARLY and CONTINUOUSLY PROCEED.",
+    "source_clause": "GCC Time for Completion (Programme)",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND ProjectRef=GVSCCL/Projects/395",
+    "verification_method": "PASS if completion period = 18 months including monsoon, with milestone schedule attached. FAIL on inflated period or missing monsoon allowance.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-093",
+    "rule_text": "DELAYS and EXTENSION OF TIME: NO CLAIM for COMPENSATION on account of delays/hindrances from any cause whatever shall lie except as defined. Reasonable extension SHALL be ALLOWED by the CHIEF ENGINEER, GVMC (or office competent to sanction the extension) for UNAVOIDABLE DELAYS resulting from causes UNDOUBTEDLY BEYOND the CONTRACTOR's CONTROL — in the opinion of the EXECUTIVE ENGINEER. The Executive Engineer SHALL ASSESS the period of delay/hindrance caused by his WRITTEN INSTRUCTIONS at TWENTY-FIVE PER CENT IN EXCESS of the actual working period so lost. If the Executive Engineer FAILS to ISSUE necessary instructions causing delay, the contractor SHALL have the RIGHT to CLAIM ASSESSMENT by the CHIEF ENGINEER, GVMC whose decision will be FINAL and BINDING.",
+    "source_clause": "GCC Delays and extension of time",
+    "condition_when": "TenderType=Works AND ContractType=EPC AND ProjectAuthority=GVSCCL",
+    "verification_method": "PASS if EE/CE GVMC dispute-resolution path + 25%-excess assessment formula explicit. FAIL on missing assessment mechanism.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Jurisdiction-Ambiguous",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-094",
+    "rule_text": "EARLY WARNING: The Contractor SHALL WARN the Engineer-in-Charge AT THE EARLIEST OPPORTUNITY of SPECIFIC LIKELY FUTURE EVENTS or CIRCUMSTANCES that MAY ADVERSELY AFFECT execution of Works. The Contractor SHALL COOPERATE with the Engineer-in-Charge in MAKING and CONSIDERING PROPOSALS for HOW the EFFECT of such an event/circumstance can be AVOIDED or REDUCED — and CARRY OUT any RESULTING INSTRUCTION.",
+    "source_clause": "GCC Early Warning",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if early-warning protocol explicit + cooperative obligation. FAIL on absent EW clause.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

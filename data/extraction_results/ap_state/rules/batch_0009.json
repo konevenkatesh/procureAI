@@ -1,0 +1,44 @@
+[
+  {
+    "rule_id": "AP-GO-131",
+    "rule_text": "Statutory limitation period for arrear claims against AP Government for payments made in contingent bills for supplies/services rendered (i.e., contractor bills) is THREE YEARS from the date the amount first became due; for claims under written registered contracts, the period is SIX YEARS.",
+    "source_clause": "AP Financial Code Vol-I, Article 55",
+    "condition_when": "TenderState=AndhraPradesh AND ContractorBillClaim=true",
+    "verification_method": "Reject contractor bill arrear claims older than 3 years (or 6 years if written-registered contract) without Government special sanction",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-132",
+    "rule_text": "AP Government servants drawing bills for pay/allowances/contingent expenses are PRIMARILY responsible for correctness of the amount; if any amount is drawn in excess, the drawing officer must make good the excess; counter-signing officers and Treasury Officers are jointly liable for losses arising from culpable negligence.",
+    "source_clause": "AP Financial Code Vol-I, Article 56",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "Audit trail: drawing/counter-signing/treasury officers' signatures recorded on bill; recovery action if over-payment detected",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-133",
+    "rule_text": "AP administrative authorities should NOT ordinarily consider any representation/protest against a recovery ordered by the Accountant-General unless received within THREE MONTHS from the date the Government servant making the representation received first intimation of the order.",
+    "source_clause": "AP Financial Code Vol-I, Article 60",
+    "condition_when": "TenderState=AndhraPradesh AND RecoveryOrderProtest=true",
+    "verification_method": "Reject post-3-month representations against AG-ordered recoveries unless extraordinary justification on file",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

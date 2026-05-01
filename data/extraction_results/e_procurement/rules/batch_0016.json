@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-079",
+    "rule_text": "SITE: The Authority SHALL be RESPONSIBLE for: (i) ACQUIRING and PROVIDING ON THE SITE per the alignment FINALISED by the Authority — FREE FROM ALL ENCROACHMENTS and ENCUMBRANCES — and FREE ACCESS thereto for execution; AND (ii) OBTAINING LICENSES & PERMITS for ENVIRONMENT CLEARANCE for the Project Works.",
+    "source_clause": "GCC §8.1 The Site",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if Authority obligations enumerate land + environmental clearance. FAIL on contractor-borne site-acquisition risk.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-080",
+    "rule_text": "SITE TO BE FREE FROM ENCUMBRANCES: The Site SHALL be MADE AVAILABLE by the Authority FREE FROM ALL ENCUMBRANCES and OCCUPATIONS — without the Contractor being required to make any payment to the Authority. Existing rights of way, easements, privileges, liberties and appurtenances to the Site SHALL NOT be DEEMED ENCUMBRANCES. UNLESS otherwise specified, the Contractor ACCEPTS and UNDERTAKES to BEAR ANY AND ALL RISKS arising out of INADEQUACY or PHYSICAL CONDITION of the Site.",
+    "source_clause": "GCC §8.2 Site to be free from Encumbrances",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if encumbrance-free guarantee explicit + site-condition risk allocated to contractor. FAIL on ambiguous risk allocation.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-081",
+    "rule_text": "PROTECTION OF SITE FROM ENCROACHMENTS: From signing of memorandum until issue of COMPLETION CERTIFICATE, the Contractor SHALL MAINTAIN a ROUND-THE-CLOCK VIGIL over the Site to PREVENT ENCROACHMENT. During Construction, the Contractor SHALL PROTECT the Site from ANY OCCUPATIONS, ENCROACHMENTS or ENCUMBRANCES — and SHALL NOT PLACE OR CREATE NOR PERMIT any sub-contractor to create any Encumbrance on the Site. In the event of encroachment, the Contractor SHALL REPORT to the Authority FORTHWITH and UNDERTAKE its REMOVAL at OWN COST.",
+    "source_clause": "GCC §8.3 Protection of Site from encroachments",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if 24×7 vigil + encroachment-removal cost on contractor explicit. FAIL on weak/silent clause.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-082",
+    "rule_text": "SPECIAL/TEMPORARY RIGHT OF WAY: The Contractor SHALL BEAR ALL COSTS and CHARGES for any SPECIAL or TEMPORARY RIGHT OF WAY/SITE required by it for ACCESS to the Site. The Contractor SHALL OBTAIN at its COST such facilities ON or OUTSIDE the Site as may be required for the Project Works.",
+    "source_clause": "GCC §8.4 Special/temporary Right of Way",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if temporary-RoW costs on contractor explicit. FAIL on Authority-funded RoW.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

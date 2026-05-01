@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-APSS-TERMINATION-001",
+    "title": "Termination Reference to Andhra Pradesh Standard Specifications (APSS) Clauses 60 & 61",
+    "text_english": "SUSPENSION of CONTRACTOR's RIGHTS: Where (i) the Contractor SUSPENDS the works WITHOUT SANCTION; (ii) SUB-LETS the work without sanction of the Engineer-in-Charge; (iii) NEGLECTS or FAILS to PROCEED with DUE DILIGENCE; (iv) CONTINUES to DEFAULT or REPEATS DEFAULTS per CLAUSE 26 of APSS — the ENGINEER-IN-CHARGE SHALL TAKE ACTION per CLAUSE 61 of APSS. (a) If Contractor STOPS WORK for {{stoppage_days}} (default 28) DAYS without Engineer's authorisation, the Contract SHALL be TERMINATED under CLAUSES 60 & 61 of APSS. (b) If Contractor has DELAYED COMPLETION, the Contract SHALL be TERMINATED under Clauses 60 & 61 of APSS. (c) Where Contractor causes a FUNDAMENTAL BREACH, the Department/Authority MAY TERMINATE the Contract; for CONVENIENCE, the Authority may terminate at ANY TIME without prior notice. APSS reference document: {{apss_version}}.",
+    "parameters": [
+      {"name": "stoppage_days", "param_type": "days", "formula": null, "cap": 28, "label": "Unauthorised Stoppage Trigger (Days)", "example": "28"},
+      {"name": "apss_version", "param_type": "text", "formula": null, "cap": null, "label": "APSS Version Referenced", "example": "Andhra Pradesh Standard Specifications, R&B Department, latest amendment"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 150,
+    "cross_references": ["CLAUSE-WORKS-BREACH-CONTRACT-001"],
+    "rule_ids": ["GVSCCL-129", "GVSCCL-130"]
+  }
+]

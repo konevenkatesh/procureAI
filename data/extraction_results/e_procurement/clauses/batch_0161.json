@@ -1,0 +1,26 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-QUALITY-PLAN-ISO9001-001",
+    "title": "AP Capital City Works — Quality Plan Based on ISO 9001:2015",
+    "text_english": "The Contractor SHALL DEVELOP a comprehensive QUALITY PLAN based on the principles of ISO 9001:2015 (or the latest applicable version of the ISO 9001 standard). This Quality Plan SHALL BE SUBMITTED to the Employer or its duly authorised Representative for APPROVAL PRIOR to the COMMENCEMENT OF THE WORKS. The Contractor SHALL UTILIZE only those MATERIALS that are INCLUDED IN the APPROVED LIST of materials, makes, and suppliers provided by the Employer's Representative.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 160,
+    "cross_references": ["CLAUSE-AP-QA-QC-SYSTEM-001"],
+    "rule_ids": []
+  },
+  {
+    "clause_id": "CLAUSE-AP-QC-MULTI-AUTHORITY-INSPECTION-001",
+    "title": "AP Capital City Works — Multi-Authority Quality Control Inspection",
+    "text_english": "In addition to ROUTINE INSPECTIONS conducted by the Engineer and the project staff responsible for construction oversight, this Work SHALL BE SUBJECT to INDEPENDENT INSPECTIONS by: (a) the EXECUTIVE ENGINEER; (b) the designated QUALITY CONTROL CIRCLE; (c) the STATE OR DISTRICT LEVEL VIGILANCE CELL UNIT; AND (d) any other AUTHORISED EXTERNAL AGENCY as may be determined by the Employer. If any inspection reveals SUB-STANDARD WORK, instances of EXCESS PAYMENTS, or DISCREPANCIES in measurement books or other records, RECOVERY shall be made from the Contractor's bills, and DISCIPLINARY ACTION may be initiated against the responsible departmental Engineers.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 162,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

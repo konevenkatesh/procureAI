@@ -1,0 +1,14 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-AG-AUDIT-CONTRACTS-001",
+    "title": "AP Accountant-General Audit of Contracts",
+    "text_english": "All contracts entered into by the Government shall be subject to EXAMINATION by the Accountant-General as part of his audit functions. The Accountant-General shall REPORT to the Government the facts of any case in which: (a) competitive tenders were NOT INVITED though they should have been under the rules; (b) a tender OTHER THAN THE LOWEST was accepted WITHOUT SUFFICIENT JUSTIFICATION; OR (c) any other MATERIAL IRREGULARITY was committed in connection with the contract.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "Goods", "Services", "EPC", "Consultancy"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 100,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-176"]
+  }
+]

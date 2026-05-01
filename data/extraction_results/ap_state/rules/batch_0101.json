@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "AP-GO-035",
+    "rule_text": "Reverse Tendering procedure is MANDATORY for procurement of Goods, Services and Works of value Rs.1.00 crore and above by all AP Departments, PSUs, Societies, Universities, Local Bodies and Institutions.",
+    "source_clause": "GO Ms No 79 / Finance Dept dated 24-08-2020, Order Para 5",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=10000000",
+    "verification_method": "Check tender file documents reverse-auction round on apeprocurement.gov.in (or APTS platform); reject single-round bid evaluations for tenders >= Rs.1 cr",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Reverse-Tender-Evasion",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-036",
+    "rule_text": "AP CEO of APCFSS must withhold payment for tenders of value Rs.1 crore and above where reverse-tendering process was not adopted; violations must be reported to the Finance Department.",
+    "source_clause": "GO Ms No 79 / Finance Dept dated 24-08-2020, Order Para 8",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=10000000",
+    "verification_method": "Check tender execution chain: payment release requires reverse-tendering compliance certificate from APCFSS",
+    "severity": "WARNING",
+    "pattern_type": "P3",
+    "typology_code": "Reverse-Tender-Evasion",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-037",
+    "rule_text": "MD of APTS must enable reverse-tendering functionality on the AP e-procurement platform for all Goods, Services and Works tenders of Rs.1 crore and above.",
+    "source_clause": "GO Ms No 79 / Finance Dept dated 24-08-2020, Order Para 7",
+    "condition_when": "TenderState=AndhraPradesh AND EstimatedValue>=10000000",
+    "verification_method": "Check tender NIT references reverse-tendering on apeprocurement.gov.in; reject tenders that opted out of platform reverse-tender feature",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Reverse-Tender-Evasion",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-038",
+    "rule_text": "GO Ms No 79/2020 establishes Reverse Tendering as a parallel mandate alongside Judicial Preview (GO Ms No 79/2020 Para 2) — both apply to AP infrastructure procurement, with thresholds Rs.1 crore for reverse tendering and Rs.100 crore for judicial preview.",
+    "source_clause": "GO Ms No 79 / Finance Dept dated 24-08-2020 read with AP Judicial Preview Act 2019",
+    "condition_when": "TenderState=AndhraPradesh",
+    "verification_method": "For AP tenders: if value>=Rs.1cr require reverse-tendering audit trail; if value>=Rs.100cr ALSO require Judicial Preview certificate",
+    "severity": "ADVISORY",
+    "pattern_type": "P3",
+    "typology_code": "Reverse-Tender-Evasion",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

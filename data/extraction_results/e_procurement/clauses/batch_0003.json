@@ -1,0 +1,24 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-BDS-INSTANTIATION-001",
+    "title": "AP State BDS — Bid Data Sheet Instantiation Pattern",
+    "text_english": "BDS (Bid Data Sheet) — single-source instantiation table for AP State works tenders. ITB 1.1: Reference number of the Request for Bids: {{rfb_reference}}. ITB 1.1: The Authority is: {{authority_name}}. ITB 1.1: Name of the work: {{work_title}}. ITB 1.2(a) — Electronic Procurement System: The Authority SHALL USE the AP State e-Procurement portal at {{eproc_portal_url}} (default https://www.apeprocurement.gov.in) for: (i) Technical Proposal upload; (ii) Financial Proposal — Priced Bid uploaded through the web-portal ONLY. ITB 4.1: Maximum number of members in JV = {{max_jv_members}}. ITB 21.2: In addition to the original Bid, number of copies = {{num_copies}}. ITB 22.1: For Bid submission purposes only, the Authority's address is {{submission_address}}; submission date {{submission_date}} time {{submission_time}}. Bid submission stages: Stage I (Eligibility + Technical), Stage II (Financial).",
+    "parameters": [
+      {"name": "rfb_reference", "param_type": "text", "formula": null, "cap": null, "label": "RFB Reference Number", "example": "GVSCCL/Projects/395(Pkg-II Balance works)/2025-26/Dt:30.03.2026"},
+      {"name": "authority_name", "param_type": "text", "formula": null, "cap": null, "label": "Authority Name", "example": "Greater Visakhapatnam Smart City Corporation Limited"},
+      {"name": "work_title", "param_type": "text", "formula": null, "cap": null, "label": "Work Title", "example": "Sewerage Package 2 balance works (phase-I, Gajuwaka area) — UGSS"},
+      {"name": "eproc_portal_url", "param_type": "text", "formula": null, "cap": null, "label": "AP e-Procurement Portal URL", "example": "https://www.apeprocurement.gov.in"},
+      {"name": "max_jv_members", "param_type": "integer", "formula": null, "cap": null, "label": "Maximum JV Members", "example": "2"},
+      {"name": "num_copies", "param_type": "integer", "formula": null, "cap": null, "label": "Number of Bid Copies (in addition to original)", "example": "1"},
+      {"name": "submission_address", "param_type": "text", "formula": null, "cap": null, "label": "Submission Address", "example": "MD&CEO, GVSCCL, Plot 21, Kirlampudi Layout, Beach Road, Visakhapatnam 530017"},
+      {"name": "submission_date", "param_type": "date", "formula": null, "cap": null, "label": "Submission Date", "example": "2026-04-18"},
+      {"name": "submission_time", "param_type": "text", "formula": null, "cap": null, "label": "Submission Time", "example": "16:00 IST"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-3/Datasheet",
+    "position_order": 1,
+    "cross_references": ["CLAUSE-WORKS-MODES-OF-TENDERING-001"],
+    "rule_ids": ["GVSCCL-011", "GVSCCL-012", "GVSCCL-013", "GVSCCL-014", "GVSCCL-015"]
+  }
+]

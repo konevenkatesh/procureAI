@@ -1,0 +1,33 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CIVIL-COURT-50K-001",
+    "title": "AP-State Settlement of Claims — Civil Court Above ₹50,000 (Arbitration Cap)",
+    "text_english": "SETTLEMENT OF CLAIMS — Value-Based Escalation Ladder (AP-State variant): (i) Claims UP TO ₹{{tier1_cap}} (default ₹10,000) — Adjudicator: SUPERINTENDING ENGINEER; (ii) Claims ABOVE ₹{{tier1_cap}} and UP TO ₹{{arb_cap}} (default ₹50,000) — Adjudicator: CHIEF ENGINEER. (iii) ALL CLAIMS ABOVE ₹{{arb_cap}} ARE TO BE SETTLED BY a CIVIL COURT of competent jurisdiction by way of CIVIL SUIT and NOT BY ARBITRATION. The arbitration up to ₹50,000 SHALL be CONDUCTED per the INDIAN ARBITRATION AND CONCILIATION ACT 1996 or any statutory modification. The arbitrator SHALL STATE HIS REASONS in passing the award. A reference for adjudication SHALL be MADE by the contractor WITHIN {{adjudication_window_months}} (default 6) MONTHS from the date of intimating the contractor of preparation of final bill or his having accepted payment, whichever is earlier. NOTE: This is an AP-STATE-SPECIFIC departure from MPW 2022's preferred arbitration default; verifiers SHALL TREAT this as ACCEPTABLE for AP tenders.",
+    "parameters": [
+      {"name": "tier1_cap", "param_type": "currency", "formula": null, "cap": null, "label": "Tier-1 Adjudication Cap — SE (₹)", "example": "10000"},
+      {"name": "arb_cap", "param_type": "currency", "formula": null, "cap": null, "label": "Arbitration Cap — CE (₹)", "example": "50000"},
+      {"name": "adjudication_window_months", "param_type": "months", "formula": null, "cap": 6, "label": "Adjudication Reference Window (Months)", "example": "6"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 200,
+    "cross_references": ["CLAUSE-ARBITRATION-AGREEMENT-001"],
+    "rule_ids": ["GVSCCL-137"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-DB-84-DAY-001",
+    "title": "Dispute Board (DB) Reference — 84-Day Decision Window",
+    "text_english": "If a DISPUTE arises between the Parties (including any dispute on certificate, determination, instruction, opinion or valuation of the Authority's Representative), EITHER PARTY MAY REFER the dispute IN WRITING to the DB for its decision (with copies to the other Party and Authority's Representative). The DB SHALL be DEEMED to have RECEIVED such reference on the date the chairman of the DB receives it. WITHIN {{db_decision_days}} (default 84) DAYS after receiving the reference (or such other period as may be PROPOSED by the DB and APPROVED by both Parties), the DB SHALL ISSUE its DECISION. The DB SHALL be DEEMED to be NOT ACTING AS ARBITRATOR(s). DB composition: {{db_composition}}.",
+    "parameters": [
+      {"name": "db_decision_days", "param_type": "days", "formula": null, "cap": 84, "label": "DB Decision Window (Days)", "example": "84"},
+      {"name": "db_composition", "param_type": "text", "formula": null, "cap": null, "label": "DB Composition", "example": "3 members — 1 nominated by Authority, 1 by Contractor, 1 mutually agreed Chair"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 195,
+    "cross_references": ["CLAUSE-DRB-WORKS-001"],
+    "rule_ids": ["GVSCCL-135"]
+  }
+]

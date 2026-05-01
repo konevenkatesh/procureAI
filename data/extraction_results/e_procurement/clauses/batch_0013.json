@@ -1,0 +1,34 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-DOCUMENT-PRIORITY-001",
+    "title": "AP-Tender Document Priority Order",
+    "text_english": "PRIORITY of CONTRACT DOCUMENTS in case of CONFLICT (highest to lowest): (1) CONTRACT AGREEMENT; (2) LETTER of ACCEPTANCE; (3) BILL of QUANTITIES; (4) DRAWINGS; (5) SCOPE of WORK; (6) SPECIAL CONDITIONS of CONTRACT (SCC); (7) GENERAL CONDITIONS of CONTRACT (GCC) including SCHEDULES; (8) Any OTHER documents forming part of the contract. The ENGINEER-IN-CHARGE — namely the {{engineer_in_charge_designation}} (default Chief Engineer) — SHALL DECIDE contractual matters between the {{procuring_entity}} and the Contractor.",
+    "parameters": [
+      {"name": "engineer_in_charge_designation", "param_type": "text", "formula": null, "cap": null, "label": "Engineer-in-Charge Designation", "example": "Chief Engineer, GVSCCL"},
+      {"name": "procuring_entity", "param_type": "text", "formula": null, "cap": null, "label": "Procuring Entity", "example": "GVSCCL"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 4,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-059", "GVSCCL-060"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-JV-LIABILITY-001",
+    "title": "JV Joint and Several Liability — AP Tender Variant",
+    "text_english": "JV partners SHALL be 'JOINTLY AND SEVERALLY' RESPONSIBLE for the project. The LEAD PARTNER SHALL have a MINIMUM {{lead_partner_min_share_pct}}% (default 51%) STAKE in the JV; OTHER Joint-Venture partners SHALL have AT LEAST {{other_partner_min_share_pct}}% (default 20%) AND ABOVE. JV partners SHALL be LIABLE INDIVIDUALLY proportionate to their share AND JOINTLY for 100% share. Maximum JV members: {{max_jv_members}}. JV agreement reference: {{jv_agreement_ref}}.",
+    "parameters": [
+      {"name": "lead_partner_min_share_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Lead Partner Min Share (%)", "example": "51"},
+      {"name": "other_partner_min_share_pct", "param_type": "percentage", "formula": null, "cap": null, "label": "Other Partner Min Share (%)", "example": "20"},
+      {"name": "max_jv_members", "param_type": "integer", "formula": null, "cap": null, "label": "Maximum JV Members", "example": "2"},
+      {"name": "jv_agreement_ref", "param_type": "text", "formula": null, "cap": null, "label": "JV Agreement Reference", "example": "JV/2026/GVSCCL-Pkg2/v1"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 5,
+    "cross_references": ["CLAUSE-CONSORTIUM-JV-001"],
+    "rule_ids": ["GVSCCL-061"]
+  }
+]

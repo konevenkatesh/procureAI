@@ -1,0 +1,17 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-BID-OPENING-SEQUENCE-001",
+    "title": "AP-Tender Bid Opening Sequence (Withdrawal → Substitution → Modification → Technical)",
+    "text_english": "BID OPENING SEQUENCE: Envelopes shall be OPENED in the following ORDER: (i) FIRST — envelopes marked 'WITHDRAWAL' shall be OPENED and READ OUT; the corresponding Bid envelope SHALL NOT be OPENED but RETURNED to the Bidder. NO bid withdrawal SHALL be PERMITTED unless the corresponding withdrawal notice contains a VALID AUTHORIZATION read out at Bid opening. (ii) NEXT — envelopes marked 'SUBSTITUTION' shall be OPENED and READ OUT and EXCHANGED with the corresponding Bid; the substituted Bid SHALL NOT be OPENED but RETURNED. (iii) NEXT — envelopes marked 'MODIFICATION' shall be OPENED and READ OUT with the corresponding Bid; only with valid authorization. (iv) NEXT — all 'TECHNICAL PART' envelopes shall be OPENED ONE AT A TIME. Bid opening date: {{bid_open_date}}; venue: {{bid_open_venue}}.",
+    "parameters": [
+      {"name": "bid_open_date", "param_type": "date", "formula": null, "cap": null, "label": "Bid Opening Date and Time", "example": "2026-04-18 16:00 IST"},
+      {"name": "bid_open_venue", "param_type": "text", "formula": null, "cap": null, "label": "Bid Opening Venue", "example": "GVSCCL HQ + apeprocurement.gov.in portal"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-2/ITB",
+    "position_order": 88,
+    "cross_references": ["CLAUSE-WORKS-BID-OPENING-001"],
+    "rule_ids": ["GVSCCL-003"]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-CSP-NEXT-HIGHER-AWARD-001",
+    "title": "AP CSP — Award to Next-Higher Tenderer on Quantity Shortfall",
+    "text_english": "If the LOWEST TENDERER (L1) is unable to supply the FULL QUANTITY within the stipulated delivery period, the order for the BALANCE of stores or part thereof MAY be placed with the NEXT-HIGHER TENDERER(S) (L2, L3, ...) who are able to supply the determined quantity within the delivery period — IF NECESSARY at different rates — until the COMPLETE QUANTITY is covered for delivery within the determined period, SUBJECT TO the monetary limits prescribed for the procuring authority. The reason for the L1 shortfall shall be recorded in the file.",
+    "parameters": [],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-2/SCC",
+    "position_order": 55,
+    "cross_references": ["CLAUSE-AP-CSP-LIMITED-SINGLE-TENDER-001"],
+    "rule_ids": ["AP-GO-147"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-CSP-FOREIGN-GOODS-001",
+    "title": "AP CSP Foreign Goods Procurement — Local Representative + 5% AP Preference",
+    "text_english": "Orders for goods of FOREIGN MANUFACTURE shall, AS FAR AS POSSIBLE, be placed through the LOCAL REPRESENTATIVES of the manufacturers in India — preferring those who provide AFTER-SALE SERVICE and HOLD SUFFICIENT SPARES IN STOCK. Heads of Departments are authorised to give a {{ap_preference_pct}}% (default 5%) PRICE PREFERENCE to products MANUFACTURED IN ANDHRA PRADESH STATE, provided the stores are in accordance with departmental needs and prices fall within the concession limit. This preference shall NOT be applicable to LOCAL AGENTS OR MIDDLEMEN of products manufactured outside the State.",
+    "parameters": [
+      {"name": "ap_preference_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "AP-State Manufacturer Price Preference (%)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Goods"],
+    "mandatory": true,
+    "position_section": "Volume-I/Section-4/Evaluation",
+    "position_order": 18,
+    "cross_references": ["CLAUSE-AP-CSP-PRICE-PREFERENCE-001"],
+    "rule_ids": ["AP-GO-148"]
+  }
+]

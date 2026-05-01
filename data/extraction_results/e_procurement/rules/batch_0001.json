@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "GVSCCL-001",
+    "rule_text": "If Bid Security is not required and a Bidder withdraws its Bid during the period of Bid validity, OR the successful Bidder fails to sign the Contract per ITB 49 or furnish a Performance Security, the Authority MAY declare the Bidder INELIGIBLE for award by the Authority for a period of time stated in the BDS.",
+    "source_clause": "ITB (Bid Security alternative — withdrawal/failure declaration)",
+    "condition_when": "TenderType=Works AND BidSecurityRequired=false AND BidderDefaultDetected=true",
+    "verification_method": "PASS if BDS specifies an ineligibility period for withdrawal/non-signing where bid security is waived. FAIL if no such ineligibility provision is documented when bid security is waived.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-002",
+    "rule_text": "The original and all copies of the Bid SHALL be TYPED or written in INDELIBLE INK and SHALL be SIGNED by a person duly authorised to sign on behalf of the Bidder.",
+    "source_clause": "ITB (Format and Signing of Bid)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if bid pages signed in indelible ink with a power-of-attorney attached. FAIL on photocopied signatures or unsigned pages.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-003",
+    "rule_text": "Bid envelopes received under the headings 'Withdrawal', 'Substitution', 'Modification' shall be opened in that order before any 'Technical Part' envelope; corresponding bids that are withdrawn / substituted shall NOT be OPENED but RETURNED to the Bidder. No withdrawal/substitution/modification shall be permitted unless the corresponding notice contains a VALID AUTHORIZATION read out at Bid opening.",
+    "source_clause": "ITB (Bid Opening Procedure — order)",
+    "condition_when": "TenderType=Works AND BidOpeningType=Public",
+    "verification_method": "PASS if bid-opening procedure in ITB sequences W → S → M → T with valid-authorization check on each. FAIL on missing sequence or missing authorization-check stipulation.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-004",
+    "rule_text": "If a Bid is NOT SUBSTANTIALLY RESPONSIVE to the requirements of the bidding document, it SHALL be REJECTED by the Authority and MAY NOT subsequently be made responsive by correction of the material deviation, reservation, or omission.",
+    "source_clause": "ITB (Substantial Responsiveness)",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if ITB explicitly bars correction of material deviations post-opening. FAIL if a curing/clarification path is allowed for material deviations.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-005",
+    "rule_text": "Qualification of the Bidder SHALL be DETERMINED by the Authority based on documentary evidence of the Bidder's qualifications submitted per ITB 17. The determination SHALL NOT take into consideration the qualifications of OTHER FIRMS such as the Bidder's subsidiaries, parent entities, affiliates, sub-contractors (other than specialised sub-contractors permitted in the bidding document) or any other firm(s) different from the Bidder.",
+    "source_clause": "ITB (Qualification of the Bidder)",
+    "condition_when": "TenderType=Works AND BidderType=SingleEntity",
+    "verification_method": "PASS if ITB bars credit-leasing from non-bidder affiliates. FAIL if affiliate credentials are accepted for qualifying.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Criteria-Restriction-Loose",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

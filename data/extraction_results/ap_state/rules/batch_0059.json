@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "AP-GO-215",
+    "rule_text": "Advances to AP contractors/labourers employed on Revenue Department works in Scheduled Areas may be granted only by the Agent to Government Visakhapatnam in EXCEPTIONAL CIRCUMSTANCES; advance must not exceed 50% of estimate amount OR Rs.100 (whichever is LESS); security should be taken for summary recovery; advance must be adjusted in the first bill or part-bill for work done.",
+    "source_clause": "AP Financial Code Vol-I, Article 249",
+    "condition_when": "TenderState=AndhraPradesh AND Sector=ScheduledArea AND TenderType IN [Works] AND ContractorAdvance=true",
+    "verification_method": "Scheduled-area contractor advance: <= min(50% of estimate, Rs.100) + security on file + first-bill adjustment",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

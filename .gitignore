@@ -27,8 +27,8 @@ build/
 .DS_Store
 **/.DS_Store
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code working state
+.claude/
 
 # Source PDFs are large — track presence via .gitkeep, not the files themselves
 source_documents/**/raw_pdf/*.pdf
@@ -70,3 +70,24 @@ data/testcase_batches/*.json
 data/testcase_results/*.json
 data/concept_batches/*.json
 data/concept_results/*.json
+
+# Corpus-scoped batches (regenerable by scripts/prepare_*_batches.py — keep results, not batches)
+data/extraction_batches/ap_state/
+data/extraction_batches/e_procurement/
+
+# E-procurement source documents — track presence via processed_md, not raw bulk files
+source_documents/e_procurement/**/*.pdf
+source_documents/e_procurement/**/*.PDF
+source_documents/e_procurement/**/*.docx
+source_documents/e_procurement/**/*.DOCX
+source_documents/e_procurement/**/*.zip
+source_documents/e_procurement/**/*.png
+source_documents/e_procurement/**/*.jpg
+source_documents/e_procurement/**/*.jpeg
+source_documents/e_procurement/**/*.JPG
+source_documents/e_procurement/**/*.tif
+source_documents/e_procurement/**/*.doc
+source_documents/e_procurement/**/*.DOC
+source_documents/e_procurement/**/*.xlsx
+source_documents/e_procurement/**/*.xls
+source_documents/e_procurement/**/*.XLSX

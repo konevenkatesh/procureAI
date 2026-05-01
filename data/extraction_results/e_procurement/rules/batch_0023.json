@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-107",
+    "rule_text": "PAYMENTS and CERTIFICATES: PAYMENTS SHALL be ADJUSTED for RECOVERY of advance payments, LIQUIDATED DAMAGES per tender conditions and SECURITY DEPOSIT for due fulfillment. INTERMEDIATE PAYMENT SHALL be a SUM EQUAL to {{intermediate_payment_pct}}% (default 92.5%) of the value of work done as certified — and BALANCE {{retention_balance_pct}}% (default 7.5%) SHALL be WITHHELD as SECURITY for due fulfillment. ON COMPLETION of entire works, the Contractor SHALL RECEIVE FINAL PAYMENT — except EMD retained as security and a sum equal to {{final_retention_pct}}% (default 2.5%) of total value of work done. The amount withheld from final bill SHALL be RETAINED under DEPOSITS and PAID together with interest after DLP.",
+    "source_clause": "GCC §17 Payments and Certificates",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 92.5%/7.5% split + 2.5% final retention explicit. FAIL on different cash-flow regime.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-108",
+    "rule_text": "ADVANCE LOAN REPAYMENT: The advance loan TOGETHER WITH INTEREST at the specified rate SHALL be REPAID via PERCENTAGE DEDUCTIONS from intermediate payments. DEDUCTION SHALL COMMENCE in the next interim payment AFTER total payments to contractor reach {{deduction_trigger_pct}}% (default 10%) of contract amount AND SHALL be MADE at the rate of {{deduction_rate_pct}}% (default 20%) of the amount of all interim payments — until the loan TOGETHER WITH INTEREST is COMPLETELY REPAID PRIOR to expiry of original time for completion.",
+    "source_clause": "GCC §17 Advance Loan Repayment",
+    "condition_when": "TenderType=Works AND AdvanceLoanGranted=true",
+    "verification_method": "PASS if 10% trigger + 20% deduction rate explicit. FAIL on softer recovery profile.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-109",
+    "rule_text": "FINAL PAYMENT CERTIFICATE: The Contractor SHALL SUPPLY to the Engineer-in-Charge a DETAILED ACCOUNT of the TOTAL AMOUNT considered payable under the Contract BEFORE the END of the DEFECTS LIABILITY PERIOD. The Engineer-in-Charge SHALL ISSUE a DEFECTS LIABILITY CERTIFICATE upon satisfactory rectification of defects.",
+    "source_clause": "GCC §17 Final Payment Certificate",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if final-bill submission + DLC issuance workflow explicit. FAIL on absent FPC clause.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-110",
+    "rule_text": "INSURANCE for WORKS: The Contractor SHALL EFFECT and MAINTAIN at its OWN COST the insurances specified in Schedule-N AND per Applicable Laws. The Contractor SHALL FULLY INDEMNIFY, HOLD HARMLESS and DEFEND the Authority from and against ALL LOSSES, DAMAGES, COSTS, CHARGES and CLAIMS with respect to: (i) DEATH of or INJURY to ANY PERSON; OR (ii) LOSS of or DAMAGE to any PROPERTY (other than the Works) — that may arise out of any breach by the Contractor.",
+    "source_clause": "GCC Article 20 Insurance for Works",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if Schedule-N insurance list + indemnity clause explicit. FAIL on absent CAR/PI/WC insurance list.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

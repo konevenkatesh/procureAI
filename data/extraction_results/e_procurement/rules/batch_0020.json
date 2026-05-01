@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-095",
+    "rule_text": "MANAGEMENT MEETINGS: The Engineer-in-Charge MAY REQUIRE the Contractor to ATTEND a MANAGEMENT MEETING. The BUSINESS of a management meeting SHALL be to (i) REVIEW the PROGRAMME for REMAINING WORK; AND (ii) DEAL with MATTERS RAISED in accordance with the EARLY WARNING PROCEDURE.",
+    "source_clause": "GCC Management Meetings",
+    "condition_when": "TenderType=Works",
+    "verification_method": "PASS if management-meeting clause + early-warning linkage explicit. FAIL on absent procedure.",
+    "severity": "ADVISORY",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-096",
+    "rule_text": "QUALITY CONTROL SYSTEM: The Contractor SHALL — within {{qap_window_days}} (default 30) DAYS of the APPOINTED DATE — SUBMIT to the Authority's Representative its QUALITY ASSURANCE PLAN (QAP) which SHALL include: (i) ORGANISATION, DUTIES and RESPONSIBILITIES, PROCEDURES, INSPECTIONS and DOCUMENTATION; (ii) QUALITY CONTROL MECHANISM including SAMPLING and TESTING of Materials, TEST FREQUENCIES, STANDARDS, ACCEPTANCE CRITERIA, TESTING FACILITIES, REPORTING, RECORDING and INTERPRETATION of test results, APPROVALS, CHECKLIST for site activities, and PROFORMA for testing and calibration.",
+    "source_clause": "GCC Article 11 §11.2 Quality Control System",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if QAP submitted within 30 days + covers all 9 elements. FAIL on incomplete or late QAP.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-097",
+    "rule_text": "TESTS — 100% AUTHORITY's CHECK: For determining conformity to Specifications/Standards, the Authority's Representative SHALL REQUIRE the Contractor to CARRY OUT TESTS at TIMES, FREQUENCY and MANNER specified in Schedule-R per Good Industry Practice. The CHECKS by the Authority's Representative SHALL COMPRISE 100% (HUNDRED PERCENT) of all the QUANTITY or NUMBER of tests prescribed for each category/type of test for QUALITY CONTROL by the Contractor. In the event tests establish DEFECTS or DEFICIENCIES, the Contractor SHALL CARRY OUT REMEDIAL MEASURES and FURNISH a REPORT.",
+    "source_clause": "GCC §11.10 Tests (Authority Check)",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if 100% Authority's check on contractor's QC tests is explicit + remedial obligation. FAIL on sample-only Authority check.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-098",
+    "rule_text": "ENVIRONMENTAL COMPLIANCE: During CONTINUANCE of the contract, the Contractor and Sub-contractors SHALL ABIDE AT ALL TIMES by ALL EXISTING ENACTMENTS on ENVIRONMENTAL PROTECTION and rules, regulations, latest notifications and bye-laws of the State or Central Government, or local authorities — AND any law/regulation/notification that may be passed/issued in this respect in FUTURE. Major laws applicable include: WATER (Prevention and Control of Pollution) ACT, 1974; AIR (Prevention and Control of Pollution) ACT 1981; ENVIRONMENT PROTECTION ACT 1986; HAZARDOUS WASTE Rules; FOREST CONSERVATION ACT.",
+    "source_clause": "GCC §11 Environmental Compliance",
+    "condition_when": "TenderType=Works AND Sector=Sewerage",
+    "verification_method": "PASS if SCC enumerates applicable environmental Acts + future-amendment binding. FAIL on partial coverage.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

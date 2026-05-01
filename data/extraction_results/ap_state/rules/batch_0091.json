@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "AP-GO-222",
+    "rule_text": "AP EPC contracts may be entrusted to a Government-approved PANEL of firms/agencies based on prescribed eligibility criteria; the empanelment must be REVIEWED at periodicity of NOT MORE THAN 2 YEARS; for EPC works, Limited Tender (from approved panel) OR Open Tender system shall be followed; technical evaluation precedes financial bid evaluation for open category.",
+    "source_clause": "AP Financial Code Vol-I, Note under Article 51(a) — EPC empanelment provisions",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC",
+    "verification_method": "For EPC tenders: check approved-panel list date <=2yr old; verify Two-stage technical-then-financial evaluation",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Stale-Financial-Year",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-223",
+    "rule_text": "AP EPC contracts introduce a FIFTH method of execution beyond the traditional four (Article 163): (v) execution by agreement in the form approved by Government for EPC works — articles of agreement, tender notice, and tender documents specifically approved by Government must be used.",
+    "source_clause": "AP Financial Code Vol-I, fifth method amendment to Article 163",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC",
+    "verification_method": "EPC tender contracts must use Government-approved EPC agreement form (not generic Form 9 or PWD format)",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-224",
+    "rule_text": "AP EPC contracts allow MOBILIZATION ADVANCE not exceeding 5% of contract value — payable at prescribed stages of execution; Mobilization advance on NEW MACHINERY at prescribed percentage of new-machinery-value, not exceeding 5% of contract value, is payable against ORIGINAL INVOICES proving the contractor purchased the machinery AFTER agreement-conclusion date.",
+    "source_clause": "AP Financial Code Vol-I, Note under Article 177 — EPC Mobilisation Advance",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC AND MobilizationAdvanceProvided=true",
+    "verification_method": "EPC mobilization advance: <= 5% of contract value (general) AND <= 5% on new machinery (against post-agreement-purchase invoices)",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-225",
+    "rule_text": "AP EPC mobilization advance machinery invoices must be in name of the contractor/firm/joint-venture only; NO mobilization advance is payable on machinery purchased by an individual firm partner in a joint venture; the contractor must submit an UNDERTAKING that they have not obtained any other mobilization advance from Government against the same machinery.",
+    "source_clause": "AP Financial Code Vol-I, Note under Article 177 — EPC anti-double-claim provisions",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC AND MobilizationAdvanceForMachinery=true",
+    "verification_method": "Check invoice name matches contractor/JV (not individual partner); undertaking-against-double-claim on file",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P3",
+    "typology_code": "Mobilisation-Advance-Excess",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  },
+  {
+    "rule_id": "AP-GO-226",
+    "rule_text": "AP EPC works measurement: AE/AEE must verify and record (a) 1/3rd of pre-levels taken by EPC agency, (b) 100% levels in cut-off and foundations, (c) 25% of intermediate work-done levels, (d) 100% of final levels recorded by EPC agency; ALL measurements in M-Books issued by EE must be checked to 100% by AEs/AEEs; DEEs, EEs, and SEs must check the above per codal provisions.",
+    "source_clause": "AP Financial Code Vol-I, Note under Article 175 — EPC measurement protocol",
+    "condition_when": "TenderState=AndhraPradesh AND TenderType=EPC",
+    "verification_method": "EPC tender file should reflect measurement-verification protocol; M-Book audit shows AE/AEE check percentages",
+    "severity": "WARNING",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-State"
+  }
+]

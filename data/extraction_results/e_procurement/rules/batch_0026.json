@@ -1,0 +1,58 @@
+[
+  {
+    "rule_id": "GVSCCL-119",
+    "rule_text": "COMPLIANCE WITH POLICY CONDITIONS: EACH PARTY SHALL FULLY INDEMNIFY the OTHER PARTY from and against ALL LOSSES and CLAIMS arising from its FAILURE to COMPLY with conditions imposed by the insurance policies effected per this Agreement.",
+    "source_clause": "GCC §20.11 Compliance with policy conditions",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if mutual indemnity for policy-condition breaches explicit. FAIL on one-sided indemnity.",
+    "severity": "WARNING",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Mandatory-Field",
+    "generates_clause": false,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-120",
+    "rule_text": "FORCE MAJEURE — DEFINITION: 'Force Majeure Event' means OCCURRENCE in INDIA of any/all of: NON-POLITICAL EVENT, INDIRECT POLITICAL EVENT, POLITICAL EVENT (per §21.2-21.4) — IF it AFFECTS the performance by the Affected Party AND (i) is BEYOND the REASONABLE CONTROL of the Affected Party; (ii) the Affected Party COULD NOT have PREVENTED or OVERCOME by exercise of due diligence and following Good Industry Practice; AND (iii) has MATERIAL ADVERSE EFFECT on the Affected Party.",
+    "source_clause": "GCC §21.1 Force Majeure",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if FM definition includes all 3 cumulative tests. FAIL on watered-down test.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-121",
+    "rule_text": "NON-POLITICAL EVENTS include: (i) ACT OF GOD, EPIDEMIC, extreme adverse WEATHER, LIGHTNING, EARTHQUAKE, LANDSLIDE, CYCLONE, FLOOD, VOLCANIC eruption, CHEMICAL/RADIOACTIVE CONTAMINATION or IONIZING RADIATION, FIRE/EXPLOSION (originating EXTERNAL to Site); (ii) FAILURE/DELAY of a SUB-CONTRACTOR but ONLY to the extent caused by another Non-Political Event; (iii) any JUDGMENT or ORDER of court of competent jurisdiction or statutory authority — UNLESS for failure of Contractor to comply with Applicable Law/Permit or breach thereof or enforcement of this Agreement; (iv) DISCOVERY of GEOLOGICAL conditions / man-made obstructions not reasonably foreseeable.",
+    "source_clause": "GCC §21.2 Non-Political Event",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if NPE list complete + scope of judgment-exclusion explicit. FAIL on missing chemical/radiation events.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P2",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  },
+  {
+    "rule_id": "GVSCCL-122",
+    "rule_text": "INDIRECT POLITICAL EVENTS include: (i) act of WAR (declared or undeclared), invasion, armed conflict, blockade, embargo, riot, insurrection, terrorist or military action, civil commotion, politically-motivated sabotage; (ii) INDUSTRY-WIDE or STATE-WIDE STRIKES or industrial action for CONTINUOUS PERIOD of 24 HOURS AND EXCEEDING aggregate of 10 DAYS in an Accounting Year; (iii) civil commotion, BOYCOTT or political agitation that PREVENTS construction for AGGREGATE PERIOD EXCEEDING 10 DAYS in an Accounting Year; (iv) failure/delay of Sub-contractor caused by Indirect Political Event; (v) Indirect Political Event that causes a Non-Political Event.",
+    "source_clause": "GCC §21.3 Indirect Political Event",
+    "condition_when": "TenderType=Works AND ContractType=EPC",
+    "verification_method": "PASS if IPE list complete + 24-hr/10-day strike threshold explicit. FAIL on partial enumeration.",
+    "severity": "HARD_BLOCK",
+    "pattern_type": "P1",
+    "typology_code": "Missing-Force-Majeure",
+    "generates_clause": true,
+    "defeats": [],
+    "defeated_by": [],
+    "layer": "AP-Tender"
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-AP-WORKS-FUNDS-PROVISION-001",
+    "title": "AP Works Contract — Funds Provision Pre-Requisite",
+    "text_english": "EXCEPT in accordance with the emergency provisions of Article 169 and 170 of AP Financial Code Vol-I, NO Government servant may enter into a CONTRACT for the execution of a work UNLESS: (a) FUNDS have been duly PROVIDED for it, OR (b) an ASSURANCE has been received from the authority competent to provide the necessary funds that they will be ALLOTTED before the liability matures. NO WORK to be executed under contract shall be STARTED until the contractor has signed a FORMAL WRITTEN AGREEMENT (except as permitted by Article 167 or Article 170 of AP Financial Code Vol-I).",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 18,
+    "cross_references": [],
+    "rule_ids": ["AP-GO-199", "AP-GO-200"]
+  },
+  {
+    "clause_id": "CLAUSE-AP-WORKS-TUNGABHADRA-PREF-001",
+    "title": "AP Works — 5% Price Preference for Tungabhadra Steel Products Limited",
+    "text_english": "PREFERENTIAL TREATMENT shall be given to the TUNGABHADRA STEEL PRODUCTS LIMITED, for such works under the control of all Departments of the AP State Government as cannot be done by the workshops, subject to the following conditions: (a) the procedure to call for tenders is GENERALLY FOLLOWED; AND (b) other things being equal, a PRICE PREFERENCE of {{tungabhadra_pct}}% (default 5%) may be given to the Tungabhadra Steel Products Limited.",
+    "parameters": [
+      {"name": "tungabhadra_pct", "param_type": "percentage", "formula": null, "cap": 5, "label": "Tungabhadra Steel Price Preference (%)", "example": "5"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": false,
+    "position_section": "Volume-I/Section-4/Evaluation",
+    "position_order": 22,
+    "cross_references": [],
+    "rule_ids": []
+  }
+]

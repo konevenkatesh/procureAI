@@ -1,0 +1,28 @@
+[
+  {
+    "clause_id": "CLAUSE-EARLY-WARNING-WORKS-001",
+    "title": "Early Warning Procedure (Works)",
+    "text_english": "EARLY WARNING: The Contractor SHALL WARN the Engineer-in-Charge AT THE EARLIEST OPPORTUNITY of SPECIFIC LIKELY FUTURE EVENTS or CIRCUMSTANCES that MAY ADVERSELY AFFECT the Execution of Works. The Contractor SHALL COOPERATE with the Engineer-in-Charge in MAKING and CONSIDERING PROPOSALS for HOW the EFFECT of such an event/circumstance can be AVOIDED or REDUCED — and CARRY OUT any RESULTING INSTRUCTION. The Engineer-in-Charge MAY REQUIRE the Contractor to ATTEND a MANAGEMENT MEETING to (i) REVIEW the PROGRAMME for REMAINING WORK; AND (ii) DEAL with MATTERS RAISED in accordance with the EARLY WARNING PROCEDURE.",
+    "parameters": [],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 67,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-094", "GVSCCL-095"]
+  },
+  {
+    "clause_id": "CLAUSE-AUTHORITY-100-PCT-CHECK-001",
+    "title": "Authority's Representative — 100% Test Check on QC Tests",
+    "text_english": "TESTS: For determining conformity to Specifications/Standards, the Authority's Representative SHALL REQUIRE the Contractor to CARRY OUT TESTS at TIMES, FREQUENCY and MANNER specified in Schedule-R per Good Industry Practice. The CHECKS by the Authority's Representative SHALL COMPRISE {{authority_check_pct}}% (default 100%) of all the QUANTITY or NUMBER of tests prescribed for each category/type of test for QUALITY CONTROL by the Contractor. In the event tests establish DEFECTS or DEFICIENCIES, the Contractor SHALL CARRY OUT REMEDIAL MEASURES at OWN COST and FURNISH a REPORT to the Authority's Representative.",
+    "parameters": [
+      {"name": "authority_check_pct", "param_type": "percentage", "formula": null, "cap": 100, "label": "Authority's Representative Check Coverage (%)", "example": "100"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 68,
+    "cross_references": [],
+    "rule_ids": ["GVSCCL-097"]
+  }
+]

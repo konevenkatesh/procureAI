@@ -1,0 +1,19 @@
+[
+  {
+    "clause_id": "CLAUSE-FM-3-TIER-COST-001",
+    "title": "Force Majeure — 3-Tier Cost Allocation (Non-Political / Indirect Political / Political)",
+    "text_english": "FORCE MAJEURE COSTS — ALLOCATION: (i) NON-POLITICAL EVENT — each PARTY BEARS its own FM costs; neither shall reimburse the other; (ii) INDIRECT POLITICAL EVENT — ALL FM costs NOT EXCEEDING the INSURANCE COVER shall be BORNE by the CONTRACTOR; to the extent FM costs EXCEED Insurance Cover, ONE-HALF of the EXCESS shall be REIMBURSED by the AUTHORITY to the Contractor; (iii) POLITICAL EVENT — ALL FM costs SHALL be REIMBURSED by the AUTHORITY to the Contractor. TERMINATION TRIGGER: If FM subsists for {{fm_subsist_days}} (default 60) DAYS within a continuous period of {{fm_window_days}} (default 120) DAYS, EITHER PARTY may TERMINATE the Agreement after notifying the other and granting {{fm_representation_days}} (default 15) days for representation. FM REPORTING: Affected Party SHALL NOTIFY within {{fm_notice_days}} (default 10) days of occurrence with full particulars (nature, evidence, estimated duration, mitigation measures).",
+    "parameters": [
+      {"name": "fm_subsist_days", "param_type": "days", "formula": null, "cap": 60, "label": "FM Subsistence for Termination (Days)", "example": "60"},
+      {"name": "fm_window_days", "param_type": "days", "formula": null, "cap": 120, "label": "FM Continuous Window (Days)", "example": "120"},
+      {"name": "fm_representation_days", "param_type": "days", "formula": null, "cap": 15, "label": "Representation Window (Days)", "example": "15"},
+      {"name": "fm_notice_days", "param_type": "days", "formula": null, "cap": 10, "label": "FM Notice Window (Days)", "example": "10"}
+    ],
+    "applicable_tender_types": ["Works", "EPC"],
+    "mandatory": true,
+    "position_section": "Volume-II/Section-1/GCC",
+    "position_order": 130,
+    "cross_references": ["CLAUSE-WORKS-FORCE-MAJEURE-001"],
+    "rule_ids": ["GVSCCL-124", "GVSCCL-125", "GVSCCL-126"]
+  }
+]
