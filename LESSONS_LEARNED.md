@@ -232,19 +232,35 @@ Every entry follows this structure:
 
 ---
 
+## L20 — PBG: Percentage vs Fixed Amount (Two-Pass Extraction)
+
+**Date:** May 2026  
+**What we did:** The Tier-1 LLM prompt asked only for a Performance Security percentage. If the document didn't state a percentage, the prompt returned `found=false` and we emitted no finding.  
+**What happened:** PPP / concession-agreement documents (NREDCAP WtE: Tirupathi DCA, Vijayawada RFP) express PBG as a fixed INR amount, not a percentage of contract value. Tirupathi DCA clause 9.1 says *"INR 12.87 crore (Rupees twelve crore and eighty-seven lakhs only) (the Performance Security)"*. Vijayawada RFP clause 16.1 says *"Rs. 16.24 crore (Rupees sixteen crore and twenty-four lakhs only)"*. The percentage-only LLM correctly returned not-found on both. Real PBG-shortfall violations were missed for the entire PPP family — about 1/3 of the corpus.  
+**Why we changed:** PPP concession structures fix the security amount at negotiation time rather than as a percentage. The percentage-only path is structurally blind to those docs. To detect violations we have to: (a) extract the fixed amount, (b) read the contract value from elsewhere in the KG, (c) compute implied % = amount_cr / contract_value_cr × 100, (d) compare to the rule threshold.  
+**What we changed to:** Two-pass extraction. First pass uses the existing top-10 + LLM rerank with the percentage prompt. If `found=false`, run a second LLM rerank on the SAME 10 candidates with an AMOUNT prompt — explicit selection rules exclude EMD / Bid Security / mobilisation advance / retention / O&M Security / liquidated damages so the LLM only picks the principal Performance Security amount. Normalise to crores ('50 lakh' → 0.5; '12.87 crore' → 12.87). Then look up `estimated_value_cr` (LLM-extracted) or `estimated_value_cr_classified` (regex; flagged `source='regex_classifier_unreliable'` for audit) from the TenderDocument kg_node. If a contract value is available, compute `implied_percentage` and check the threshold; if not available, emit the finding with `status='PENDING_VALUE'`, `needs_contract_value=true`, and **no `VIOLATES_RULE` edge** — the violation decision is deferred until a downstream pass extracts the contract value.  
+**Result:** PASS on both documents.
+
+  - **Tirupathi WtE (DCA):** percentage path returned `found=false`. Amount path picked candidate `[0] = "9. PERFORMANCE SECURITY AND O&M SECURITY"` (GCC, lines 1752-1797, cosine 0.6548), extracted `amount_cr=12.87` with verbatim evidence *"INR 12.87 crore (Rupees twelve crore and eighty-seven lakhs only)"*. Contract value missing in DB (`estimated_value_cr=null`, regex value `0.0`). ValidationFinding `3c36ab88-…` emitted with `status='PENDING_VALUE'`, `needs_contract_value=true`. No `VIOLATES_RULE` edge — by design.
+  - **Vijayawada WtE (RFP):** percentage path returned `found=false`. Amount path picked candidate `[0] = "16. PERFORMANCE SECURITY"` (NIT, lines 1264-1281, cosine 0.6765), extracted `amount_cr=16.24` with verbatim evidence *"Rs. 16.24 crore (Rupees sixteen crore and twenty-four lakhs only)"*. Contract value `324.7 cr` from regex classifier (flagged `regex_classifier_unreliable`). Implied percentage = `16.24 / 324.7 × 100 = 5.0015%` → below 10% threshold → ValidationFinding `1866efcf-…` emitted with `status='OPEN'`, `extraction_path='amount'`. `VIOLATES_RULE` edge `971fd5a2-…` materialised.
+
+**Honest gap to flag:** the contract values used today are unreliable (regex classifier with `estimated_value_reliable=False`, or missing entirely on Tirupathi). The audit trail records `contract_value_source` so this is visible — but the implied percentage on Vijayawada (5.0015%) and the PENDING status on Tirupathi will both improve once an LLM-based `tender_facts_extractor` (paused mid-build in an earlier session) is finished and the LLM-extracted `estimated_value_cr` populates the TenderDocument node. Either way the violation decision is correct here — both PPP docs are well below 10% — but we should not ship the implied-percentage number as authoritative until contract values come from the LLM path.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
 - Knowledge layer: 1,223 TYPE_1 rules, 499 DRAFTING_CLAUSE templates, 27 defeasibility pairs — all verified by content reading
 - tender_type extraction: LLM via OpenRouter, all 6 documents correct (NIT-or-fallback, L19)
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
-- Tier 1 BGE-M3+LLM with section_type filter + tight query + top-10 + LLM rerank: working on Vizag, JA, High Court (all percentage-based PBG)
+- Tier 1 PBG-Shortfall via BGE-M3 + LLM with section_type filter + tight query + top-10 + LLM rerank — percentage path (L18) AND amount path with implied-percentage fallback (L20). Works on all 5 docs that have a PBG clause in source.
 - find_line_range anchored to next-heading (L17) — no orphaned content metadata
 - KG schema: kg_nodes + kg_edges, correct structure
 - Frontend: reads from Supabase, shows BLOCK/PASS with findings
 
 ### What Is Broken or Missing
-- Tier 1 retrieval still misses on PPP documents (Tirupathi, Vijayawada) — amount-to-percentage conversion needed (FIX C / L15)
+- Contract value extraction is regex-only (`estimated_value_reliable=False` on all 6 docs). LLM-based `tender_facts_extractor` was paused mid-build; needs to be finished so PPP implied percentages and Tirupathi PENDING_VALUE can resolve (L20 honest gap).
 - Kakinada PBG missing from markdown — needs investigation
 - Regex validator still runs inside kg_builder on every build (L14) — needs disabling
 - Tier 2 (P2 presence checks via BGE-M3) — not yet built
@@ -254,9 +270,9 @@ Every entry follows this structure:
 ### Document Corpus (6 of 10 in KG)
 | doc_id | Type | Department | Tier-1 PBG Finding |
 |--------|------|-----------|---------|
-| vizag_ugss_exp_001 | Works | GVMC Sewerage | 2.5% (cos 0.6844) |
-| judicial_academy_exp_001 | Works | APCRDA | 2.5% (cos 0.665) |
-| tirupathi_wte_exp_001 | PPP | NREDCAP | none — fixed-amount, FIX C pending |
-| high_court_exp_001 | Works | AP High Court | 2.5% (cos 0.6567) |
-| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | none — markdown gap |
-| vijayawada_wte_exp_001 | PPP | NREDCAP | none — fixed-amount, FIX C pending |
+| vizag_ugss_exp_001 | Works | GVMC Sewerage | 2.5% (percentage path, cos 0.6844) |
+| judicial_academy_exp_001 | Works | APCRDA | 2.5% (percentage path, cos 0.6650) |
+| high_court_exp_001 | Works | AP High Court | 2.5% (percentage path, cos 0.6567) |
+| vijayawada_wte_exp_001 | PPP | NREDCAP | INR 16.24cr ≈ 5.00% (amount path, regex CV) |
+| tirupathi_wte_exp_001 | PPP | NREDCAP | INR 12.87cr — PENDING_VALUE (no contract_value) |
+| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | none — no PBG in markdown |

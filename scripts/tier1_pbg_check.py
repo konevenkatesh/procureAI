@@ -383,6 +383,118 @@ def build_pbg_rerank_prompt(candidates: list[dict]) -> str:
     )
 
 
+def build_pbg_amount_rerank_prompt(candidates: list[dict]) -> str:
+    """Second-pass prompt for PPP-style documents (e.g. NREDCAP DCAs)
+    where the Performance Security is stated as a FIXED INR AMOUNT
+    rather than a percentage of bid/contract value. Mirrors
+    `build_pbg_rerank_prompt` but extracts the amount in crores
+    instead of a percentage. Selection rules explicitly exclude
+    EMD / mobilisation advance / retention / LD amounts so the LLM
+    doesn't pick the wrong amount.
+
+    Used only when the percentage rerank returned `found=false`."""
+    blocks = []
+    for i, c in enumerate(candidates):
+        body, _truncated = _truncate_for_rerank(c["full_text"])
+        blocks.append(
+            f"--- CANDIDATE {i} ---\n"
+            f"heading: {c['heading']}\n"
+            f"section_type: {c.get('section_type') or 'unknown'}\n"
+            f"cosine_similarity: {c['similarity']:.4f}\n"
+            f"text:\n\"\"\"\n{body}\n\"\"\""
+        )
+    candidates_block = "\n\n".join(blocks)
+
+    return (
+        f"You are reading {len(candidates)} candidate sections from a procurement document. "
+        "We already determined that NONE of these candidates state a Performance "
+        "Security as a PERCENTAGE. Now check whether any of them states the "
+        "Performance Security as a FIXED AMOUNT (e.g. 'INR 12.87 crore', "
+        "'Rs. 16.24 crore', 'INR 50 lakh', 'Rupees twelve crore and eighty-seven "
+        "lakhs only'). PPP / concession-agreement documents typically express "
+        "PBG this way instead of as a percentage.\n\n"
+        f"{candidates_block}\n\n"
+        "Question: Which candidate states the Performance Security / Performance "
+        "Bank Guarantee / Security Deposit / PBG as a fixed INR AMOUNT (in "
+        "crores or lakhs)?\n\n"
+        "Return JSON only:\n"
+        "{\n"
+        "  \"chosen_index\": integer 0..N-1 of the candidate that contains the PBG fixed amount, OR null if none of them do,\n"
+        "  \"amount_cr\": float — the amount expressed in CRORES (so '50 lakh' → 0.5; '12.87 crore' → 12.87), or null,\n"
+        "  \"evidence\": exact verbatim quote from the chosen candidate's text containing the amount, or empty string,\n"
+        "  \"found\": true if a Performance Security / PBG / Security Deposit fixed amount is stated in any candidate, false otherwise,\n"
+        "  \"reasoning\": one short sentence on why this candidate was chosen over the others\n"
+        "}\n\n"
+        "Selection rules:\n"
+        "- The amount MUST be the Performance Security / PBG / Security Deposit "
+        "amount itself — NOT EMD, NOT Bid Security, NOT mobilisation advance, "
+        "NOT retention money, NOT liquidated damages, NOT advance bank guarantee, "
+        "NOT any other instrument.\n"
+        "- Common phrasings: \"Performance Security equivalent to INR X crore\", "
+        "\"furnish a bank guarantee for an amount equal to Rs. X crore (the "
+        "Performance Security)\", \"Performance Security: INR X crore\".\n"
+        "- The section may also mention OTHER amounts (advance, EMD, O&M Security, "
+        "etc.) — IGNORE those. Pick only the principal Performance Security "
+        "construction-period amount.\n"
+        "- If a section mentions BOTH a Performance Security amount AND a separate "
+        "O&M / operations Security amount (typical in NREDCAP WtE concessions), "
+        "pick the construction-period Performance Security, not the O&M Security.\n"
+        "- Always normalise to CRORES. 1 crore = 100 lakh. 'INR 50 lakh' → 0.5; "
+        "'Rs. 12.87 crore (Rupees twelve crore eighty-seven lakhs only)' → 12.87.\n"
+        "- Evidence MUST be an exact substring of the chosen candidate's text.\n"
+        "- If NO candidate states a Performance Security fixed amount, set "
+        "chosen_index=null, amount_cr=null, found=false."
+    )
+
+
+def fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
+    """Read the contract value (in crores) from the TenderDocument
+    kg_node properties. Returns (value, source_label) where
+    source_label describes which property was used and how reliable
+    it is. Used by Fix C (PPP amount-to-percentage conversion).
+
+    Lookup order:
+      1. `estimated_value_cr` (LLM-extracted, when tender_facts_extractor
+          has been run and committed)
+      2. `estimated_value_cr_classified` IF `estimated_value_reliable` is True
+      3. `estimated_value_cr_classified` flagged as unreliable
+         (returned with source_label='regex_classifier_unreliable' so the
+         caller can choose whether to use it or fall back to
+         needs_contract_value)
+      4. None — caller should set needs_contract_value=true
+    """
+    rows = rest_get("kg_nodes", {
+        "select":    "properties",
+        "doc_id":    f"eq.{doc_id}",
+        "node_type": "eq.TenderDocument",
+    })
+    if not rows:
+        return None, "no_tender_document"
+    p = rows[0].get("properties") or {}
+
+    # Preferred: explicit LLM-extracted value
+    v = p.get("estimated_value_cr")
+    if v is not None:
+        try:
+            return float(v), "llm_extracted"
+        except (TypeError, ValueError):
+            pass
+
+    # Fallback: regex classifier value, only if marked reliable
+    v = p.get("estimated_value_cr_classified")
+    reliable = bool(p.get("estimated_value_reliable"))
+    if v is not None:
+        try:
+            v = float(v)
+            if v > 0:
+                return v, ("regex_classifier_reliable"
+                           if reliable else "regex_classifier_unreliable")
+        except (TypeError, ValueError):
+            pass
+
+    return None, "missing"
+
+
 def call_llm(system: str, user: str) -> tuple[str, dict]:
     """Returns (raw_content_string, raw_response_dict). Uses OpenRouter
     via the OpenAI SDK (same path as the tender_type extractor)."""
@@ -602,78 +714,214 @@ def main() -> int:
     else:
         section    = None
         similarity = None
-        print(f"  → no candidate chosen by LLM")
+        print(f"  → no candidate chosen by LLM (percentage path)")
 
-    # Validation: only emit a finding when the LLM both found a value
-    # AND that value is below the rule threshold. found=False with
-    # null percentage means "section is irrelevant or missing the figure"
-    # — leave as no-finding for now (caller can decide what to do with
-    # absence-of-evidence).
-    is_violation = (
+    # ── Step 4b/5b: FIX C — fixed-amount fallback for PPP docs ───────
+    # If the percentage rerank returned found=false, the document may
+    # express PBG as a fixed INR amount (Tirupathi: 12.87 cr,
+    # Vijayawada: 16.24 cr — see L15). Run a second LLM rerank with
+    # the AMOUNT prompt on the same 10 candidates, then convert to an
+    # implied percentage using the contract value from TenderDocument.
+    amount_chosen   = None
+    amount_cr       = None
+    amount_found    = False
+    amount_evidence = ""
+    amount_reason   = ""
+    amount_section  = None
+    amount_similarity = None
+    contract_value_cr = None
+    contract_value_source = None
+    implied_pct = None
+
+    if not found:
+        t0 = time.perf_counter()
+        print(f"\n── Step 4b: FIX C — amount-fallback rerank ──")
+        amount_prompt = build_pbg_amount_rerank_prompt(candidates)
+        print(f"  prompt size: {len(amount_prompt)} chars (~{len(amount_prompt)//4} tokens)")
+        raw_amount_content, _ = call_llm(LLM_SYSTEM, amount_prompt)
+        timings["llm_amount"] = time.perf_counter() - t0
+        print(f"  wall:        {timings['llm_amount']:.2f}s")
+        print(f"\n── Raw LLM JSON (amount pass) ──")
+        print(raw_amount_content)
+
+        amount_parsed = parse_llm_response(raw_amount_content)
+        amount_chosen   = amount_parsed.get("chosen_index")
+        amount_cr_raw   = amount_parsed.get("amount_cr")
+        amount_found    = bool(amount_parsed.get("found"))
+        amount_evidence = (amount_parsed.get("evidence") or "").strip()
+        amount_reason   = (amount_parsed.get("reasoning") or "").strip()
+        try:
+            amount_cr = float(amount_cr_raw) if amount_cr_raw is not None else None
+        except (TypeError, ValueError):
+            amount_cr = None
+
+        print(f"\n── Parsed (amount pass) ──")
+        print(f"  chosen_index : {amount_chosen}")
+        print(f"  found        : {amount_found}")
+        print(f"  amount_cr    : {amount_cr}")
+        print(f"  reasoning    : {amount_reason[:200]}")
+        print(f"  evidence     : {amount_evidence[:300]!r}")
+
+        if (amount_chosen is not None and isinstance(amount_chosen, int)
+                and 0 <= amount_chosen < len(candidates)):
+            amount_section    = candidates[amount_chosen]
+            amount_similarity = amount_section["similarity"]
+            print(f"  → using candidate [{amount_chosen}]: "
+                  f"{amount_section['heading'][:60]} (cosine={amount_similarity:.4f})")
+
+            # Look up contract value from TenderDocument (see L20 — PPP
+            # path needs this to compute implied percentage).
+            if amount_found and amount_cr is not None and amount_cr > 0:
+                contract_value_cr, contract_value_source = fetch_contract_value_cr(DOC_ID)
+                print(f"  contract_value_cr        : {contract_value_cr}")
+                print(f"  contract_value_source    : {contract_value_source}")
+                if contract_value_cr is not None and contract_value_cr > 0:
+                    implied_pct = round((amount_cr / contract_value_cr) * 100, 4)
+                    print(f"  implied_pct              : "
+                          f"{amount_cr} / {contract_value_cr} × 100 = {implied_pct}%")
+                else:
+                    print(f"  implied_pct              : NOT COMPUTED — "
+                          f"contract_value missing/zero (will flag needs_contract_value=true)")
+
+    # ── Decision ─────────────────────────────────────────────────────
+    # A violation can come from EITHER path. Mutually exclusive in
+    # practice — we only run the amount path when percentage said nothing.
+    pct_violation = (
         found and pct is not None and section is not None
         and pct < RULE_THRESHOLD_PCT
     )
+    amount_violation_computed = (
+        amount_found and amount_cr is not None and amount_section is not None
+        and implied_pct is not None and implied_pct < RULE_THRESHOLD_PCT
+    )
+    # If we found the amount but couldn't compute implied_pct (no
+    # contract value), still emit a finding — flagged with
+    # needs_contract_value=true so a downstream pass can complete the
+    # check once the contract value is extracted (Step 3 / L19+).
+    amount_pending_value = (
+        amount_found and amount_cr is not None and amount_section is not None
+        and (contract_value_cr is None or contract_value_cr <= 0)
+    )
+
     print(f"\n── Decision ──")
-    print(f"  threshold:    {RULE_THRESHOLD_PCT}%")
-    print(f"  is_violation: {is_violation}")
-    if is_violation:
-        # Step 6: materialise the finding and the edge
+    print(f"  threshold                 : {RULE_THRESHOLD_PCT}%")
+    print(f"  pct_path_violation        : {pct_violation}")
+    print(f"  amount_path_violation     : {amount_violation_computed}")
+    print(f"  amount_path_pending_value : {amount_pending_value}")
+
+    # Pick which path materialises the finding (and which doesn't)
+    if pct_violation:
+        path = "percentage"
+        finding_section = section
+        finding_label = f"{TYPOLOGY}: PBG = {pct}% (expected ≥ {RULE_THRESHOLD_PCT}%)"
+        finding_props_extra = {
+            "extraction_path":     "percentage",
+            "percentage_found":    pct,
+            "evidence":            evidence,
+            "qdrant_similarity":   round(similarity, 4),
+            "rerank_chosen_index": chosen,
+            "rerank_reasoning":    reason,
+        }
+    elif amount_violation_computed or amount_pending_value:
+        path = "amount"
+        finding_section = amount_section
+        if amount_violation_computed:
+            finding_label = (
+                f"{TYPOLOGY}: PBG = INR {amount_cr} cr ≈ {implied_pct}% "
+                f"(expected ≥ {RULE_THRESHOLD_PCT}%)"
+            )
+        else:
+            finding_label = (
+                f"{TYPOLOGY}: PBG = INR {amount_cr} cr — "
+                f"contract value missing, implied % not computed"
+            )
+        finding_props_extra = {
+            "extraction_path":      "amount",
+            "amount_cr":            amount_cr,
+            "evidence":             amount_evidence,
+            "qdrant_similarity":    round(amount_similarity, 4),
+            "rerank_chosen_index":  amount_chosen,
+            "rerank_reasoning":     amount_reason,
+            "contract_value_cr":    contract_value_cr,
+            "contract_value_source": contract_value_source,
+            "implied_percentage":   implied_pct,
+            "needs_contract_value": amount_pending_value,
+        }
+    else:
+        path = None
+        finding_section = None
+        finding_label = None
+        finding_props_extra = None
+
+    if finding_section is not None:
+        # Step 6: materialise the finding (and edge for genuine violations only)
         t0 = time.perf_counter()
-        section_node_id = section["section_node_id"]
+        section_node_id = finding_section["section_node_id"]
         rule_node_id = get_or_create_rule_node(DOC_ID, RULE_ID)
+        finding_props = {
+            "rule_id":           RULE_ID,
+            "typology_code":     TYPOLOGY,
+            "severity":          SEVERITY,
+            "threshold":         RULE_THRESHOLD_PCT,
+            "tier":              1,
+            "extracted_by":      "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
+            "retrieval_strategy": (
+                f"qdrant_top{K}_section_filter_{'-'.join(PBG_SECTION_TYPES)}"
+                f"_llm_rerank"
+            ),
+            "section_node_id":   section_node_id,
+            "section_heading":   finding_section["heading"],
+            "source_file":       finding_section["source_file"],
+            "line_start_local":  finding_section["line_start_local"],
+            "line_end_local":    finding_section["line_end_local"],
+            "status":            "OPEN" if not amount_pending_value else "PENDING_VALUE",
+            "defeated":          False,
+            **finding_props_extra,
+        }
         finding = rest_post("kg_nodes", [{
             "doc_id":    DOC_ID,
             "node_type": "ValidationFinding",
-            "label":     f"{TYPOLOGY}: PBG = {pct}% (expected ≥ {RULE_THRESHOLD_PCT}%)",
-            "properties": {
-                "rule_id":          RULE_ID,
-                "typology_code":    TYPOLOGY,
-                "severity":         SEVERITY,
-                "evidence":         evidence,
-                "percentage_found": pct,
-                "threshold":        RULE_THRESHOLD_PCT,
-                "tier":             1,
-                "extracted_by":     "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
-                "retrieval_strategy": (
-                    f"qdrant_top{K}_section_filter_{'-'.join(PBG_SECTION_TYPES)}"
-                    f"_llm_rerank"
-                ),
-                "rerank_chosen_index": chosen,
-                "rerank_reasoning":  reason,
-                "section_node_id":  section_node_id,
-                "section_heading":  section["heading"],
-                "source_file":      section["source_file"],
-                "line_start_local": section["line_start_local"],
-                "line_end_local":   section["line_end_local"],
-                "qdrant_similarity": round(similarity, 4),
-                "status":           "OPEN",
-                "defeated":         False,
-            },
+            "label":     finding_label,
+            "properties": finding_props,
             "source_ref": f"tier1:pbg_check:{RULE_ID}",
         }])[0]
-        edge = rest_post("kg_edges", [{
-            "doc_id":       DOC_ID,
-            "from_node_id": section_node_id,
-            "to_node_id":   rule_node_id,
-            "edge_type":    "VIOLATES_RULE",
-            "weight":       1.0,
-            "properties": {
+        # VIOLATES_RULE edge only when the violation is decided. For
+        # amount_pending_value, the threshold compare hasn't happened
+        # yet — we leave the edge off until the contract value is in.
+        if pct_violation or amount_violation_computed:
+            edge_props = {
                 "rule_id":           RULE_ID,
                 "typology":          TYPOLOGY,
                 "severity":          SEVERITY,
                 "defeated":          False,
                 "tier":              1,
-                "percentage_found":  pct,
                 "threshold":         RULE_THRESHOLD_PCT,
-                "evidence":          evidence,
-                "qdrant_similarity": round(similarity, 4),
+                "extraction_path":   path,
+                "evidence":          finding_props_extra["evidence"],
+                "qdrant_similarity": finding_props_extra["qdrant_similarity"],
                 "finding_node_id":   finding["node_id"],
-            },
-        }])[0]
+            }
+            if path == "percentage":
+                edge_props["percentage_found"] = pct
+            else:
+                edge_props["amount_cr"]        = amount_cr
+                edge_props["implied_percentage"] = implied_pct
+            edge = rest_post("kg_edges", [{
+                "doc_id":       DOC_ID,
+                "from_node_id": section_node_id,
+                "to_node_id":   rule_node_id,
+                "edge_type":    "VIOLATES_RULE",
+                "weight":       1.0,
+                "properties":   edge_props,
+            }])[0]
+            print(f"  → VIOLATES_RULE     {edge['edge_id']}  Section→Rule")
+        else:
+            print(f"  → (no VIOLATES_RULE edge — finding is PENDING_VALUE)")
         timings["materialise"] = time.perf_counter() - t0
         print(f"  → ValidationFinding {finding['node_id']}")
-        print(f"  → VIOLATES_RULE     {edge['edge_id']}  Section→Rule")
-        print(f"  materialise wall:   {timings['materialise'] * 1000:.0f}ms")
+        print(f"  materialise wall:   {timings['materialise']*1000:.0f}ms  (path={path})")
+    else:
+        print(f"  → no finding emitted (neither percentage nor amount path produced a result)")
 
     # Summary
     print()
