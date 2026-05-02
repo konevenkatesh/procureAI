@@ -80,6 +80,12 @@ _HEADING_OVERRIDE_RULES: list[tuple[str, list[str]]] = [
     ("GCC", [
         r"general\s+conditions?\s+of\s+(?:the\s+)?contract",
         r"^\s*GCC\b",
+        # PPP / concession-agreement contracts. DCAs are contractually
+        # equivalent to GCC chapters in standard tenders — same risk
+        # surface (PBG, payments, completion, penalties) — so we classify
+        # them under GCC for purposes of clause matching.
+        r"draft\s+concession\s+agreement",
+        r"^\s*concession\s+agreement\s*$",
     ]),
     ("SCC", [
         r"special\s+conditions?\s+of\s+(?:the\s+)?contract",
@@ -151,6 +157,14 @@ def _filename_default(source_file: str) -> str | None:
             or fname.startswith("1_VOLUME_I_")):
         return "NIT"   # Vol I starts with NIT preamble; latches forward to ITB/BDS/...
     if "SCHEDULES" in fname:
+        return "Forms"
+    # PPP / concession contracts — Draft Concession Agreement is contract
+    # content (PBG / payment / completion / penalties), structurally
+    # equivalent to a GCC chapter in a standard tender.
+    if "DCA_" in fname or fname.startswith("DCA") or "CONCESSION_AGREEMENT" in fname:
+        return "GCC"
+    # Schedule-only files attached to a PPP — usually annexure forms
+    if fname.startswith("SCHEDULE_") or fname.startswith("SCHEDULE-"):
         return "Forms"
     return None
 
@@ -257,6 +271,13 @@ def classify_sections(
     for Vol III, etc.) so sub-clause sections that precede the first
     explicit type-word heading still inherit a sensible type.
 
+    Coordinate notes: this function compares chapter_markers (which are
+    LOCAL to file_text) against each section's `line_start_local` /
+    `line_end_local`. It does NOT use any global-concatenation
+    coordinates. Callers that store global line_starts on sections must
+    also store the local equivalents under `line_start_local` /
+    `line_end_local` before calling this.
+
     Returns one section_type per input section (same order)."""
     fname_default = _filename_default(source_file)
     chapter_markers = _scan_chapter_markers(file_text)
@@ -264,18 +285,26 @@ def classify_sections(
     marker_idx = 0
     out: list[str] = []
     for s in sections:
-        line_start = int(s.get("line_start", 0) or 0)
-        line_end   = int(s.get("line_end",   line_start) or line_start)
-        # Consume markers whose line_no is within this section's range,
-        # subject to the per-file allowed-transitions set.
+        # Prefer LOCAL coordinates — they match the file_text we
+        # scanned for chapter markers. Fall back to line_start/line_end
+        # for callers that haven't migrated yet (single-file inputs
+        # where local == global).
+        line_start = int(
+            s.get("line_start_local")
+            if s.get("line_start_local") is not None
+            else s.get("line_start", 0) or 0
+        )
+        line_end = int(
+            s.get("line_end_local")
+            if s.get("line_end_local") is not None
+            else s.get("line_end", line_start) or line_start
+        )
         while (marker_idx < len(chapter_markers)
                 and chapter_markers[marker_idx][0] <= line_end):
             candidate = chapter_markers[marker_idx][1]
             if _allowed(candidate, fname_default):
                 current = candidate
             marker_idx += 1
-        # Section heading wins over inherited / chapter-marker state,
-        # also subject to allowed transitions.
         hit = classify_heading_override(s.get("heading", ""))
         if hit is not None and _allowed(hit, fname_default):
             current = hit
@@ -302,25 +331,83 @@ def _type_for_line(intervals: list[tuple[int, str]], line: int) -> str:
 
 # ── 2. line-start / line-end helpers ───────────────────────────────────
 
+# Markdown heading regex used for the "next heading" search in
+# find_line_range. Mirrors builder.section_splitter.MD_HEADING.
+_MD_HEADING_LINE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+
+
 def find_line_range(full_text: str, body: str) -> tuple[int, int]:
     """Find the 1-indexed line where body starts and ends in full_text.
 
-    body is the raw section body returned by section_splitter — its first
-    line should appear verbatim in full_text. We anchor on the first
-    non-empty line of body.
-    """
-    body_lines = [l for l in body.split("\n") if l.strip()]
-    if not body_lines:
+    line_start: pick the first body line with ≥30 alphanumeric
+    characters as the anchor and locate it in full_text. (The
+    previous heuristic of "first non-empty line" anchored on bullet
+    markers like '-' or '1.' which match thousands of lines in the
+    document — Vizag's 'Security' section landed at line 87 instead
+    of 1449 because its body starts with '- '.)
+
+    line_end: anchor to DOCUMENT STRUCTURE, not to the cleaned body
+    length. The cleaned body has had page-number-only lines and
+    leading/trailing blanks stripped, so its line count is shorter
+    than the actual span in the source file. Computing
+    line_end = line_start + len(body_lines) - 1 therefore reports
+    a too-short range, which causes downstream tools (e.g. tier1
+    `_slice_source_file`) to miss content like the GCC 51.1 PBG
+    paragraph at line 5267 in JA. Instead, walk forward in the
+    ORIGINAL file from line_start, find the next markdown heading,
+    and use (next_heading - 1) as line_end. If no further heading
+    exists, use the last line of the file. (See L17.)
+
+    If no line has ≥30 alphanumeric chars, fall back to the longest
+    body line. If still nothing, fall back to (1, 1)."""
+    raw_body_lines = body.split("\n")
+    if not any(l.strip() for l in raw_body_lines):
         return (1, 1)
-    anchor = body_lines[0].strip()
+
+    # Score each body line by alphanumeric character count
+    def _alnum_count(s: str) -> int:
+        return sum(1 for c in s if c.isalnum())
+
+    candidates = [(idx, l, _alnum_count(l))
+                   for idx, l in enumerate(raw_body_lines)
+                   if l.strip()]
+
+    # Prefer the FIRST line with ≥30 alphanumeric chars (preserves order).
+    anchor_line = next(
+        (l for _, l, n in candidates if n >= 30),
+        None,
+    )
+    if anchor_line is None:
+        # Fall back to the longest line by alnum count
+        anchor_line = max(candidates, key=lambda c: c[2])[1]
+
+    anchor = anchor_line.strip()
+    if not anchor:
+        return (1, 1)
+
     full_lines = full_text.split("\n")
     line_start = 1
     for i, l in enumerate(full_lines, 1):
-        if anchor and anchor in l:
+        if anchor in l:
             line_start = i
             break
-    n_body_lines = len(body.split("\n"))
-    return (line_start, line_start + n_body_lines - 1)
+
+    # Anchor line_end to the next markdown heading in the ORIGINAL file
+    # (1-indexed). Search begins one line AFTER line_start so a heading
+    # that itself anchored line_start (rare — anchor is body, not the
+    # heading) doesn't immediately terminate the section.
+    line_end = len(full_lines)
+    for j in range(line_start + 1, len(full_lines) + 1):
+        if _MD_HEADING_LINE.match(full_lines[j - 1]):
+            line_end = j - 1
+            break
+
+    # Sanity floor: if line_end somehow ends up < line_start (shouldn't
+    # happen but defend against it), clamp to line_start.
+    if line_end < line_start:
+        line_end = line_start
+
+    return (line_start, line_end)
 
 
 # ── 3. Main pipeline ────────────────────────────────────────────────────
