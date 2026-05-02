@@ -209,32 +209,54 @@ Every entry follows this structure:
 
 ---
 
+## L18 — BGE-M3 Retrieval: Top-1 vs Top-10 + LLM Rerank
+
+**Date:** May 2026  
+**What we did:** Used the top-1 BGE-M3 result as the section for LLM extraction.  
+**What happened:** For APCRDA Works documents (Judicial Academy, High Court), the top-1 section was always a retention-money clause or a bond-template form — not the actual PBG clause. The real PBG clause ranked 11th in the unfiltered index and 6th–8th even after the section_type filter and the answer-shaped tight query. Top-1 never reached it. JA returned no violation; High Court returned no violation; both were wrong.  
+**Why we changed:** A document with many security-related sections (Bid Security, Earnest Money, Retention, Mobilisation Advance, Performance Security, Insurance Surety Bond formats, etc.) will always have multiple competing candidates near the top. Top-1 assumes the best cosine match is the right semantic match. In a 200-section document with five lexically-similar deposit/security sections, that assumption fails consistently.  
+**What we changed to:** Top-10 retrieval on the filtered+tight-query pool (section_type ∈ {ITB, GCC, PCC, SCC, NIT}; query "Performance Security equal to per cent of bid amount contract value furnish bank guarantee"). Send all 10 section bodies to the LLM in one rerank call with explicit ignore-rules ("retention money, EMD, mobilisation advance, liquidated damages — do NOT pick"). The LLM picks the section that states an actual percentage. Body truncation uses head+tail (60% / 40% split, ~4000-char cap) so PBG content buried at the END of long sections (e.g. JA "Penalty for lapses:" — GCC 51.1 PBG sentence at body offset 5079 of 5434) is not cut off.  
+**Result:** PASS on three documents. JA → 2.5% PBG, cosine 0.665 ("To: _[name and address of the Contractor]_" PCC reminder, lines 5349-5358). High Court → 2.5% PBG, cosine 0.6567 (same PCC template). Vizag → 2.5% PBG, cosine 0.6844 (canonical "Security" GCC section — top-1 also worked here, top-10 just confirms). All three Tier-1 findings carry verbatim evidence, full audit trail (`retrieval_strategy`, `rerank_chosen_index`, `rerank_reasoning` properties on the ValidationFinding).  
+**Lesson:** for retrieval in dense procurement documents, top-1 is not enough. Top-10 + LLM rerank is the reliable pattern. Cost: one extra LLM call per typology, ~6s wall, ~7K tokens — well within budget.
+
+---
+
+## L19 — tender_type_extractor: NIT-Required vs NIT-with-Fallback
+
+**Date:** May 2026  
+**What we did:** `fetch_nit_text()` raised `ValueError("No NIT sections in kg_nodes")` if no Section node had `section_type='NIT'`.  
+**What happened:** Tirupathi WtE (`tirupathi_wte_exp_001`) is ingested as a single Draft Concession Agreement file. After the FIX-A rebuild, all 191 sections were classified as GCC by the section classifier — there is no NIT preamble in a DCA. The extractor failed hard with ValueError and Tirupathi reverted to `tender_type=null`. The other 5 docs succeeded.  
+**Why we changed:** The project-name declaration is reliably in the first heading-block of every tender document, regardless of whether that block is classified NIT, GCC, or anything else. Tirupathi DCA line 7 says literally *"DEVELOPMENT OF 12 MW WASTE TO ENERGY (WtE) PLANT AT TIRUPATI, ANDHRA PRADESH ON PPP BASIS"* — exactly the declaration the LLM needs. Hard-failing because the section classifier didn't tag that block as NIT discards usable evidence.  
+**What we changed to:** When zero NIT sections exist, fall back to ALL sections sorted by `line_start_local` and take the first `n_sections` of them. Print a one-line warning so the fallback path is visible in logs. Behavior unchanged for docs that DO have NIT sections (the success case is preserved). LLM still does all the actual classification — no regex on the body.  
+**Result:** PASS. Tirupathi → PPP, confidence 1.0, source_section "DRAFT CONCESSION AGREEMENT (DCA)", evidence verbatim *"DEVELOPMENT OF 12 MW WASTE TO ENERGY (WtE) PLANT AT TIRUPATI, ANDHRA PRADESH ON PPP BASIS"*. All 6 docs now have correct, reliable tender_type.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
 - Knowledge layer: 1,223 TYPE_1 rules, 499 DRAFTING_CLAUSE templates, 27 defeasibility pairs — all verified by content reading
-- tender_type extraction: LLM via OpenRouter, all 6 documents correct
+- tender_type extraction: LLM via OpenRouter, all 6 documents correct (NIT-or-fallback, L19)
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
-- Tier 1 BGE-M3+LLM: working on Vizag (Works, percentage-based PBG)
+- Tier 1 BGE-M3+LLM with section_type filter + tight query + top-10 + LLM rerank: working on Vizag, JA, High Court (all percentage-based PBG)
+- find_line_range anchored to next-heading (L17) — no orphaned content metadata
 - KG schema: kg_nodes + kg_edges, correct structure
 - Frontend: reads from Supabase, shows BLOCK/PASS with findings
 
 ### What Is Broken or Missing
-- Tier 1 retrieval fails on APCRDA Works documents (JA, High Court) — query string improvement + top-10 rerank needed
-- Tier 1 retrieval fails on PPP documents (Tirupathi, Vijayawada) — amount-to-percentage conversion needed
+- Tier 1 retrieval still misses on PPP documents (Tirupathi, Vijayawada) — amount-to-percentage conversion needed (FIX C / L15)
 - Kakinada PBG missing from markdown — needs investigation
-- Regex validator still runs inside kg_builder — needs disabling
-- Section splitter creates orphaned content — "51. Securities" body at line 5267 not in any section node
+- Regex validator still runs inside kg_builder on every build (L14) — needs disabling
 - Tier 2 (P2 presence checks via BGE-M3) — not yet built
 - Tier 3 (P4 semantic judgment via LLM) — not yet built
 - 88% of HARD_BLOCK rules have no detection code
 
 ### Document Corpus (6 of 10 in KG)
-| doc_id | Type | Department | Findings |
+| doc_id | Type | Department | Tier-1 PBG Finding |
 |--------|------|-----------|---------|
-| vizag_ugss_exp_001 | Works | GVMC Sewerage | 1 (Tier 1 PBG) |
-| judicial_academy_exp_001 | Works | APCRDA | 0 |
-| tirupathi_wte_exp_001 | PPP | NREDCAP | 0 |
-| high_court_exp_001 | Works | AP High Court | 0 |
-| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | 0 |
-| vijayawada_wte_exp_001 | PPP | NREDCAP | 0 |
+| vizag_ugss_exp_001 | Works | GVMC Sewerage | 2.5% (cos 0.6844) |
+| judicial_academy_exp_001 | Works | APCRDA | 2.5% (cos 0.665) |
+| tirupathi_wte_exp_001 | PPP | NREDCAP | none — fixed-amount, FIX C pending |
+| high_court_exp_001 | Works | AP High Court | 2.5% (cos 0.6567) |
+| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | none — markdown gap |
+| vijayawada_wte_exp_001 | PPP | NREDCAP | none — fixed-amount, FIX C pending |
