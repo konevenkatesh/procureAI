@@ -1,0 +1,158 @@
+{
+  "document": "Bid Document of Judicial Academy.md",
+  "doc_id": "3f68d242c059",
+  "rules_pass_a": [
+    "CVC-005",
+    "CVC-006",
+    "CVC-007",
+    "CVC-030",
+    "CVC-032",
+    "CVC-038",
+    "CVC-045",
+    "CVC-063",
+    "CVC-089",
+    "CVC-090"
+  ],
+  "keyword_findings": [],
+  "vector_findings": [
+    {
+      "rule_id": "CVC-030",
+      "typology_code": "Criteria-Restriction-Narrow",
+      "severity": "WARNING",
+      "verdict": "FAIL",
+      "evidence": "Participation in this tendering process by forming Joint Venture or Consortium or Special Purpose Vehicle is not allowed",
+      "confidence": "HIGH",
+      "reasoning": "JV/consortium/SPV explicitly prohibited.",
+      "detected_by": "LLM"
+    },
+    {
+      "rule_id": "CVC-032",
+      "typology_code": "Geographic-Restriction",
+      "severity": "HARD_BLOCK",
+      "verdict": "FAIL",
+      "evidence": "Indian nationality",
+      "confidence": "HIGH",
+      "reasoning": "Mandatory Indian nationality requirement \u2014 denies prequalification on grounds unrelated to capability.",
+      "detected_by": "LLM"
+    }
+  ],
+  "keyword_tokens": {
+    "in": 8334,
+    "out": 600,
+    "calls": 10
+  },
+  "vector_tokens": {
+    "in": 15933,
+    "out": 670,
+    "calls": 10
+  },
+  "expected_rules": [
+    "CVC-030",
+    "CVC-032"
+  ],
+  "expected_caught_keyword": [],
+  "expected_caught_vector": [
+    "CVC-030",
+    "CVC-032"
+  ],
+  "diagnostics": [
+    {
+      "rule_id": "CVC-005",
+      "typology": "Missing-Mandatory-Field",
+      "keyword_heading": "4.5 A Bidder that - has been sanctioned by the Bank, pursuan",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6513] 4 ",
+        "[rrf 0.0161 | vec 0.6303] 53 ",
+        "[rrf 0.0159 | vec 0.6252] 34 "
+      ]
+    },
+    {
+      "rule_id": "CVC-006",
+      "typology": "Missing-Mandatory-Field",
+      "keyword_heading": "123 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.5839] ## **Name of Bidder:**",
+        "[rrf 0.0161 | vec 0.5775] 4 ",
+        "[rrf 0.0159 | vec 0.5669] 229 "
+      ]
+    },
+    {
+      "rule_id": "CVC-007",
+      "typology": "Missing-Mandatory-Field",
+      "keyword_heading": "32 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6044] 4 ",
+        "[rrf 0.0161 | vec 0.5817] 31 ",
+        "[rrf 0.0159 | vec 0.5790] 30 "
+      ]
+    },
+    {
+      "rule_id": "CVC-030",
+      "typology": "Criteria-Restriction-Narrow",
+      "keyword_heading": "40 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6277] 36 ",
+        "[rrf 0.0164 | vec 0.0000] ## **General Requirements:**",
+        "[rrf 0.0161 | vec 0.6255] ## **Section III - Evaluation"
+      ]
+    },
+    {
+      "rule_id": "CVC-032",
+      "typology": "Geographic-Restriction",
+      "keyword_heading": "45 ",
+      "vector_top3_headings": [
+        "[rrf 0.0328 | vec 0.6796] 46 ",
+        "[rrf 0.0161 | vec 0.6775] 17.2 DELETED 17.3 Any change "
+      ]
+    },
+    {
+      "rule_id": "CVC-038",
+      "typology": "Bid-Splitting-Pattern",
+      "keyword_heading": "136 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6281] 10 ",
+        "[rrf 0.0161 | vec 0.6008] ## **E. Evaluation and Compar",
+        "[rrf 0.0159 | vec 0.5986] 17.2 DELETED 17.3 Any change "
+      ]
+    },
+    {
+      "rule_id": "CVC-045",
+      "typology": "COI-PMC-Works",
+      "keyword_heading": "177 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6454] 180 ",
+        "[rrf 0.0161 | vec 0.6282] 135 ",
+        "[rrf 0.0159 | vec 0.6209] 200 "
+      ]
+    },
+    {
+      "rule_id": "CVC-063",
+      "typology": "COI-PMC-Works",
+      "keyword_heading": "4.2 A Bidder shall not have a conflict of interest. Any Bidd",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6428] 180 ",
+        "[rrf 0.0161 | vec 0.6150] ## **E. Evaluation and Compar",
+        "[rrf 0.0159 | vec 0.6138] ## **8. Other Contractors**"
+      ]
+    },
+    {
+      "rule_id": "CVC-089",
+      "typology": "Available-Bid-Capacity-Error",
+      "keyword_heading": "142 ",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6636] ## **Signature of the Bidder*",
+        "[rrf 0.0161 | vec 0.6260] ## **Name of Bidder:**"
+      ]
+    },
+    {
+      "rule_id": "CVC-090",
+      "typology": "Bid-Splitting-Pattern",
+      "keyword_heading": "## **A. General**",
+      "vector_top3_headings": [
+        "[rrf 0.0164 | vec 0.6360] 10 ",
+        "[rrf 0.0161 | vec 0.6151] 8 ",
+        "[rrf 0.0159 | vec 0.6125] 17.2 DELETED 17.3 Any change "
+      ]
+    }
+  ]
+}

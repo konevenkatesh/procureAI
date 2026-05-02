@@ -1,0 +1,192 @@
+{
+  "ground_truth": {
+    "High court  bid document.md": {
+      "present": [
+        "performance-security",
+        "earnest-money"
+      ],
+      "absent": [
+        "integrity-pact"
+      ]
+    },
+    "3 Volume_III _GCC,_SCC.md": {
+      "present": [
+        "performance-security"
+      ],
+      "absent": [
+        "integrity-pact"
+      ]
+    },
+    "Bid Document of Judicial Academy.md": {
+      "present": [
+        "performance-security",
+        "earnest-money",
+        "price-variation-clause"
+      ],
+      "absent": [
+        "integrity-pact"
+      ]
+    }
+  },
+  "raw_max_scores": {
+    "integrity-pact": {
+      "High court  bid document.md": 0.6065,
+      "3 Volume_III _GCC,_SCC.md": 0.5638,
+      "Bid Document of Judicial Academy.md": 0.6101
+    },
+    "anti-collusion": {
+      "High court  bid document.md": 0.5815,
+      "3 Volume_III _GCC,_SCC.md": 0.5016,
+      "Bid Document of Judicial Academy.md": 0.5386
+    },
+    "price-variation-clause": {
+      "High court  bid document.md": 0.5614,
+      "3 Volume_III _GCC,_SCC.md": 0.4624,
+      "Bid Document of Judicial Academy.md": 0.5449
+    },
+    "judicial-preview": {
+      "High court  bid document.md": 0.5222,
+      "3 Volume_III _GCC,_SCC.md": 0.5245,
+      "Bid Document of Judicial Academy.md": 0.5328
+    },
+    "performance-security": {
+      "High court  bid document.md": 0.5387,
+      "3 Volume_III _GCC,_SCC.md": 0.4407,
+      "Bid Document of Judicial Academy.md": 0.5402
+    },
+    "earnest-money": {
+      "High court  bid document.md": 0.5633,
+      "3 Volume_III _GCC,_SCC.md": 0.4698,
+      "Bid Document of Judicial Academy.md": 0.5746
+    },
+    "reverse-tendering": {
+      "High court  bid document.md": 0.5374,
+      "3 Volume_III _GCC,_SCC.md": 0.4828,
+      "Bid Document of Judicial Academy.md": 0.5553
+    },
+    "mobilisation-advance": {
+      "High court  bid document.md": 0.5905,
+      "3 Volume_III _GCC,_SCC.md": 0.5536,
+      "Bid Document of Judicial Academy.md": 0.5754
+    }
+  },
+  "calibration": [
+    {
+      "concept_id": "integrity-pact",
+      "old_threshold": 0.72,
+      "new_threshold": 0.6301,
+      "derivation": "max_absent+0.02 (0.6101) — no present examples",
+      "present_scores": [],
+      "absent_scores": [
+        0.6065,
+        0.5638,
+        0.6101
+      ],
+      "all_scores": {
+        "High court  bid document.md": 0.6065,
+        "3 Volume_III _GCC,_SCC.md": 0.5638,
+        "Bid Document of Judicial Academy.md": 0.6101
+      }
+    },
+    {
+      "concept_id": "anti-collusion",
+      "old_threshold": 0.7,
+      "new_threshold": 0.5496,
+      "derivation": "peer-average (0.5496) — no GT for this concept",
+      "present_scores": [],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5815,
+        "3 Volume_III _GCC,_SCC.md": 0.5016,
+        "Bid Document of Judicial Academy.md": 0.5386
+      }
+    },
+    {
+      "concept_id": "price-variation-clause",
+      "old_threshold": 0.7,
+      "new_threshold": 0.5249,
+      "derivation": "min_present−0.02 (0.5449) — no absent examples",
+      "present_scores": [
+        0.5449
+      ],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5614,
+        "3 Volume_III _GCC,_SCC.md": 0.4624,
+        "Bid Document of Judicial Academy.md": 0.5449
+      }
+    },
+    {
+      "concept_id": "judicial-preview",
+      "old_threshold": 0.75,
+      "new_threshold": 0.5496,
+      "derivation": "peer-average (0.5496) — no GT for this concept",
+      "present_scores": [],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5222,
+        "3 Volume_III _GCC,_SCC.md": 0.5245,
+        "Bid Document of Judicial Academy.md": 0.5328
+      }
+    },
+    {
+      "concept_id": "performance-security",
+      "old_threshold": 0.8,
+      "new_threshold": 0.5,
+      "derivation": "min_present−0.02 (0.4407) — no absent examples",
+      "present_scores": [
+        0.5387,
+        0.4407,
+        0.5402
+      ],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5387,
+        "3 Volume_III _GCC,_SCC.md": 0.4407,
+        "Bid Document of Judicial Academy.md": 0.5402
+      }
+    },
+    {
+      "concept_id": "earnest-money",
+      "old_threshold": 0.8,
+      "new_threshold": 0.5433,
+      "derivation": "min_present−0.02 (0.5633) — no absent examples",
+      "present_scores": [
+        0.5633,
+        0.5746
+      ],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5633,
+        "3 Volume_III _GCC,_SCC.md": 0.4698,
+        "Bid Document of Judicial Academy.md": 0.5746
+      }
+    },
+    {
+      "concept_id": "reverse-tendering",
+      "old_threshold": 0.72,
+      "new_threshold": 0.5496,
+      "derivation": "peer-average (0.5496) — no GT for this concept",
+      "present_scores": [],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5374,
+        "3 Volume_III _GCC,_SCC.md": 0.4828,
+        "Bid Document of Judicial Academy.md": 0.5553
+      }
+    },
+    {
+      "concept_id": "mobilisation-advance",
+      "old_threshold": 0.68,
+      "new_threshold": 0.5496,
+      "derivation": "peer-average (0.5496) — no GT for this concept",
+      "present_scores": [],
+      "absent_scores": [],
+      "all_scores": {
+        "High court  bid document.md": 0.5905,
+        "3 Volume_III _GCC,_SCC.md": 0.5536,
+        "Bid Document of Judicial Academy.md": 0.5754
+      }
+    }
+  ]
+}

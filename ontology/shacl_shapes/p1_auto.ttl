@@ -1,0 +1,529 @@
+# AUTO-GENERATED SHACL shapes for v0 ProcureAI validator.
+# Source: scripts/generate_shacl_shapes.py
+# Generated from approved P1 rules in Supabase.
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ap:   <https://procureai.in/ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ap:Shape_AP-GO-002 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-002" ;
+    ap:typologyCode "Criteria-Restriction-Loose" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-002 | Section 2(15) | Lead Consortium Member in any Bidding Consortium for AP infrastructure projects must hold not less than 26% equity stake AND must hold the highest equity stake "
+    ] .
+
+ap:Shape_AP-GO-006 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-006" ;
+    ap:typologyCode "Judicial-Preview-Bypass" ;
+    sh:property [
+        sh:path ap:hasJudicialPreview ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-006 | Section 7(1) | Tender documents referred for Judicial Preview must be placed in public domain for one week to invite suggestions before preview decisions are issued."
+    ] .
+
+ap:Shape_AP-GO-010 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-010" ;
+    ap:typologyCode "E-Procurement-Bypass" ;
+    sh:property [
+        sh:path ap:isEProcurement ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-010 | GO Ms No 258 / Finance (TFR) Dept dated 20-09-2013, Order Para 3 | All materials/stores procurement above Rs.1,00,000/- (Rs.1 lakh) by AP Government departments must be done through the e-procurement platform."
+    ] .
+
+ap:Shape_AP-GO-012 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-012" ;
+    ap:typologyCode "E-Procurement-Bypass" ;
+    sh:property [
+        sh:path ap:isEProcurement ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-012 | GO Ms No 2 / Finance (Works & Projects-F7) Dept dated 03-02-2014, Order Para 4 | All works AND material procurement (works, stationery, livery supplies, office consumables) costing Rs.1.00 lakh and above must be invited through the e-procure"
+    ] .
+
+ap:Shape_AP-GO-015 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-015" ;
+    ap:typologyCode "BG-Validity-Gap" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-015 | GO Ms No 57 / Water Resources (Reforms) Dept dated 27-11-2024, Para 7(i) | Mobilization Advance is permitted only against an unconditional Bank Guarantee that remains valid until the entire MA is recovered from the contractor."
+    ] .
+
+ap:Shape_AP-GO-019 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-019" ;
+    ap:typologyCode "Missing-PVC-Clause" ;
+    sh:property [
+        sh:path ap:hasPriceVariationClause ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-019 | GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 2(a)(i) | Price Adjustment (both positive and negative) is applicable to all AP works of Rs.40 lakh and above where the original contract period is six months or more."
+    ] .
+
+ap:Shape_AP-GO-046 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-046" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-046 | GO Ms No 94/2003 Annexure-I, Section 2(b) | Technical Sanction monetary delegation in AP works: Executive Engineer up to Rs.10 lakh; Superintending Engineer up to Rs.50 lakh; Chief Engineer up to value of"
+    ] .
+
+ap:Shape_AP-GO-055 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-055" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-055 | GO Ms No 94/2003 Annexure-I, Section 8(i)-(ii) | Tenders are finalised at delegated tiers: EE/SE up to their TS power; Chief Engineer up to Rs.2 crore; works above Rs.2 crore must be referred to Commissioner o"
+    ] .
+
+ap:Shape_AP-GO-062 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-062" ;
+    ap:typologyCode "Available-Bid-Capacity-Error" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-062 | GO Ms No 94/2003 Annexure-I, Section 11(a) | Available Bid Capacity for AP Works = (A × N × 2) − B, where A = max civil-engineering works value executed in any one year of last 5 years (price-updated), N ="
+    ] .
+
+ap:Shape_AP-GO-070 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-070" ;
+    ap:typologyCode "Bid-Splitting-Pattern" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-070 | GO Ms No 94/2003 Annexure-I, Section 13(ii) | Discount tenders (less than estimated cost) for AP works: tenders up to 15% less than estimate may be accepted; for tenders less by more than 15%, an additional"
+    ] .
+
+ap:Shape_AP-GO-072 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-072" ;
+    ap:typologyCode "Single-Source-Undocumented" ;
+    sh:property [
+        sh:path ap:hasOpenTender ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-072 | GO Ms No 94/2003 Annexure-I, Section 14(ii)(a)-(b) | Selection-basis Committee composition for AP works: works <= Rs.1 crore — Collector + concerned SE + 2 SEs from other works depts (PR/R&B/Irrigation); works > R"
+    ] .
+
+ap:Shape_AP-GO-074 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-074" ;
+    ap:typologyCode "Sub-Consultant-Cap-Exceed" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-074 | GO Ms No 94/2003 Annexure-I, Section 15 | Sub-contracting in AP works: prime contractor must declare sub-contractor at tender filing or during execution with name + qualification + experience; the Tende"
+    ] .
+
+ap:Shape_AP-GO-089 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-089" ;
+    ap:typologyCode "Solvency-Stale" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-089 | GO Ms No 94/2003 Annexure-II, Section 1(f)(iii)(c)-(d) | Solvency Certificate for AP contractor registration is fixed at 10% of the minimum monetary limit of the registered class — issued by Tahsildar (Revenue Dept of"
+    ] .
+
+ap:Shape_AP-GO-090 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-090" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-090 | GO Ms No 94/2003 Annexure-II, Section 1(g)(i) | AP contractor registration is valid for FIVE YEARS in any class; renewal is required after 5 years; registration window opens twice a year — January and June on"
+    ] .
+
+ap:Shape_AP-GO-092 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-092" ;
+    ap:typologyCode "Turnover-Threshold-Excess" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-092 | GO Ms No 94/2003 Annexure-II Section 1(h) read with Annexure-III | AP Civil Works contractor monetary tendering limits by class (per GO 8/2003): Special > Rs.10 cr; Class-I Rs.2-10 cr; Class-II Rs.1-2 cr; Class-III Rs.50 lakh-1"
+    ] .
+
+ap:Shape_AP-GO-106 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-106" ;
+    ap:typologyCode "Solvency-Stale" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-106 | GO Ms No 94/2003 Annexure-VI (Form of Registration Order) | Changes in partnership of an AP-registered Contractor firm must be intimated to the registering authority within ONE MONTH of the change AND fresh Solvency Cert"
+    ] .
+
+ap:Shape_AP-GO-131 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-131" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-131 | AP Financial Code Vol-I, Article 55 | Statutory limitation period for arrear claims against AP Government for payments made in contingent bills for supplies/services rendered (i.e., contractor bills"
+    ] .
+
+ap:Shape_AP-GO-139 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-139" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-139 | AP Financial Code Vol-I, Article 123 / Delegation I(3) | AP Stores tender financial-acceptance ceilings: Director CSP may accept tenders up to Rs.2 lakh; Assistant Directors up to Rs.25,000 — without referring to high"
+    ] .
+
+ap:Shape_AP-GO-152 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-152" ;
+    ap:typologyCode "Single-Source-Undocumented" ;
+    sh:property [
+        sh:path ap:hasOpenTender ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-152 | AP Financial Code Vol-I, Article 125 Rule III Instruction (8) read with GO Ms No 489 / Finance (TFR.I) Dept dated 8-12-2008 | OPEN TENDER (public advertisement) is mandatory for AP Stores procurement whenever the estimated value of the order is Rs.5.00 lakh OR MORE (post 8-12-2008 amen"
+    ] .
+
+ap:Shape_AP-GO-155 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-155" ;
+    ap:typologyCode "Single-Source-Undocumented" ;
+    sh:property [
+        sh:path ap:hasOpenTender ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-155 | AP Financial Code Vol-I, Article 125 Rule III Instructions (8)(3) and (11) read with GO Ms No 489/2008 | SINGLE TENDER (private purchase) system in AP may be adopted for: (a) small orders not exceeding Rs.10,000 in total value (or aggregate where multiple article k"
+    ] .
+
+ap:Shape_AP-GO-158 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-158" ;
+    ap:typologyCode "E-Procurement-Bypass" ;
+    sh:property [
+        sh:path ap:isEProcurement ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-158 | AP Financial Code Vol-I, Article 125 Rule III Instruction (8) — GO Ms No 258 / Finance (TFR) Dept dated 20-9-2013 | Materials/stores costing more than Rs.1,00,000 in AP shall be procured through e-procurement platform ONLY (cross-reference: GO Ms No 258/2013) — explicitly inc"
+    ] .
+
+ap:Shape_AP-GO-175 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-175" ;
+    ap:typologyCode "PBG-Shortfall" ;
+    sh:property [
+        sh:path ap:pbgPercentage ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 10.0 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-175 | AP Financial Code Vol-I, Article 129 | AP private firms/persons making contracts with Government must furnish SECURITY for due fulfillment equivalent to 10% OF THE TOTAL VALUE of the contract; Head o"
+    ] .
+
+ap:Shape_AP-GO-214 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-214" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-214 | AP Financial Code Vol-I, Article 198(a)-(b) | Approval/sanction to an AP works estimate (other than ordinary annual repairs) CEASES to be in force FIVE YEARS after the date of approval, unless the work has "
+    ] .
+
+ap:Shape_AP-GO-224 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "AP-GO-224" ;
+    ap:typologyCode "Mobilisation-Advance-Excess" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "AP-GO-224 | AP Financial Code Vol-I, Note under Article 177 — EPC Mobilisation Advance | AP EPC contracts allow MOBILIZATION ADVANCE not exceeding 5% of contract value — payable at prescribed stages of execution; Mobilization advance on NEW MACHINER"
+    ] .
+
+ap:Shape_CVC-094 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "CVC-094" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "CVC-094 | CVC Guidelines Chapter 34, Sections 34.3.5.5–34.3.5.7 | For advertised tenders the time between publication and tender opening must normally be 4 to 6 weeks; for limited tenders it must normally be 21 to 30 days. Sho"
+    ] .
+
+ap:Shape_CVC-112 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "CVC-112" ;
+    ap:typologyCode "PBG-Shortfall" ;
+    sh:property [
+        sh:path ap:pbgPercentage ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 5.0 ;
+        sh:severity sh:Violation ;
+        sh:message "CVC-112 | CVC Guidelines Chapter 34, Sections 34.3.22.1–34.3.22.3 | The Performance Bank Guarantee amount must be stipulated in every tender, must be commensurate with contract value, and its validity must be extended whenever t"
+    ] .
+
+ap:Shape_CVC-127 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "CVC-127" ;
+    ap:typologyCode "BG-Validity-Gap" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "CVC-127 | Standard Integrity Pact, Section 5.2 (Earnest Money / Security Deposit) | Under Integrity Pact, the EMD/Security Deposit must be valid up to a period of 5 years OR the complete conclusion of contractual obligations to the satisfaction"
+    ] .
+
+ap:Shape_CVC-136 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "CVC-136" ;
+    ap:typologyCode "Missing-Integrity-Pact" ;
+    sh:property [
+        sh:path ap:hasIntegrityPact ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "CVC-136 | CVC Revised IP SOP, Sections 3.6, 3.7 | IEM appointment limits: a person may be appointed as an IEM in a maximum of three organisations at a time; an empanelled person cannot be appointed in one organ"
+    ] .
+
+ap:Shape_CVC-137 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "CVC-137" ;
+    ap:typologyCode "Missing-Integrity-Pact" ;
+    sh:property [
+        sh:path ap:hasIntegrityPact ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "CVC-137 | CVC Revised IP SOP, Section 3.5 | Number of IEMs per organisation: three IEMs shall be nominated for Maharatna and Navratna PSUs; two IEMs for all other organisations."
+    ] .
+
+ap:Shape_GFR-007 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-007" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-007 | GFR 2017, Rule 30 (Lapse of Sanctions) | A sanction for any fresh charge shall lapse if no payment in whole or in part has been made during a period of twelve months from the date of issue. Exceptions:"
+    ] .
+
+ap:Shape_GFR-072 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-072" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-072 | GFR 2017, Rule 213 (1) and (3) (Physical verification of Fixed Assets) | Fixed assets must be physically verified at least once a year and the outcome recorded in the corresponding register. Discrepancies must be promptly investigate"
+    ] .
+
+ap:Shape_GFR-074 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-074" ;
+    ap:typologyCode "Single-Source-Undocumented" ;
+    sh:property [
+        sh:path ap:hasOpenTender ;
+        sh:datatype xsd:boolean ;
+        sh:hasValue true ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-074 | GFR 2017, Rule 218 (i) (Modes of Disposal) | Surplus / obsolete / unserviceable goods of assessed residual value above Rs. 4 lakhs must be disposed of by (a) advertised tender or (b) public auction. For va"
+    ] .
+
+ap:Shape_GFR-075 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-075" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-075 | GFR 2017, Rule 219 (Disposal through Advertised Tender) | For disposal through advertised tender of surplus goods, bid security shall ordinarily be 10% of the assessed/reserved price; the bid of the highest acceptable "
+    ] .
+
+ap:Shape_GFR-076 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-076" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-076 | GFR 2017, Rule 220 (Disposal through Auction) | For disposal through auction, earnest money (not less than 25% of the bid value) must immediately be taken on the spot from the successful bidder either in cash"
+    ] .
+
+ap:Shape_GFR-080 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-080" ;
+    ap:typologyCode "Stale-Financial-Year" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-080 | GFR 2017, Rule 225 (vi) | Contract document, where necessary, must be executed within 21 days of issue of the letter of acceptance. Non-fulfilment of this 21-day deadline by the contract"
+    ] .
+
+ap:Shape_GFR-086 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-086" ;
+    ap:typologyCode "Arbitration-Clause-Violation" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-086 | GFR 2017, Rule 227A (Arbitration Awards), inserted via DoE OM 29.10.2021 | Where a Ministry/Department has challenged an arbitral award, 75% of the arbitral award (which may include interest up to date of award) shall be paid to the co"
+    ] .
+
+ap:Shape_GFR-096 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-096" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-096 | GFR 2017, Rule 250 (1) (i) and (ii) | All loans must specify a fixed term as short as possible within which the loan must be fully repaid with interest. The term may extend to a maximum of 30 years "
+    ] .
+
+ap:Shape_GFR-097 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-097" ;
+    ap:typologyCode "EMD-Shortfall" ;
+    sh:property [
+        sh:path ap:emdPercentage ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 2.0 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-097 | GFR 2017, Rule 255 | Loans to parties other than State Governments and wholly-owned Government Companies must be sanctioned only against adequate security. The security must ordinar"
+    ] .
+
+ap:Shape_GFR-098 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-098" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-098 | GFR 2017, Rule 258 (1) | All loan sanctions and agreements must invariably include provision for levy of penal interest on overdue instalments of interest or principal. Penal/higher rat"
+    ] .
+
+ap:Shape_GFR-099 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-099" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-099 | GFR 2017, Rule 256 (2) (v) and (vii) | Utilisation Certificates for loans must be furnished within a 'reasonable time' after the loan is paid; the Department prescribes target dates in consultation w"
+    ] .
+
+ap:Shape_GFR-G-043 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-G-043" ;
+    ap:typologyCode "Missing-Mandatory-Field" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-G-043 | GFR 2017, Rule 161 (Advertised Tender Enquiry), parts (i)-(vi) | Advertised Tender Enquiry must be used for procurement of goods of estimated value Rs. 50 lakhs and above. Advertisement must be on GeM AND Central Public Procu"
+    ] .
+
+ap:Shape_GFR-G-049 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-G-049" ;
+    ap:typologyCode "EMD-Shortfall" ;
+    sh:property [
+        sh:path ap:emdPercentage ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 2.0 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-G-049 | GFR 2017, Rule 170 (Bid Security) | Bid Security (Earnest Money) is to be obtained from bidders (except MSEs as per MSME procurement policy, suppliers registered with the Central Purchase Organisa"
+    ] .
+
+ap:Shape_GFR-G-051 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-G-051" ;
+    ap:typologyCode "PBG-Shortfall" ;
+    sh:property [
+        sh:path ap:pbgPercentage ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 3.0 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-G-051 | GFR 2017, Rule 171 (Performance Security) | Performance Security must be obtained from the successful bidder. For procurement of Goods / Consultancy Services / Non-Consultancy Services, Performance Securi"
+    ] .
+
+ap:Shape_GFR-G-052 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-G-052" ;
+    ap:typologyCode "Mobilisation-Advance-Excess" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-G-052 | GFR 2017, Rule 172 (1) (Advance payment to supplier) | Advance payments to suppliers shall not exceed: (a) 30% of contract value to private firms; (b) 40% to State/Central Government agencies or Public Sector Undert"
+    ] .
+
+ap:Shape_GFR-S-060 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-S-060" ;
+    ap:typologyCode "Criteria-Restriction-Narrow" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-S-060 | GFR 2017, Rule 184 (Short listing of consultants) | Short-listing of consultants must result in not less than three short-listed consultants for further consideration."
+    ] .
+
+ap:Shape_GFR-S-065 a sh:NodeShape ;
+    sh:targetClass ap:TenderDocument ;
+    ap:ruleId "GFR-S-065" ;
+    ap:typologyCode "Criteria-Restriction-Narrow" ;
+    sh:property [
+        sh:path ap:documentArtefactPresent ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "GFR-S-065 | GFR 2017, Rule 192 (QCBS) | Quality and Cost Based Selection (QCBS) — for consultancy where quality is of prime concern. RFP must specify minimum qualifying score for technical proposal AN"
+    ] .

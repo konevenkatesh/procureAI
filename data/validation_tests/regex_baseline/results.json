@@ -1,0 +1,773 @@
+{
+  "generated_at": "2026-05-01T13:56:51+00:00",
+  "validator_version": "v0-regex-baseline",
+  "rule_corpus_size": 175,
+  "tests_total": 6,
+  "results": [
+    {
+      "id": "vizag_ugss_pkg_2",
+      "name": "Vizag UGSS Pkg-2 (5-volume bundle)",
+      "ground_truth": {
+        "expected_type": [
+          "EPC",
+          "Works"
+        ],
+        "expected_is_ap": true,
+        "known_issues": [
+          "PBG-Shortfall (2.5%)",
+          "Missing-Integrity-Pact"
+        ],
+        "ap_acceptable": [
+          "Civil-court arbitration (defeated by AP-GO-229)"
+        ]
+      },
+      "document_name": "Vizag UGSS Pkg-2 (5-volume bundle)",
+      "timestamp": "2026-05-01T13:56:45+00:00",
+      "processing_time_ms": 6178,
+      "classification": {
+        "primary_type": "Consultancy",
+        "procurement_method": "Unknown",
+        "cover_system": "Three",
+        "estimated_value": 3500000000.0,
+        "duration_months": 12,
+        "department": "GVSCCL",
+        "is_ap_tender": true,
+        "funding_source": "central",
+        "special_flags": [
+          "has_jv",
+          "has_consortium"
+        ],
+        "confidence": 1.0,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 180,
+        "dlp_months": 6,
+        "integrity_pact_required": true,
+        "reverse_tender_mandatory": true,
+        "judicial_preview_required": false,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": true,
+        "price_adjustment_applicable": true
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 126,
+        "hard_blocks": [
+          {
+            "typology_code": "Missing-Integrity-Pact",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "CVC-086",
+            "rules_fired": 37,
+            "triggered_rule_ids": [
+              "CVC-086",
+              "CVC-087",
+              "CVC-088",
+              "CVC-116",
+              "CVC-117",
+              "CVC-118",
+              "CVC-119",
+              "CVC-120",
+              "CVC-124",
+              "CVC-128",
+              "CVC-129",
+              "CVC-130",
+              "CVC-134",
+              "CVC-135",
+              "CVC-136",
+              "CVC-137",
+              "CVC-139",
+              "GFR-G-056",
+              "MPG-031",
+              "MPG-034",
+              "MPG-035",
+              "MPG-036",
+              "MPS-017",
+              "MPS-022",
+              "MPW-150",
+              "MPW-152",
+              "MPW-153",
+              "MPW25-063",
+              "MPW25-122",
+              "MPW25-123",
+              "MPW25-124",
+              "MPW25-126",
+              "MPW25-127",
+              "MPW25-128",
+              "MPW25-129",
+              "MPW25-131",
+              "MPW25-132"
+            ],
+            "defeated_by": [],
+            "evidence": "No 'integrity pact' clause found in document 37 rules require this. Primary authority: CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact). All triggering rules: [CVC-086, CVC-087, CVC-088, CVC-116, CVC-117, CVC-118, CVC-119, CVC-120, CVC-124, CVC-128, CVC-129, CVC-130, CVC-134,…",
+            "source_clause": "CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact)",
+            "layer": "CVC"
+          },
+          {
+            "typology_code": "PBG-Shortfall",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-141",
+            "rules_fired": 12,
+            "triggered_rule_ids": [
+              "AP-GO-141",
+              "AP-GO-175",
+              "AP-GO-216",
+              "AP-GO-217",
+              "CVC-112",
+              "GFR-G-051",
+              "MPG-096",
+              "MPG-149",
+              "MPW-080",
+              "MPW-112",
+              "MPW25-053",
+              "MPW25-084"
+            ],
+            "defeated_by": [],
+            "evidence": "Document states PBG = 2.5% (expected ≥ 5.0%) 12 rules require this. Primary authority: AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.. All triggering rules: [AP-GO-141, AP-GO-175, AP-GO-216, AP-GO-217, CVC-112, GFR-G-051, MPG-096, MPG-149, MPW-080, MPW-112, MPW25-053, MPW25-084]",
+            "source_clause": "AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.",
+            "layer": "AP-State"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [
+          "AP-acceptable case not surfaced as defeated advisory: Civil-court arbitration (defeated by AP-GO-229)"
+        ],
+        "classification_errors": [
+          "Type misclassified: expected one of ['EPC', 'Works'], got Consultancy"
+        ]
+      }
+    },
+    {
+      "id": "sbdpkg11_kakinada",
+      "name": "SBDPKG11Kakinadafinalrev.md",
+      "ground_truth": {
+        "expected_type": [
+          "Works",
+          "EPC"
+        ],
+        "expected_is_ap": true
+      },
+      "document_name": "SBDPKG11Kakinadafinalrev.md",
+      "timestamp": "2026-05-01T13:56:46+00:00",
+      "processing_time_ms": 1029,
+      "classification": {
+        "primary_type": "Works",
+        "procurement_method": "Unknown",
+        "cover_system": "Three",
+        "estimated_value": 500000000.0,
+        "duration_months": 24,
+        "department": "I&CAD",
+        "is_ap_tender": true,
+        "funding_source": "central",
+        "special_flags": [
+          "has_jv"
+        ],
+        "confidence": 0.83,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 90,
+        "dlp_months": 24,
+        "integrity_pact_required": true,
+        "reverse_tender_mandatory": true,
+        "judicial_preview_required": false,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": false,
+        "price_adjustment_applicable": true
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 138,
+        "hard_blocks": [
+          {
+            "typology_code": "Missing-Integrity-Pact",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "CVC-086",
+            "rules_fired": 37,
+            "triggered_rule_ids": [
+              "CVC-086",
+              "CVC-087",
+              "CVC-088",
+              "CVC-116",
+              "CVC-117",
+              "CVC-118",
+              "CVC-119",
+              "CVC-120",
+              "CVC-124",
+              "CVC-128",
+              "CVC-129",
+              "CVC-130",
+              "CVC-134",
+              "CVC-135",
+              "CVC-136",
+              "CVC-137",
+              "CVC-139",
+              "GFR-G-056",
+              "MPG-031",
+              "MPG-034",
+              "MPG-035",
+              "MPG-036",
+              "MPS-017",
+              "MPS-022",
+              "MPW-150",
+              "MPW-152",
+              "MPW-153",
+              "MPW25-063",
+              "MPW25-122",
+              "MPW25-123",
+              "MPW25-124",
+              "MPW25-126",
+              "MPW25-127",
+              "MPW25-128",
+              "MPW25-129",
+              "MPW25-131",
+              "MPW25-132"
+            ],
+            "defeated_by": [],
+            "evidence": "No 'integrity pact' clause found in document 37 rules require this. Primary authority: CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact). All triggering rules: [CVC-086, CVC-087, CVC-088, CVC-116, CVC-117, CVC-118, CVC-119, CVC-120, CVC-124, CVC-128, CVC-129, CVC-130, CVC-134,…",
+            "source_clause": "CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact)",
+            "layer": "CVC"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [],
+        "classification_errors": []
+      }
+    },
+    {
+      "id": "high_court",
+      "name": "High Court bid document",
+      "ground_truth": {
+        "expected_type": [
+          "EPC",
+          "Works"
+        ],
+        "expected_is_ap": true
+      },
+      "document_name": "High court  bid document.md",
+      "timestamp": "2026-05-01T13:56:47+00:00",
+      "processing_time_ms": 999,
+      "classification": {
+        "primary_type": "Works",
+        "procurement_method": "Unknown",
+        "cover_system": "Three",
+        "estimated_value": 1000000.0,
+        "duration_months": 12,
+        "department": "APCRDA",
+        "is_ap_tender": true,
+        "funding_source": "world_bank",
+        "special_flags": [
+          "has_jv",
+          "has_consortium",
+          "has_corrigendum"
+        ],
+        "confidence": 1.0,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 90,
+        "dlp_months": 24,
+        "integrity_pact_required": false,
+        "reverse_tender_mandatory": false,
+        "judicial_preview_required": false,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": false,
+        "price_adjustment_applicable": false
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 149,
+        "hard_blocks": [
+          {
+            "typology_code": "EMD-Shortfall",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-050",
+            "rules_fired": 14,
+            "triggered_rule_ids": [
+              "AP-GO-050",
+              "AP-GO-060",
+              "AP-GO-113",
+              "AP-GO-162",
+              "AP-GO-163",
+              "CVC-047",
+              "CVC-098",
+              "CVC-099",
+              "GFR-097",
+              "GFR-G-049",
+              "MPG-095",
+              "MPG-324",
+              "MPW-079",
+              "MPW25-052"
+            ],
+            "defeated_by": [
+              "AP-GO-050"
+            ],
+            "evidence": "Document states EMD = 0.04% (expected ≥ 2.5%) 14 rules require this. Primary authority: GO Ms No 94/2003 Annexure-I, Section 5. All triggering rules: [AP-GO-050, AP-GO-060, AP-GO-113, AP-GO-162, AP-GO-163, CVC-047, CVC-098, CVC-099, GFR-097, GFR-G-049, MPG-095, MPG-324, MPW-079, MPW25-052] Some trig…",
+            "source_clause": "GO Ms No 94/2003 Annexure-I, Section 5",
+            "layer": "AP-State"
+          },
+          {
+            "typology_code": "PBG-Shortfall",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-141",
+            "rules_fired": 12,
+            "triggered_rule_ids": [
+              "AP-GO-141",
+              "AP-GO-175",
+              "AP-GO-216",
+              "AP-GO-217",
+              "CVC-112",
+              "GFR-G-051",
+              "MPG-096",
+              "MPG-149",
+              "MPW-080",
+              "MPW-112",
+              "MPW25-053",
+              "MPW25-084"
+            ],
+            "defeated_by": [],
+            "evidence": "Document states PBG = 2.5% (expected ≥ 5.0%) 12 rules require this. Primary authority: AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.. All triggering rules: [AP-GO-141, AP-GO-175, AP-GO-216, AP-GO-217, CVC-112, GFR-G-051, MPG-096, MPG-149, MPW-080, MPW-112, MPW25-053, MPW25-084]",
+            "source_clause": "AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.",
+            "layer": "AP-State"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [],
+        "classification_errors": []
+      }
+    },
+    {
+      "id": "judicial_academy",
+      "name": "Bid Document of Judicial Academy",
+      "ground_truth": {
+        "expected_type": [
+          "EPC",
+          "Works"
+        ],
+        "expected_is_ap": true
+      },
+      "document_name": "Bid Document of Judicial Academy.md",
+      "timestamp": "2026-05-01T13:56:49+00:00",
+      "processing_time_ms": 2364,
+      "classification": {
+        "primary_type": "Works",
+        "procurement_method": "Unknown",
+        "cover_system": "Three",
+        "estimated_value": 1254994048.0,
+        "duration_months": 24,
+        "department": "APCRDA",
+        "is_ap_tender": true,
+        "funding_source": "world_bank",
+        "special_flags": [
+          "has_jv",
+          "has_consortium",
+          "has_corrigendum"
+        ],
+        "confidence": 0.83,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 90,
+        "dlp_months": 24,
+        "integrity_pact_required": true,
+        "reverse_tender_mandatory": true,
+        "judicial_preview_required": true,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": false,
+        "price_adjustment_applicable": true
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 106,
+        "hard_blocks": [
+          {
+            "typology_code": "EMD-Shortfall",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-050",
+            "rules_fired": 14,
+            "triggered_rule_ids": [
+              "AP-GO-050",
+              "AP-GO-060",
+              "AP-GO-113",
+              "AP-GO-162",
+              "AP-GO-163",
+              "CVC-047",
+              "CVC-098",
+              "CVC-099",
+              "GFR-097",
+              "GFR-G-049",
+              "MPG-095",
+              "MPG-324",
+              "MPW-079",
+              "MPW25-052"
+            ],
+            "defeated_by": [
+              "AP-GO-050"
+            ],
+            "evidence": "Document states EMD = 0.04% (expected ≥ 2.5%) 14 rules require this. Primary authority: GO Ms No 94/2003 Annexure-I, Section 5. All triggering rules: [AP-GO-050, AP-GO-060, AP-GO-113, AP-GO-162, AP-GO-163, CVC-047, CVC-098, CVC-099, GFR-097, GFR-G-049, MPG-095, MPG-324, MPW-079, MPW25-052] Some trig…",
+            "source_clause": "GO Ms No 94/2003 Annexure-I, Section 5",
+            "layer": "AP-State"
+          },
+          {
+            "typology_code": "Judicial-Preview-Bypass",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-001",
+            "rules_fired": 6,
+            "triggered_rule_ids": [
+              "AP-GO-001",
+              "AP-GO-003",
+              "AP-GO-004",
+              "AP-GO-006",
+              "AP-GO-007",
+              "AP-GO-009"
+            ],
+            "defeated_by": [],
+            "evidence": "Project value triggers AP Judicial Preview (≥ Rs.100 cr) but no preview reference found 6 rules require this. Primary authority: Section 3(i) read with Section 2(12). All triggering rules: [AP-GO-001, AP-GO-003, AP-GO-004, AP-GO-006, AP-GO-007, AP-GO-009]",
+            "source_clause": "Section 3(i) read with Section 2(12)",
+            "layer": "AP-State"
+          },
+          {
+            "typology_code": "Missing-Integrity-Pact",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "CVC-086",
+            "rules_fired": 37,
+            "triggered_rule_ids": [
+              "CVC-086",
+              "CVC-087",
+              "CVC-088",
+              "CVC-116",
+              "CVC-117",
+              "CVC-118",
+              "CVC-119",
+              "CVC-120",
+              "CVC-124",
+              "CVC-128",
+              "CVC-129",
+              "CVC-130",
+              "CVC-134",
+              "CVC-135",
+              "CVC-136",
+              "CVC-137",
+              "CVC-139",
+              "GFR-G-056",
+              "MPG-031",
+              "MPG-034",
+              "MPG-035",
+              "MPG-036",
+              "MPS-017",
+              "MPS-022",
+              "MPW-150",
+              "MPW-152",
+              "MPW-153",
+              "MPW25-063",
+              "MPW25-122",
+              "MPW25-123",
+              "MPW25-124",
+              "MPW25-126",
+              "MPW25-127",
+              "MPW25-128",
+              "MPW25-129",
+              "MPW25-131",
+              "MPW25-132"
+            ],
+            "defeated_by": [],
+            "evidence": "No 'integrity pact' clause found in document 37 rules require this. Primary authority: CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact). All triggering rules: [CVC-086, CVC-087, CVC-088, CVC-116, CVC-117, CVC-118, CVC-119, CVC-120, CVC-124, CVC-128, CVC-129, CVC-130, CVC-134,…",
+            "source_clause": "CVC Office Order No.41/12/07 dt. 04.12.2007 (Adoption of Integrity Pact)",
+            "layer": "CVC"
+          },
+          {
+            "typology_code": "PBG-Shortfall",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-141",
+            "rules_fired": 12,
+            "triggered_rule_ids": [
+              "AP-GO-141",
+              "AP-GO-175",
+              "AP-GO-216",
+              "AP-GO-217",
+              "CVC-112",
+              "GFR-G-051",
+              "MPG-096",
+              "MPG-149",
+              "MPW-080",
+              "MPW-112",
+              "MPW25-053",
+              "MPW25-084"
+            ],
+            "defeated_by": [],
+            "evidence": "Document states PBG = 2.5% (expected ≥ 5.0%) 12 rules require this. Primary authority: AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.. All triggering rules: [AP-GO-141, AP-GO-175, AP-GO-216, AP-GO-217, CVC-112, GFR-G-051, MPG-096, MPG-149, MPW-080, MPW-112, MPW25-053, MPW25-084]",
+            "source_clause": "AP Financial Code Vol-I, Article 123 / Delegation I(5) and N.B.",
+            "layer": "AP-State"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [],
+        "classification_errors": []
+      }
+    },
+    {
+      "id": "rfp_vijayawada",
+      "name": "RFP_Vijayawada_NITI_01042026 (15 MW WtE PPP)",
+      "ground_truth": {
+        "expected_type": [
+          "EPC"
+        ],
+        "expected_is_ap": true
+      },
+      "document_name": "RFP_Vijayawada_NITI_01042026.md",
+      "timestamp": "2026-05-01T13:56:50+00:00",
+      "processing_time_ms": 732,
+      "classification": {
+        "primary_type": "EPC",
+        "procurement_method": "Unknown",
+        "cover_system": "Single",
+        "estimated_value": 3247000000.0,
+        "duration_months": 6,
+        "department": "MAUD",
+        "is_ap_tender": true,
+        "funding_source": "world_bank",
+        "special_flags": [
+          "has_jv",
+          "has_consortium",
+          "has_integrity_pact"
+        ],
+        "confidence": 0.8,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 180,
+        "dlp_months": 24,
+        "integrity_pact_required": true,
+        "reverse_tender_mandatory": true,
+        "judicial_preview_required": true,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": false,
+        "price_adjustment_applicable": true
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 146,
+        "hard_blocks": [
+          {
+            "typology_code": "Judicial-Preview-Bypass",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-001",
+            "rules_fired": 6,
+            "triggered_rule_ids": [
+              "AP-GO-001",
+              "AP-GO-003",
+              "AP-GO-004",
+              "AP-GO-006",
+              "AP-GO-007",
+              "AP-GO-009"
+            ],
+            "defeated_by": [],
+            "evidence": "Project value triggers AP Judicial Preview (≥ Rs.100 cr) but no preview reference found 6 rules require this. Primary authority: Section 3(i) read with Section 2(12). All triggering rules: [AP-GO-001, AP-GO-003, AP-GO-004, AP-GO-006, AP-GO-007, AP-GO-009]",
+            "source_clause": "Section 3(i) read with Section 2(12)",
+            "layer": "AP-State"
+          },
+          {
+            "typology_code": "Missing-PVC-Clause",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-019",
+            "rules_fired": 23,
+            "triggered_rule_ids": [
+              "AP-GO-019",
+              "AP-GO-020",
+              "AP-GO-022",
+              "AP-GO-023",
+              "AP-GO-024",
+              "AP-GO-025",
+              "AP-GO-026",
+              "AP-GO-027",
+              "AP-GO-028",
+              "AP-GO-029",
+              "AP-GO-030",
+              "AP-GO-031",
+              "AP-GO-032",
+              "AP-GO-033",
+              "AP-GO-034",
+              "AP-GO-075",
+              "MPG-110",
+              "MPG-266",
+              "MPS-061",
+              "MPS-205",
+              "MPW-133",
+              "MPW-178",
+              "MPW25-094"
+            ],
+            "defeated_by": [],
+            "evidence": "Price-adjustment clause missing despite value/duration triggering it 23 rules require this. Primary authority: GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 2(a)(i). All triggering rules: [AP-GO-019, AP-GO-020, AP-GO-022, AP-GO-023, AP-GO-024, AP-GO-025, AP-GO-026, AP-GO-027, A…",
+            "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 2(a)(i)",
+            "layer": "AP-State"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [],
+        "classification_errors": []
+      }
+    },
+    {
+      "id": "rfp_tirupathi",
+      "name": "RFP_Tirupathi_NITI_01042026 (12 MW WtE PPP)",
+      "ground_truth": {
+        "expected_type": [
+          "EPC"
+        ],
+        "expected_is_ap": true
+      },
+      "document_name": "RFP_Tirupathi_NITI_01042026.md",
+      "timestamp": "2026-05-01T13:56:51+00:00",
+      "processing_time_ms": 741,
+      "classification": {
+        "primary_type": "EPC",
+        "procurement_method": "Unknown",
+        "cover_system": "Single",
+        "estimated_value": 2575100000.0,
+        "duration_months": 6,
+        "department": "MAUD",
+        "is_ap_tender": true,
+        "funding_source": "world_bank",
+        "special_flags": [
+          "has_jv",
+          "has_consortium",
+          "has_integrity_pact"
+        ],
+        "confidence": 0.8,
+        "needs_human_confirm": false
+      },
+      "parameters": {
+        "emd_percentage": 2.5,
+        "pbg_percentage": 5.0,
+        "bid_validity_days": 180,
+        "dlp_months": 24,
+        "integrity_pact_required": true,
+        "reverse_tender_mandatory": true,
+        "judicial_preview_required": true,
+        "e_procurement_mandatory": true,
+        "open_tender_required": true,
+        "two_cover_required": true,
+        "arbitration_allowed": false,
+        "price_adjustment_applicable": true
+      },
+      "verdict": {
+        "overall_status": "BLOCK",
+        "score": 0,
+        "rules_checked": 175,
+        "rules_passed": 146,
+        "hard_blocks": [
+          {
+            "typology_code": "Judicial-Preview-Bypass",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-001",
+            "rules_fired": 6,
+            "triggered_rule_ids": [
+              "AP-GO-001",
+              "AP-GO-003",
+              "AP-GO-004",
+              "AP-GO-006",
+              "AP-GO-007",
+              "AP-GO-009"
+            ],
+            "defeated_by": [],
+            "evidence": "Project value triggers AP Judicial Preview (≥ Rs.100 cr) but no preview reference found 6 rules require this. Primary authority: Section 3(i) read with Section 2(12). All triggering rules: [AP-GO-001, AP-GO-003, AP-GO-004, AP-GO-006, AP-GO-007, AP-GO-009]",
+            "source_clause": "Section 3(i) read with Section 2(12)",
+            "layer": "AP-State"
+          },
+          {
+            "typology_code": "Missing-PVC-Clause",
+            "severity": "HARD_BLOCK",
+            "primary_rule_id": "AP-GO-019",
+            "rules_fired": 23,
+            "triggered_rule_ids": [
+              "AP-GO-019",
+              "AP-GO-020",
+              "AP-GO-022",
+              "AP-GO-023",
+              "AP-GO-024",
+              "AP-GO-025",
+              "AP-GO-026",
+              "AP-GO-027",
+              "AP-GO-028",
+              "AP-GO-029",
+              "AP-GO-030",
+              "AP-GO-031",
+              "AP-GO-032",
+              "AP-GO-033",
+              "AP-GO-034",
+              "AP-GO-075",
+              "MPG-110",
+              "MPG-266",
+              "MPS-061",
+              "MPS-205",
+              "MPW-133",
+              "MPW-178",
+              "MPW25-094"
+            ],
+            "defeated_by": [],
+            "evidence": "Price-adjustment clause missing despite value/duration triggering it 23 rules require this. Primary authority: GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 2(a)(i). All triggering rules: [AP-GO-019, AP-GO-020, AP-GO-022, AP-GO-023, AP-GO-024, AP-GO-025, AP-GO-026, AP-GO-027, A…",
+            "source_clause": "GO Ms No 62 / Water Resources (Reforms) Dept dated 30-11-2021, Para 2(a)(i)",
+            "layer": "AP-State"
+          }
+        ],
+        "warnings": [],
+        "advisories": []
+      },
+      "annotations": {
+        "false_positives": [],
+        "false_negatives": [],
+        "classification_errors": []
+      }
+    }
+  ]
+}
