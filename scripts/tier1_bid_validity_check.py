@@ -280,54 +280,10 @@ def _truncate_for_rerank(text: str, cap: int = RERANK_PER_SECTION_CHAR_CAP) -> t
     ), True
 
 
-# Keyword-aware windowing — anchor the truncation window on the
-# earliest occurrence of any bid-validity keyword in the section.
-# When a section is long (>3000 chars) and the validity wording is
-# buried in the middle, head+tail truncation drops it; this slides
-# the window to where the answer actually is.
-SMART_TRUNCATE_KEYWORDS = [
-    r"bid validity",
-    r"bids shall remain valid",
-    r"validity period",
-    r"remain valid for",
-    # Spelled-out day counts (cover 30/60/90/120/180 day common values)
-    r"\bninety\b", r"\bsixty\b", r"\bthirty\b", r"\beighty\b",
-    r"one hundred twenty", r"hundred eighty",
-    # Patterns: "validity ... days" / "days ... validity" within ~50 chars
-    r"validity[^.]{0,50}days",
-    r"days[^.]{0,50}validity",
-]
-
-
-def smart_truncate(text: str, window: int = 3000) -> str:
-    """Centre a `window`-sized slice on the earliest keyword hit in the
-    section. If no keyword matches, fall back to head+tail (2400/1600)
-    so the LLM still sees both ends.
-
-    Window=3000 with K=15 candidates ≈ 45K chars in the rerank prompt
-    (well within qwen-72b's 128K context).
-    """
-    if len(text) <= window:
-        return text
-
-    text_lower = text.lower()
-    earliest = len(text)
-    for kw in SMART_TRUNCATE_KEYWORDS:
-        m = re.search(kw, text_lower)
-        if m and m.start() < earliest:
-            earliest = m.start()
-
-    if earliest < len(text):
-        # Centre the window on the earliest keyword hit
-        half = window // 2
-        start = max(0, earliest - half)
-        end   = min(len(text), earliest + half)
-        prefix = "[... section start elided ...]\n\n" if start > 0 else ""
-        suffix = "\n\n[... section end elided ...]"     if end < len(text) else ""
-        return prefix + text[start:end] + suffix
-
-    # No keyword hit — keep both ends
-    return text[:2400] + "\n\n[... middle of section elided ...]\n\n" + text[-1600:]
+# Lifted to modules/validation/text_utils.py — keyword-aware windowing
+# is now reusable across typologies. The bid-validity vocabulary is
+# the helper's default `keywords` list, so no per-call override needed.
+from modules.validation.text_utils import smart_truncate
 
 
 def build_validity_rerank_prompt(candidates: list[dict]) -> str:
