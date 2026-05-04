@@ -313,8 +313,170 @@ def _batch_insert(table: str, rows: list[dict], *, batch: int = 100,
     return out
 
 
+def _snapshot_findings(doc_id: str) -> tuple[list[dict], list[dict]]:
+    """Snapshot ValidationFinding nodes + VIOLATES_RULE edges before
+    `_clear_kg` wipes the doc's KG (per L32).
+
+    Why: typology scripts own the lifecycle of ValidationFindings and
+    VIOLATES_RULE edges. kg_builder rebuilding the structural KG
+    (TenderDocument + Sections) should NOT silently delete typology
+    findings — that loses audit trail and forces every downstream
+    typology check to re-run on every doc rebuild. The fix is
+    snapshot-before-clear + restore-after-rebuild, with structural
+    references (`from_node_id` → Section, `to_node_id` → RuleNode)
+    re-resolved against the freshly-built nodes during restore.
+
+    The cascade-delete on `kg_edges.from_node_id`/`to_node_id` FKs
+    means a simple "DELETE WHERE node_type != 'ValidationFinding'"
+    wouldn't work — deleting the structural Section/RuleNode nodes
+    cascades to the edges anyway. We have to copy the rows out of
+    the DB before the clear and re-insert after the rebuild.
+    """
+    findings = rest_select(
+        "kg_nodes",
+        params={"doc_id": f"eq.{doc_id}", "node_type": "eq.ValidationFinding"},
+    )
+    edges = rest_select(
+        "kg_edges",
+        params={"doc_id": f"eq.{doc_id}", "edge_type": "eq.VIOLATES_RULE"},
+    )
+    return list(findings or []), list(edges or [])
+
+
+def _restore_findings(
+    doc_id: str,
+    new_doc_node_id: str,
+    findings_snapshot: list[dict],
+    edges_snapshot: list[dict],
+) -> tuple[int, int]:
+    """Re-insert preserved ValidationFinding nodes + VIOLATES_RULE
+    edges after the structural rebuild, re-resolving structural
+    references to the freshly-built nodes (per L32).
+
+    Reference rewriting:
+      * ValidationFinding.properties.section_node_id    → kept as-is
+        (stale UUID; the original Section is gone, but the audit
+        trail in the JSONB still records section_heading +
+        source_file + line_start_local for human review).
+      * VIOLATES_RULE.from_node_id                      → re-pointed
+        to the new TenderDocument node (the original Section UUID is
+        gone; FK requires a live target). The audit-trail
+        attribution lives in finding.properties.section_heading and
+        the JSONB `section_node_id` echo, which is sufficient for a
+        reviewer.
+      * VIOLATES_RULE.to_node_id                        → re-resolved
+        via get_or_create RuleNode(doc_id, rule_id). The rule_id
+        comes from the edge's properties.rule_id (always populated
+        by the typology scripts).
+
+    Findings/edges are re-inserted with their ORIGINAL `node_id` /
+    `edge_id` so external audit references (UI deep-links, prior
+    reports) keep resolving. Idempotent: re-running build_kg multiple
+    times preserves the same UUIDs.
+    """
+    if not findings_snapshot and not edges_snapshot:
+        return 0, 0
+
+    # Re-insert ValidationFinding rows verbatim (with their original
+    # node_id, properties, label, source_ref). PostgREST 'upsert' via
+    # Prefer: resolution=merge-duplicates handles the case where a
+    # second build_kg invocation with clear_existing=True snapshots
+    # and re-inserts the same row.
+    n_findings_restored = 0
+    if findings_snapshot:
+        rows = [{
+            "node_id":    f["node_id"],
+            "doc_id":     f["doc_id"],
+            "node_type":  f["node_type"],
+            "label":      f.get("label"),
+            "properties": f.get("properties") or {},
+            "source_ref": f.get("source_ref"),
+        } for f in findings_snapshot]
+        rest_insert("kg_nodes", rows)
+        n_findings_restored = len(rows)
+
+    # Re-resolve RuleNode for each preserved edge. RuleNodes are
+    # per-doc, so they were also wiped by _clear_kg; re-create on
+    # demand using the same get_or_create semantics that typology
+    # scripts use.
+    n_edges_restored = 0
+    rule_node_id_cache: dict[str, str] = {}
+    edge_rows: list[dict] = []
+    for e in edges_snapshot:
+        ep = e.get("properties") or {}
+        rule_id = ep.get("rule_id")
+        if not rule_id:
+            # Unrecoverable — no rule_id means we can't re-target the
+            # edge. Skip; the original ValidationFinding is still
+            # restored and carries its rule_id in the finding props.
+            continue
+        if rule_id not in rule_node_id_cache:
+            rule_node_id_cache[rule_id] = _get_or_create_rule_node_during_restore(
+                doc_id, rule_id,
+            )
+        new_to = rule_node_id_cache[rule_id]
+        edge_rows.append({
+            "edge_id":      e["edge_id"],
+            "doc_id":       e["doc_id"],
+            "from_node_id": new_doc_node_id,   # re-point to fresh TenderDocument
+            "to_node_id":   new_to,             # re-point to fresh RuleNode
+            "edge_type":    e["edge_type"],
+            "weight":       e.get("weight", 1.0),
+            "properties":   ep,
+        })
+    if edge_rows:
+        rest_insert("kg_edges", edge_rows)
+        n_edges_restored = len(edge_rows)
+
+    return n_findings_restored, n_edges_restored
+
+
+def _get_or_create_rule_node_during_restore(doc_id: str, rule_id: str) -> str:
+    """Mirror of the get_or_create_rule_node helper in tier1
+    typology scripts, scoped to the kg_builder restore path.
+
+    Looks up RuleNode(doc_id, rule_id) — if missing, fetches the rule
+    row from the rules table and inserts a fresh RuleNode kg_node.
+    Returns the RuleNode's node_id for use as VIOLATES_RULE.to_node_id.
+    """
+    existing = rest_select("kg_nodes", params={
+        "doc_id":                f"eq.{doc_id}",
+        "node_type":             "eq.RuleNode",
+        "properties->>rule_id":  f"eq.{rule_id}",
+    })
+    if existing:
+        return existing[0]["node_id"]
+    rule_rows = rest_select("rules", params={
+        "rule_id": f"eq.{rule_id}",
+    })
+    r = rule_rows[0] if rule_rows else {}
+    inserted = rest_insert("kg_nodes", [{
+        "doc_id":    doc_id,
+        "node_type": "RuleNode",
+        "label":     f"{rule_id}: {(r.get('natural_language') or '')[:90]}",
+        "properties": {
+            "rule_id":         rule_id,
+            "layer":           r.get("layer"),
+            "severity":        r.get("severity"),
+            "rule_type":       r.get("rule_type"),
+            "pattern_type":    r.get("pattern_type"),
+            "typology_code":   r.get("typology_code"),
+            "defeats":         r.get("defeats") or [],
+        },
+        "source_ref": f"rules:{rule_id}",
+    }])
+    return inserted[0]["node_id"]
+
+
 def _clear_kg(doc_id: str) -> tuple[int, int]:
-    """Idempotent reset: delete edges first (FK), then nodes."""
+    """Idempotent reset: delete edges first (FK), then nodes.
+
+    NOTE (L32): callers that want to preserve typology findings
+    across rebuilds must call `_snapshot_findings(doc_id)` BEFORE
+    `_clear_kg(doc_id)` and `_restore_findings(...)` AFTER the
+    structural rebuild has created the new TenderDocument node.
+    `build_kg` does this automatically when `clear_existing=True`.
+    """
     n_e = rest_delete_doc("kg_edges", doc_id)
     n_n = rest_delete_doc("kg_nodes", doc_id)
     return n_n, n_e
@@ -571,12 +733,22 @@ def build_kg(
         source_files[0].stem if source_files else f"doc:{doc_id}"
     )
 
-    # ── 2. Idempotent reset
+    # ── 2. Idempotent reset.
+    # L32: snapshot ValidationFinding nodes + VIOLATES_RULE edges
+    # BEFORE the clear; restore them AFTER the structural rebuild
+    # creates the new TenderDocument. Typology scripts own the
+    # lifecycle of those rows; kg_builder must not silently delete
+    # findings on rebuild.
+    findings_snapshot: list[dict] = []
+    edges_snapshot:    list[dict] = []
     if clear_existing:
+        findings_snapshot, edges_snapshot = _snapshot_findings(doc_id)
         n_n, n_e = _clear_kg(doc_id)
         summary.timing_ms["clear_prior_rows"] = 0  # delete returns count, not ms
         summary.defeasibility.setdefault("cleared_nodes", n_n)
         summary.defeasibility.setdefault("cleared_edges", n_e)
+        summary.defeasibility["preserved_findings_pending_restore"] = len(findings_snapshot)
+        summary.defeasibility["preserved_edges_pending_restore"]    = len(edges_snapshot)
 
     # ── 3. Detect AP-tender context (only field still derived from
     #       the raw text without an LLM). The other regex classifier
@@ -607,6 +779,17 @@ def build_kg(
         "source_ref": "manual",
     }])[0]
     doc_node_id = doc_node["node_id"]
+
+    # ── 4b. L32 restore: re-insert preserved ValidationFindings +
+    # VIOLATES_RULE edges. Edges have their from_node_id re-pointed
+    # to the new TenderDocument node and their to_node_id re-resolved
+    # to a freshly-created RuleNode (per rule_id). Original UUIDs are
+    # preserved so external audit references keep resolving.
+    n_f_restored, n_e_restored = _restore_findings(
+        doc_id, doc_node_id, findings_snapshot, edges_snapshot,
+    )
+    summary.defeasibility["restored_findings"] = n_f_restored
+    summary.defeasibility["restored_edges"]    = n_e_restored
 
     # ── 5. Section split + classify + insert as kg_nodes
     sections = _split_and_classify(source_files) if source_files else []
