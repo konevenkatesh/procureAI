@@ -320,6 +320,24 @@ The helper stays inside `tier1_pbg_check.py` for now; lift to a shared module af
 
 ---
 
+## L25 — Amount-to-Percentage: Shared Helper
+
+**Date:** May 2026  
+**What we did:** Built the amount→percentage conversion inline inside `scripts/tier1_pbg_check.py` as part of FIX C / L20 — `fetch_contract_value_cr()` plus an inline implied-percentage calculation in `main()`. PBG was the only typology that needed it at the time.  
+**What happened:** EMD-Shortfall on PPP documents (Tirupathi, Vijayawada) hit the same wall. Both NREDCAP RFPs state EMD as a fixed INR amount only — Tirupathi `INR 2.57 crore`, Vijayawada `INR 3.24 crore`. The percentage-shape rule `GFR-G-049` (2-5% range) couldn't fire because `total_pct` was `None`. The exact same conversion that already worked for PBG (amount ÷ contract_value × 100) was needed for EMD, but lifting it would mean either copy-pasting the FIX C code or duplicating `fetch_contract_value_cr` into the new EMD script. Rebuilding it inline twice would mean two places to keep in sync; future typologies (Integrity Pact threshold, Judicial Preview value cutoff) would face the same fork.  
+**Why we changed:** Every percentage-based rule on every PPP document will need this conversion. The lookup logic — preferring LLM-extracted `estimated_value_cr` over regex `estimated_value_cr_classified` with reliability flag — is non-trivial enough that drift between copies would be a real risk. One owner, one set of audit fields, one set of edge cases to test.  
+**What we changed to:** Lifted the logic to `modules/validation/amount_to_pct.py` as `compute_implied_pct(doc_id, amount_cr, source) → dict`. The dict has six keys: `implied_pct`, `amount_cr`, `contract_value_cr`, `contract_value_source`, `needs_contract_value`, `source`. The `source` parameter (`"emd" | "pbg"`) is recorded for the audit trail and reserved for future typology-specific lookups, but doesn't change the math today. `tier1_pbg_check.py`'s `fetch_contract_value_cr()` is now a back-compat shim that delegates to the shared helper. `tier1_emd_check.py` calls `compute_implied_pct()` directly when the LLM returned `amount_cr` with no `total_pct`, then runs the existing `evaluate_emd_against_rule()` against the implied percentage.  
+**Result:** PASS on both PPP documents.
+
+  - **Tirupathi WtE** — EMD section "15. EARNEST MONEY DEPOSIT" (NIT, lines 1208–1245, cosine 0.6225). LLM extracted `amount_cr=2.57`, evidence verified score 100 (substring). `compute_implied_pct` returned `implied_pct=0.998` from `contract_value_cr=257.51` (`source=llm_extracted`). `GFR-G-049` range check: `0.998 < 2.0` → **HARD_BLOCK violation**. ValidationFinding `14ca4239-…`, VIOLATES_RULE `bd22ccbf-…`.
+  - **Vijayawada WtE** — EMD section "15. EARNEST MONEY DEPOSIT" (NIT, lines 1226–1261, cosine 0.6343). LLM extracted `amount_cr=3.24`, evidence verified score 100 (substring). `compute_implied_pct` returned `implied_pct=0.9978` from `contract_value_cr=324.7` (`source=llm_extracted`). `GFR-G-049` range check: `0.9978 < 2.0` → **HARD_BLOCK violation**. ValidationFinding `46254b86-…`, VIOLATES_RULE `a28c50a1-…`.
+
+The PBG numbers from the existing 5 findings still match exactly when re-run through the shared helper (Tirupathi 4.9979%, Vijayawada 5.0015%) — confirming the lift is behaviour-preserving. Findings now total **10 (5 PBG + 5 EMD)**. Both NREDCAP PPP docs carry the full pair (PBG + EMD HARD_BLOCK violations), exactly the corpus shape required for cross-typology audit reports.
+
+The shared helper is ready for any future typology that has a percentage-based rule on a doc that may state the value as a fixed amount. Next typology candidates (Integrity Pact threshold, Judicial Preview value cutoff) will use it without duplication.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -328,7 +346,9 @@ The helper stays inside `tier1_pbg_check.py` for now; lift to a shared module af
 - contract_value extraction (`tender_facts_extractor`): LLM-based, reliable on the two docs needed for PBG implied-percentage compute (Tirupathi 257.51cr, Vijayawada 324.70cr — both confidence 1.0, verbatim evidence). Pattern: `n_sections=3, max_chars=3000`. (L22)
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
 - Tier 1 PBG-Shortfall via BGE-M3 + LLM with section_type filter + tight query + top-10 + LLM rerank — percentage path (L18) AND amount path with implied-percentage fallback (L20). Works on all 5 docs that have a PBG clause in source.
+- Tier 1 EMD-Shortfall via the same machinery, document-family-routed via `modules/validation/section_router` (APCRDA Works → [NIT, ITB], NREDCAP PPP → [NIT, Forms], default → [NIT, ITB, Evaluation]). Works on JA / HC / Kakinada (percentage path, ADVISORY 1% vs AP-GO-050 target 2.5%) AND on Tirupathi / Vijayawada (amount path, HARD_BLOCK 0.998% vs GFR-G-049 floor 2%). Vizag correctly silent (no EMD in source).
 - Hallucination guard (L24): every Tier-1 finding's evidence quote is now verified against the chosen-candidate's source text before materialising — `verify_evidence_in_section` with substring + difflib partial-ratio (threshold 85). Audit fields persisted on every ValidationFinding (`evidence_in_source`, `evidence_verified`, `evidence_match_score`, `evidence_match_method`).
+- Shared amount→percentage helper (L25): `modules/validation/amount_to_pct.compute_implied_pct(doc_id, amount_cr, source)`. Reusable across typologies whenever a percentage-based rule meets a doc that states the value as a fixed INR amount. PBG and EMD both call it today.
 - find_line_range anchored to next-heading (L17) — no orphaned content metadata
 - Regex validator pass disabled in kg_builder via `RUN_REGEX_VALIDATOR=False` flag (L21) — no more tier=null pollution on rebuilds
 - Multi-file ingest pattern for NREDCAP-style PPP packages (RFP + DCA) (L22)
@@ -343,12 +363,14 @@ The helper stays inside `tier1_pbg_check.py` for now; lift to a shared module af
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG)
-| doc_id | Type | Department | Tier-1 PBG Finding |
-|--------|------|-----------|---------|
-| vizag_ugss_exp_001 | Works | GVMC Sewerage | 2.5% (percentage path, cos 0.6844) |
-| judicial_academy_exp_001 | Works | APCRDA | 2.5% (percentage path, cos 0.6650) |
-| high_court_exp_001 | Works | AP High Court | 2.5% (percentage path, cos 0.6567) |
-| tirupathi_wte_exp_001 | PPP | NREDCAP | INR 12.87cr → **4.998%** (amount path, CV from LLM 257.51cr, OPEN) |
-| vijayawada_wte_exp_001 | PPP | NREDCAP | INR 16.24cr → **5.002%** (amount path, CV from LLM 324.70cr, OPEN) |
-| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | **none** — no PBG clause in source (system correct, L23) |
+### Document Corpus (6 of 10 in KG) — Tier-1 PBG + EMD findings
+| doc_id | Type | PBG | EMD |
+|--------|------|---------|---------|
+| vizag_ugss_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6844) | none — no EMD% in source (correct silence, L24 guard) |
+| judicial_academy_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6650) | 1.0% (ADVISORY, cos 0.5141) |
+| high_court_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6567) | 1.0% (ADVISORY, cos 0.5904) |
+| tirupathi_wte_exp_001 | PPP | INR 12.87cr → 4.998% (HARD_BLOCK, amount) | INR 2.57cr → **0.998%** (HARD_BLOCK, amount) |
+| vijayawada_wte_exp_001 | PPP | INR 16.24cr → 5.002% (HARD_BLOCK, amount) | INR 3.24cr → **0.998%** (HARD_BLOCK, amount) |
+| kakinada_pkg11_exp_001 | Works | none — no PBG clause in source (correct, L23) | 1.0% (ADVISORY, cos 0.5384, default family) |
+
+**Total: 10 ValidationFindings, 10 VIOLATES_RULE edges.** All have `evidence_match_score >= 98`; nine of ten are 100 (substring fast-path). Two typologies × six documents = twelve possible finding slots; ten are filled with violations, two are correctly silent (Vizag-EMD: no clause in source; Kakinada-PBG: no clause in source).

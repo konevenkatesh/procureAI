@@ -455,52 +455,23 @@ def build_pbg_amount_rerank_prompt(candidates: list[dict]) -> str:
     )
 
 
+# Lifted to modules/validation/amount_to_pct.py (L25). Local shim
+# preserves the (value, source) tuple shape that this script's main()
+# expects, while delegating the actual lookup + math to the shared
+# helper. Future typologies should call compute_implied_pct() directly.
+from modules.validation.amount_to_pct import compute_implied_pct as _compute_implied_pct
+
+
 def fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
-    """Read the contract value (in crores) from the TenderDocument
-    kg_node properties. Returns (value, source_label) where
-    source_label describes which property was used and how reliable
-    it is. Used by Fix C (PPP amount-to-percentage conversion).
+    """Back-compat shim — delegates to the shared helper. Returns
+    (contract_value_cr, source_label). Same lookup order, same
+    source labels. See modules.validation.amount_to_pct."""
+    # Use a sentinel amount of 1.0 to drive the lookup; we discard
+    # the implied_pct and only return (cv, source). This keeps the
+    # shared helper as the single owner of the lookup logic.
+    r = _compute_implied_pct(doc_id, 1.0, "lookup_only")
+    return r["contract_value_cr"], r["contract_value_source"]
 
-    Lookup order:
-      1. `estimated_value_cr` (LLM-extracted, when tender_facts_extractor
-          has been run and committed)
-      2. `estimated_value_cr_classified` IF `estimated_value_reliable` is True
-      3. `estimated_value_cr_classified` flagged as unreliable
-         (returned with source_label='regex_classifier_unreliable' so the
-         caller can choose whether to use it or fall back to
-         needs_contract_value)
-      4. None — caller should set needs_contract_value=true
-    """
-    rows = rest_get("kg_nodes", {
-        "select":    "properties",
-        "doc_id":    f"eq.{doc_id}",
-        "node_type": "eq.TenderDocument",
-    })
-    if not rows:
-        return None, "no_tender_document"
-    p = rows[0].get("properties") or {}
-
-    # Preferred: explicit LLM-extracted value
-    v = p.get("estimated_value_cr")
-    if v is not None:
-        try:
-            return float(v), "llm_extracted"
-        except (TypeError, ValueError):
-            pass
-
-    # Fallback: regex classifier value, only if marked reliable
-    v = p.get("estimated_value_cr_classified")
-    reliable = bool(p.get("estimated_value_reliable"))
-    if v is not None:
-        try:
-            v = float(v)
-            if v > 0:
-                return v, ("regex_classifier_reliable"
-                           if reliable else "regex_classifier_unreliable")
-        except (TypeError, ValueError):
-            pass
-
-    return None, "missing"
 
 
 def call_llm(system: str, user: str) -> tuple[str, dict]:

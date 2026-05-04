@@ -51,6 +51,7 @@ from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
 from modules.validation.evidence_guard import verify_evidence_in_section
 from modules.validation.section_router import family_for_doc_with_filter
+from modules.validation.amount_to_pct import compute_implied_pct
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -645,113 +646,177 @@ def main() -> int:
         print(f"    section first : {section['full_text'][:200]!r}")
         return 0
 
-    # 9. Apply rule check
-    is_violation, reason_label = evaluate_emd_against_rule(rule, total_pct, two_stage)
-    print(f"\n── Decision ──")
-    print(f"  rule         : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
-    print(f"  reason_label : {reason_label}")
-    print(f"  is_violation : {is_violation}")
+    # 9. Decide extraction path (percentage vs amount-converted) and
+    #    apply the rule check. For PPP RFPs (NREDCAP), the EMD is
+    #    typically stated as a fixed INR amount; we convert via the
+    #    shared helper (L25 / amount_to_pct) using the contract_value_cr
+    #    on the TenderDocument node. Same pattern as PBG's FIX C.
+    extraction_path        = "percentage" if total_pct is not None else None
+    implied_pct            = None
+    contract_value_cr      = None
+    contract_value_source  = None
+    needs_contract_value   = False
 
-    if not is_violation:
-        # No finding for compliant — same shape as PBG (only emit on
-        # violation; ground-truth-of-no-violation is implicit in "no
-        # finding row exists"). For EMD we may want to emit a
-        # PASS-recorded ValidationFinding later for completeness, but
-        # match the PBG pattern tonight.
+    if total_pct is None and amount_cr is not None and amount_cr > 0:
+        print(f"\n── Step 4b: amount → implied_pct conversion (L25) ──")
+        conv = compute_implied_pct(DOC_ID, float(amount_cr), "emd")
+        contract_value_cr     = conv["contract_value_cr"]
+        contract_value_source = conv["contract_value_source"]
+        needs_contract_value  = conv["needs_contract_value"]
+        implied_pct           = conv["implied_pct"]
+        print(f"  amount_cr             : {amount_cr}")
+        print(f"  contract_value_cr     : {contract_value_cr}")
+        print(f"  contract_value_source : {contract_value_source}")
+        print(f"  implied_pct           : {implied_pct}")
+        extraction_path = "amount_pending_value" if needs_contract_value else "amount"
+
+    # Rule check runs against either the LLM-stated total_pct OR the
+    # implied_pct from the amount-conversion (whichever exists).
+    check_pct = total_pct if total_pct is not None else implied_pct
+    is_violation, reason_label = evaluate_emd_against_rule(rule, check_pct, two_stage)
+    print(f"\n── Decision ──")
+    print(f"  rule           : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
+    print(f"  extraction_path: {extraction_path}")
+    print(f"  check_pct      : {check_pct}")
+    print(f"  reason_label   : {reason_label}")
+    print(f"  is_violation   : {is_violation}")
+    print(f"  needs_cv       : {needs_contract_value}")
+
+    # Emission rules:
+    #   percentage / amount paths: emit only on violation (compliant
+    #     case is implicit "no finding row")
+    #   amount_pending_value:      emit always (with status=PENDING_VALUE,
+    #     no VIOLATES_RULE edge) so the gap is auditable downstream
+    if not is_violation and not needs_contract_value:
+        return 0
+    if extraction_path is None:
+        # Neither percentage nor amount usable
         return 0
 
-    # 10. Materialise finding + edge
+    # 10. Materialise finding (+ edge for true violations only)
     t0 = time.perf_counter()
     section_node_id = section["section_node_id"]
     rule_node_id    = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
-    if rule["shape"] == "ap_two_stage":
+    # Build label per path
+    if extraction_path == "amount_pending_value":
         label = (
-            f"{TYPOLOGY}: EMD = {total_pct}% (expected {rule['target_total_pct']}% "
-            f"two-stage 1%+1.5%); reason: {reason_label}"
+            f"{TYPOLOGY}: EMD = INR {amount_cr} cr — contract value "
+            f"missing, implied % not computed"
         )
-    else:
+    elif extraction_path == "amount":
         label = (
-            f"{TYPOLOGY}: EMD = {total_pct}% (expected {rule['min_pct']}%-"
-            f"{rule['max_pct']}%); reason: {reason_label}"
+            f"{TYPOLOGY}: EMD = INR {amount_cr} cr ≈ {implied_pct}% "
+            f"(expected {rule['min_pct']}%-{rule['max_pct']}%); "
+            f"reason: {reason_label}"
         )
+    else:  # percentage path
+        if rule["shape"] == "ap_two_stage":
+            label = (
+                f"{TYPOLOGY}: EMD = {total_pct}% (expected "
+                f"{rule['target_total_pct']}% two-stage 1%+1.5%); "
+                f"reason: {reason_label}"
+            )
+        else:
+            label = (
+                f"{TYPOLOGY}: EMD = {total_pct}% (expected "
+                f"{rule['min_pct']}%-{rule['max_pct']}%); "
+                f"reason: {reason_label}"
+            )
+
+    finding_props = {
+        "rule_id":            rule["rule_id"],
+        "typology_code":      TYPOLOGY,
+        "severity":           rule["severity"],
+        "evidence":           evidence,
+        "extraction_path":    "amount" if extraction_path in ("amount", "amount_pending_value") else "percentage",
+        "total_pct":          total_pct,
+        "stage1_pct":         stage1_pct,
+        "stage2_pct":         stage2_pct,
+        "two_stage":          two_stage,
+        "amount_cr":          amount_cr,
+        # Amount-path-specific (None on percentage path)
+        "implied_percentage":    implied_pct,
+        "contract_value_cr":     contract_value_cr,
+        "contract_value_source": contract_value_source,
+        "needs_contract_value":  needs_contract_value,
+        # Rule shape audit
+        "rule_shape":         rule["shape"],
+        "rule_target_total":  rule.get("target_total_pct"),
+        "rule_min_pct":       rule.get("min_pct"),
+        "rule_max_pct":       rule.get("max_pct"),
+        "violation_reason":   reason_label,
+        "tier":               1,
+        "extracted_by":       "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
+        "retrieval_strategy": (
+            f"qdrant_top{K}_router_{family}_section_filter_"
+            f"{'-'.join(section_types)}_llm_rerank"
+        ),
+        "doc_family":          family,
+        "section_filter":      section_types,
+        "rerank_chosen_index": chosen,
+        "rerank_reasoning":    reason,
+        "section_node_id":     section_node_id,
+        "section_heading":     section["heading"],
+        "source_file":         section["source_file"],
+        "line_start_local":    section["line_start_local"],
+        "line_end_local":      section["line_end_local"],
+        "qdrant_similarity":   round(similarity, 4),
+        # L24 audit fields
+        "evidence_in_source":    ev_passed,
+        "evidence_verified":     ev_passed,
+        "evidence_match_score":  ev_score,
+        "evidence_match_method": ev_method,
+        "status":              "PENDING_VALUE" if needs_contract_value else "OPEN",
+        "defeated":            False,
+    }
 
     finding = rest_post("kg_nodes", [{
         "doc_id":    DOC_ID,
         "node_type": "ValidationFinding",
         "label":     label,
-        "properties": {
-            "rule_id":            rule["rule_id"],
-            "typology_code":      TYPOLOGY,
-            "severity":           rule["severity"],
-            "evidence":           evidence,
-            "extraction_path":    "percentage" if total_pct is not None else "amount",
-            "total_pct":          total_pct,
-            "stage1_pct":         stage1_pct,
-            "stage2_pct":         stage2_pct,
-            "two_stage":          two_stage,
-            "amount_cr":          amount_cr,
-            "rule_shape":         rule["shape"],
-            "rule_target_total":  rule.get("target_total_pct"),
-            "rule_min_pct":       rule.get("min_pct"),
-            "rule_max_pct":       rule.get("max_pct"),
-            "violation_reason":   reason_label,
-            "tier":               1,
-            "extracted_by":       "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
-            "retrieval_strategy": (
-                f"qdrant_top{K}_router_{family}_section_filter_"
-                f"{'-'.join(section_types)}_llm_rerank"
-            ),
-            "doc_family":          family,
-            "section_filter":      section_types,
-            "rerank_chosen_index": chosen,
-            "rerank_reasoning":    reason,
-            "section_node_id":     section_node_id,
-            "section_heading":     section["heading"],
-            "source_file":         section["source_file"],
-            "line_start_local":    section["line_start_local"],
-            "line_end_local":      section["line_end_local"],
-            "qdrant_similarity":   round(similarity, 4),
-            # L24 audit fields
-            "evidence_in_source":    ev_passed,
-            "evidence_verified":     ev_passed,
-            "evidence_match_score":  ev_score,
-            "evidence_match_method": ev_method,
-            "status":              "OPEN",
-            "defeated":            False,
-        },
+        "properties": finding_props,
         "source_ref": f"tier1:emd_check:{rule['rule_id']}",
     }])[0]
 
-    edge = rest_post("kg_edges", [{
-        "doc_id":       DOC_ID,
-        "from_node_id": section_node_id,
-        "to_node_id":   rule_node_id,
-        "edge_type":    "VIOLATES_RULE",
-        "weight":       1.0,
-        "properties": {
-            "rule_id":            rule["rule_id"],
-            "typology":           TYPOLOGY,
-            "severity":           rule["severity"],
-            "defeated":           False,
-            "tier":               1,
-            "total_pct":          total_pct,
-            "stage1_pct":         stage1_pct,
-            "stage2_pct":         stage2_pct,
-            "two_stage":          two_stage,
-            "amount_cr":          amount_cr,
-            "evidence":           evidence,
-            "qdrant_similarity":  round(similarity, 4),
-            "violation_reason":   reason_label,
-            "doc_family":         family,
-            "evidence_match_score":  ev_score,
-            "evidence_match_method": ev_method,
-            "finding_node_id":    finding["node_id"],
-        },
-    }])[0]
+    # VIOLATES_RULE edge only on a decided violation. PENDING_VALUE
+    # findings get no edge until a downstream pass extracts the
+    # contract value (mirrors PBG FIX C).
+    if is_violation and not needs_contract_value:
+        edge = rest_post("kg_edges", [{
+            "doc_id":       DOC_ID,
+            "from_node_id": section_node_id,
+            "to_node_id":   rule_node_id,
+            "edge_type":    "VIOLATES_RULE",
+            "weight":       1.0,
+            "properties": {
+                "rule_id":              rule["rule_id"],
+                "typology":             TYPOLOGY,
+                "severity":             rule["severity"],
+                "defeated":             False,
+                "tier":                 1,
+                "extraction_path":      finding_props["extraction_path"],
+                "total_pct":            total_pct,
+                "stage1_pct":           stage1_pct,
+                "stage2_pct":           stage2_pct,
+                "two_stage":            two_stage,
+                "amount_cr":            amount_cr,
+                "implied_percentage":   implied_pct,
+                "evidence":             evidence,
+                "qdrant_similarity":    round(similarity, 4),
+                "violation_reason":     reason_label,
+                "doc_family":           family,
+                "evidence_match_score":  ev_score,
+                "evidence_match_method": ev_method,
+                "finding_node_id":      finding["node_id"],
+            },
+        }])[0]
+        print(f"  → VIOLATES_RULE     {edge['edge_id']}  Section→Rule")
+    else:
+        print(f"  → (no VIOLATES_RULE edge — finding is PENDING_VALUE)")
+
     timings["materialise"] = time.perf_counter() - t0
-    print(f"  → ValidationFinding {finding['node_id']}")
-    print(f"  → VIOLATES_RULE     {edge['edge_id']}  Section→Rule")
+    print(f"  → ValidationFinding {finding['node_id']}  (path={extraction_path})")
 
     # Summary
     timings["total_wall"] = time.perf_counter() - t_start
