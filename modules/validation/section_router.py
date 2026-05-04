@@ -84,8 +84,21 @@ EMD_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Bid-Validity-Short — bid-validity periods live in the same broad
+# region as EMD (BDS / ITB), but PPP RFPs put it under NIT only
+# ("14. VALIDITY OF THE BIDS" pattern in NREDCAP RFPs). No need for
+# Forms (which carries bond templates, not the validity period).
+BID_VALIDITY_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["ITB", "NIT"],
+    "SBD_Format":    ["Evaluation", "ITB"],
+    "NREDCAP_PPP":   ["NIT"],
+    "default":       ["ITB", "NIT", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
-    "EMD-Shortfall": EMD_SECTION_ROUTER,
+    "EMD-Shortfall":      EMD_SECTION_ROUTER,
+    "Bid-Validity-Short": BID_VALIDITY_SECTION_ROUTER,
     # Future typologies plug in here, e.g.
     # "Integrity-Pact-Missing": INTEGRITY_PACT_SECTION_ROUTER,
 }

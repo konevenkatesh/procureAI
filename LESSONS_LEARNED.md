@@ -338,6 +338,19 @@ The shared helper is ready for any future typology that has a percentage-based r
 
 ---
 
+## L26 — `smart_truncate`: Keyword-Aware Windowing for Buried Short Values
+
+**Date:** May 2026  
+**What we did:** Every Tier-1 typology script (PBG, EMD, Bid-Validity) used `_truncate_for_rerank` — a head-60% + tail-40% truncator originally calibrated for PBG. When a candidate section is longer than the cap (4000 chars), it shows the LLM `text[:2400]` + `text[-1600:]` and elides the middle.  
+**What happened:** For Bid-Validity on Judicial Academy, BGE-M3 retrieval correctly surfaced the right ITB section at rank 12 (lines 464–542, cosine 0.4848). The section is **13,282 chars** of an ITB-rewrite block ("ITB X.Y shall be read as ..."), with **one row** stating *"ITB 18.1 | The bid validity period shall be **NINETY (90)** days"* at offset **11,527**. Head ended at 2,400; tail started at 11,682. Offset 11,527 fell in the elided middle. The LLM was shown the 180-day Bid Security validity in the tail (correctly ignored per prompt rules) but never saw the actual 90-day bid validity. It correctly returned `chosen_index=null, found=false` — honest silence on text it was never given.  
+**Why we changed:** Head+tail truncation assumes the answer clusters near section start or end. PBG ("furnish Performance Security ... 2.5%") and EMD ("furnish Bid Security ... 1%") clauses are usually short and self-contained — head+tail works. Bid-validity values are often **single rows in long BDS-rewrite tables**, neither at the start nor the end. A stronger model can't read text it was never given. The fix is at the truncation step, not the prompt or the retrieval.  
+**What we changed to:** `smart_truncate(text, window=3000)` — keyword-aware windowing in `scripts/tier1_bid_validity_check.py`. Search the section text for the earliest occurrence of any vocabulary keyword (`bid validity`, `bids shall remain valid`, `validity period`, `remain valid for`, the spelled-out day counts `ninety`/`sixty`/`thirty`/`eighty`/`one hundred twenty`/`hundred eighty`, plus the patterns `validity[^.]{0,50}days` and `days[^.]{0,50}validity`). Centre a 3000-char window on that hit. If no keyword matches, fall back to head+tail (2400/1600) so the LLM still sees both ends. Window size × K=15 candidates ≈ 45K chars in the rerank prompt — comfortably inside qwen-2.5-72b's 128K context.  
+**Result:** PASS. JA's section [12]: full length 13,282 chars → window length 3,062 chars centered on `"ninety"` at offset 1,562. LLM extracted `validity_days=90` with verbatim evidence `"The bid validity period shall be**NINETY (90)**days."`, score 100, method `substring`. Decision: 90 ≥ 90 → compliant → no finding. **Correct silence for the right reason** (the LLM saw the answer and judged it compliant), not the wrong reason (the answer was elided). Vizag (180 days, cosine 0.4389), Kakinada (90 days, cosine 0.5863), Tirupathi (180 days, cosine 0.6973), Vijayawada (180 days, cosine 0.6925) all extracted at score 100 with the same window strategy — all five docs now correctly compliant for Bid-Validity-Short.
+
+This is a typology-local helper for now (only `tier1_bid_validity_check.py` uses it). Lift candidate: if PBG or EMD start hitting similar elision problems on a future doc, move `smart_truncate` to `modules/validation/` next to the other shared helpers. Tonight, the existing `_truncate_for_rerank` works fine for those typologies — don't change what's working.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -347,6 +360,7 @@ The shared helper is ready for any future typology that has a percentage-based r
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
 - Tier 1 PBG-Shortfall via BGE-M3 + LLM with section_type filter + tight query + top-10 + LLM rerank — percentage path (L18) AND amount path with implied-percentage fallback (L20). Works on all 5 docs that have a PBG clause in source.
 - Tier 1 EMD-Shortfall via the same machinery, document-family-routed via `modules/validation/section_router` (APCRDA Works → [NIT, ITB], NREDCAP PPP → [NIT, Forms], default → [NIT, ITB, Evaluation]). Works on JA / HC / Kakinada (percentage path, ADVISORY 1% vs AP-GO-050 target 2.5%) AND on Tirupathi / Vijayawada (amount path, HARD_BLOCK 0.998% vs GFR-G-049 floor 2%). Vizag correctly silent (no EMD in source).
+- Tier 1 Bid-Validity-Short via the same machinery + `smart_truncate` (L26) for short-value extraction from long BDS-rewrite sections. Document-family-routed (APCRDA Works → [ITB, NIT], NREDCAP PPP → [NIT], default → [ITB, NIT, Evaluation]). All 5 doc-runs extracted at score 100 (substring), all compliant against AP-GO-067 (≥90 days for AP Works) or MPG-073 (≥75 days OTE for PPP/non-AP). No findings emitted — correct silence on a typology where every doc happens to satisfy its applicable threshold. AP-GO-067 → MPW25-050 defeasibility gap recorded in audit field for future knowledge-layer wiring review.
 - Hallucination guard (L24): every Tier-1 finding's evidence quote is now verified against the chosen-candidate's source text before materialising — `verify_evidence_in_section` with substring + difflib partial-ratio (threshold 85). Audit fields persisted on every ValidationFinding (`evidence_in_source`, `evidence_verified`, `evidence_match_score`, `evidence_match_method`).
 - Shared amount→percentage helper (L25): `modules/validation/amount_to_pct.compute_implied_pct(doc_id, amount_cr, source)`. Reusable across typologies whenever a percentage-based rule meets a doc that states the value as a fixed INR amount. PBG and EMD both call it today.
 - find_line_range anchored to next-heading (L17) — no orphaned content metadata
@@ -363,14 +377,14 @@ The shared helper is ready for any future typology that has a percentage-based r
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 PBG + EMD findings
-| doc_id | Type | PBG | EMD |
-|--------|------|---------|---------|
-| vizag_ugss_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6844) | none — no EMD% in source (correct silence, L24 guard) |
-| judicial_academy_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6650) | 1.0% (ADVISORY, cos 0.5141) |
-| high_court_exp_001 | Works | 2.5% (HARD_BLOCK, cos 0.6567) | 1.0% (ADVISORY, cos 0.5904) |
-| tirupathi_wte_exp_001 | PPP | INR 12.87cr → 4.998% (HARD_BLOCK, amount) | INR 2.57cr → **0.998%** (HARD_BLOCK, amount) |
-| vijayawada_wte_exp_001 | PPP | INR 16.24cr → 5.002% (HARD_BLOCK, amount) | INR 3.24cr → **0.998%** (HARD_BLOCK, amount) |
-| kakinada_pkg11_exp_001 | Works | none — no PBG clause in source (correct, L23) | 1.0% (ADVISORY, cos 0.5384, default family) |
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across three typologies
+| doc_id | PBG | EMD | Bid-Validity |
+|--------|---------|---------|---------|
+| vizag_ugss_exp_001 | 2.5% (HARD_BLOCK, cos 0.6844) | none — no EMD% in source (L24 guard) | 180 days — compliant (cos 0.4389, score 100) |
+| judicial_academy_exp_001 | 2.5% (HARD_BLOCK, cos 0.6650) | 1.0% (ADVISORY, cos 0.5141) | 90 days — compliant (cos 0.4848, score 100, smart_truncate L26) |
+| high_court_exp_001 | 2.5% (HARD_BLOCK, cos 0.6567) | 1.0% (ADVISORY, cos 0.5904) | (not yet run) |
+| tirupathi_wte_exp_001 | 12.87cr → 4.998% (HARD_BLOCK, amount) | 2.57cr → **0.998%** (HARD_BLOCK, amount) | 180 days — compliant (cos 0.6973, score 100) |
+| vijayawada_wte_exp_001 | 16.24cr → 5.002% (HARD_BLOCK, amount) | 3.24cr → **0.998%** (HARD_BLOCK, amount) | 180 days — compliant (cos 0.6925, score 100) |
+| kakinada_pkg11_exp_001 | none — no PBG clause in source (L23) | 1.0% (ADVISORY, cos 0.5384, default family) | 90 days — compliant (cos 0.5863, score 100) |
 
-**Total: 10 ValidationFindings, 10 VIOLATES_RULE edges.** All have `evidence_match_score >= 98`; nine of ten are 100 (substring fast-path). Two typologies × six documents = twelve possible finding slots; ten are filled with violations, two are correctly silent (Vizag-EMD: no clause in source; Kakinada-PBG: no clause in source).
+**Total: 10 ValidationFindings, 10 VIOLATES_RULE edges.** All findings have `evidence_match_score >= 98`; nine of ten are 100 (substring fast-path). Three typologies × six documents = eighteen possible finding slots: ten are filled with violations, eight are correctly silent (5 of those are PBG/EMD genuinely-absent-from-source; 5 are Bid-Validity correctly compliant).
