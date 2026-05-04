@@ -505,14 +505,20 @@ def fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
 
 def call_llm(system: str, user: str) -> tuple[str, dict]:
     """Returns (raw_content_string, raw_response_dict). Uses OpenRouter
-    via the OpenAI SDK (same path as the tender_type extractor)."""
+    via the OpenAI SDK (same path as the tender_type extractor).
+
+    Includes one retry on the OpenRouter "empty choices" transient: in
+    practice the upstream sometimes returns a 200 with `choices=[]`,
+    which crashes `resp.choices[0]`. We sleep 2s and retry once; if
+    the second attempt also returns no choices, raise so the caller
+    sees a real failure rather than a silently empty extraction."""
     from openai import OpenAI
     client = OpenAI(base_url=LLM_BASE_URL.rstrip("/"), api_key=LLM_API_KEY)
     extra_headers = {
         "HTTP-Referer": "https://github.com/konevenkatesh/procureAI",
         "X-Title": "AP Procurement Validator",
     }
-    resp = client.chat.completions.create(
+    kwargs = dict(
         model=LLM_MODEL,
         messages=[
             {"role": "system", "content": system},
@@ -522,6 +528,13 @@ def call_llm(system: str, user: str) -> tuple[str, dict]:
         max_tokens=512,
         extra_headers=extra_headers,
     )
+    resp = client.chat.completions.create(**kwargs)
+    if not resp.choices or len(resp.choices) == 0:
+        print("  [call_llm] empty choices on first attempt — retrying once after 2s")
+        time.sleep(2)
+        resp = client.chat.completions.create(**kwargs)
+        if not resp.choices or len(resp.choices) == 0:
+            raise RuntimeError("OpenRouter empty choices (after retry)")
     return (resp.choices[0].message.content or ""), resp.model_dump()
 
 

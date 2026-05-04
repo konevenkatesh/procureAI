@@ -68,11 +68,24 @@ import re
 _HTML_BR  = re.compile(r"<br\s*/?>", re.IGNORECASE)
 _MD_NOISE = re.compile(r"[\*\_\|\\`]+")
 _WS       = re.compile(r"\s+")
+# pymupdf4llm-style markdown converters escape periods, dashes, and
+# percent signs in body text. The LLM strips these in its evidence
+# quotes, so the source side has e.g. "E\.M\.D\." while the LLM has
+# "E.M.D.". Unescape them BEFORE the generic _MD_NOISE pass so the
+# remaining content lines up cleanly for the substring fast-path.
+_BACKSLASH_DOT   = re.compile(r"\\\.")
+_BACKSLASH_DASH  = re.compile(r"\\-")
+_BACKSLASH_PCT   = re.compile(r"\\%")
 
 
 def _normalise_for_match(s: str) -> str:
-    """Lowercase + drop markdown markers + drop <br> + collapse whitespace."""
+    """Lowercase + unescape markdown-converter escapes + drop markdown
+    markers + drop <br> + collapse whitespace."""
     s = (s or "").lower()
+    # Unescape markdown-converter escapes first
+    s = _BACKSLASH_DOT.sub(".", s)
+    s = _BACKSLASH_DASH.sub("-", s)
+    s = _BACKSLASH_PCT.sub("%", s)
     s = _HTML_BR.sub(" ", s)
     s = _MD_NOISE.sub(" ", s)
     s = _WS.sub(" ", s).strip()
