@@ -322,9 +322,30 @@ def run(
     *,
     llm_fn: LLMFn | None = None,
     commit: bool = True,
+    n_sections: int = 3,
+    max_chars: int = 6000,
 ) -> dict:
-    """Extract + (optionally) commit. Returns full result + `committed` flag."""
-    result = extract_facts(doc_id, llm_fn=llm_fn)
+    """Extract + (optionally) commit. Returns full result + `committed` flag.
+
+    Default window changed from `n_sections=1, max_chars=800` to
+    `n_sections=3, max_chars=6000` (per L33). The narrower defaults
+    were a tender_type-extractor heuristic — the project-name
+    declaration sits in the first 800 bytes of NIT, so a tight
+    window kept the LLM focused. But tender_facts (estimated_value_cr
+    in particular) lives DEEPER: on JA / HC / Vijayawada, the cost
+    line sits in the second NIT section ~3K chars in, after the
+    project-name preamble. The narrow defaults returned `null` on
+    those docs and forced a manual retry.
+
+    The wider window (3 sections, 6000 chars) is the proven shape
+    that successfully extracted ECV on every doc that has it
+    (JA 125.5cr, HC 365.16cr, Kakinada 152.78cr, Vijayawada 324.7cr).
+    Vizag remains genuinely null (no explicit ECV statement in any
+    NIT section). Callers can still override for tighter scope."""
+    result = extract_facts(
+        doc_id, llm_fn=llm_fn,
+        n_sections=n_sections, max_chars=max_chars,
+    )
     if commit:
         commit_to_kg(doc_id, result)
         result["committed"] = True

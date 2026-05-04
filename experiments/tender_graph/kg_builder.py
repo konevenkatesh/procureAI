@@ -871,7 +871,14 @@ def build_kg(
         extraction_errors["tender_type"] = repr(exc)
     try:
         from modules.extraction.tender_facts_extractor import run as run_tender_facts
-        extraction_results["tender_facts"] = run_tender_facts(doc_id, commit=True)
+        # L33: wider NIT window. The narrow tender_type-extractor
+        # defaults (n_sections=1, max_chars=800) miss `estimated_value_cr`
+        # on docs where the cost line sits in the second NIT section
+        # (JA, HC, Vijayawada all return null at the narrow defaults
+        # and reliable=True at n_sections=3, max_chars=6000).
+        extraction_results["tender_facts"] = run_tender_facts(
+            doc_id, commit=True, n_sections=3, max_chars=6000,
+        )
     except Exception as exc:    # noqa: BLE001
         extraction_errors["tender_facts"] = repr(exc)
     summary.timing_ms["llm_extraction"]      = int((time.perf_counter() - t0) * 1000)
