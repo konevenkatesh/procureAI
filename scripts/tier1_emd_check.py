@@ -373,7 +373,7 @@ def fetch_tender_facts(doc_id: str) -> dict:
         # EPC / Goods / PPP bid security is mandatory under AP and GFR
         # alike; only Consultancy under GFR Rule 170 typically waives it.
         "BidSecurityRequired": True,
-        "EstimatedValue":      p.get("estimated_value_cr") or p.get("estimated_value_classified") or 0,
+        "EstimatedValue":      p.get("estimated_value_cr") or 0,
     }
 
 

@@ -494,21 +494,31 @@ def _run_validator_with_lines(
     return rule_id_to_line, findings
 
 
-# ── Phase 5: classify the doc to decide context (is_ap_tender etc.) ──
+# ── Phase 5: detect AP-tender context (the only signal we still
+#    derive from the document text without an LLM) ──────────────────
 
-def _classify(document_text: str, *,
-              estimated_value_override: float | None = None) -> dict:
-    """Run TenderClassifier; return only the fields kg_builder needs."""
-    from engines.classifier import TenderClassifier
-    cls = TenderClassifier().classify(document_text)
-    ev = estimated_value_override or cls.estimated_value or 0
-    return {
-        "primary_type":    cls.primary_type,
-        "is_ap_tender":    bool(cls.is_ap_tender),
-        "estimated_value": float(ev),
-        "duration_months": int(cls.duration_months or 12),
-        "funding_source":  cls.funding_source,
-    }
+# AP-tender keyword list: lifted verbatim from engines/classifier.py
+# AP_KEYWORDS. Detection is intentionally simple — case-insensitive
+# substring matches against the concatenated document text — because
+# all 6 docs in our corpus carry one or more of these tokens
+# unambiguously, and the regex classifier's other outputs (tender_type,
+# estimated_value, duration_months, funding_source) have all been
+# replaced by LLM extractors. tender_facts_extractor and
+# tender_type_extractor are run as mandatory phases below; their
+# outputs land on the same TenderDocument node.
+_AP_KEYWORDS = (
+    "apeprocurement.gov.in", "go ms", "ap state", "andhra pradesh",
+    "apss", "reverse tendering", "ap pwd", "apcrda", "agicl",
+    "amaravati", "vizag", "vijayawada", "tirupati", "kakinada",
+    "judicial preview", "telugu", "tahsildar",
+)
+
+
+def _detect_ap_tender(document_text: str) -> bool:
+    """Cheap AP-tender detector — case-insensitive substring match
+    against the AP keyword list. Returns True iff any keyword appears."""
+    haystack = document_text.lower()
+    return any(kw in haystack for kw in _AP_KEYWORDS)
 
 
 # ── Public API ────────────────────────────────────────────────────────
@@ -568,17 +578,22 @@ def build_kg(
         summary.defeasibility.setdefault("cleared_nodes", n_n)
         summary.defeasibility.setdefault("cleared_edges", n_e)
 
-    # ── 3. Classify document
+    # ── 3. Detect AP-tender context (only field still derived from
+    #       the raw text without an LLM). The other regex classifier
+    #       outputs (tender_type, estimated_value, duration_months,
+    #       funding_source) have been removed — LLM extractors below
+    #       (Phase 5b) are the single source of truth.
     t0 = time.perf_counter()
-    ctx = _classify(full_text, estimated_value_override=estimated_value_override)
+    is_ap_tender = _detect_ap_tender(full_text)
     summary.timing_ms["classify"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 4. Insert TenderDocument node.
-    # Classifier-derived properties are flagged with `*_classified`
-    # suffix and an `*_reliable: false` boolean so downstream agents
-    # know not to read them until a label-aware extractor exists.
-    # Only `is_ap_tender` is trusted — its AP-keyword detection works
-    # correctly across all docs we've seen so far.
+    # ── 4. Insert TenderDocument node. Only the two fields that
+    #       don't require LLM extraction are written here:
+    #         • doc_id (echo)
+    #         • is_ap_tender + layer (substring match on AP keywords)
+    #       Phase 5b runs tender_type_extractor and
+    #       tender_facts_extractor, both of which patch the same
+    #       node with their LLM-extracted fields.
     t0 = time.perf_counter()
     doc_node = _batch_insert("kg_nodes", [{
         "doc_id":     doc_id,
@@ -586,20 +601,8 @@ def build_kg(
         "label":      document_name,
         "properties": {
             "doc_id":          doc_id,
-            # ── Reliable ──
-            "is_ap_tender":    ctx["is_ap_tender"],
-            "layer":           "AP-State" if ctx["is_ap_tender"] else "Central",
-            # ── Unreliable (Fix 2): classifier output, do not consume
-            #    until a label-aware extractor replaces it ──
-            "tender_type_classified":         ctx["primary_type"],
-            "tender_type_reliable":           False,
-            "estimated_value_classified":     ctx["estimated_value"],
-            "estimated_value_cr_classified":  round(ctx["estimated_value"] / 1_00_00_000, 2),
-            "estimated_value_reliable":       False,
-            "duration_months_classified":     ctx["duration_months"],
-            "duration_reliable":              False,
-            "funding_source_classified":      ctx["funding_source"],
-            "funding_source_reliable":        False,
+            "is_ap_tender":    is_ap_tender,
+            "layer":           "AP-State" if is_ap_tender else "Central",
         },
         "source_ref": "manual",
     }])[0]
@@ -659,6 +662,38 @@ def build_kg(
     summary.timing_ms["qdrant_ingest"] = int((time.perf_counter() - t0) * 1000)
     summary.defeasibility["qdrant_points_after_ingest"] = n_qdrant
     summary.defeasibility["qdrant_timings_ms"] = qdrant_timings
+
+    # ── 6c. MANDATORY LLM extraction of tender facts.
+    # tender_type_extractor + tender_facts_extractor patch the
+    # TenderDocument node with the authoritative LLM-derived fields:
+    #   tender_type, estimated_value_cr, integrity_pact_required
+    # (each with *_reliable / *_confidence / *_evidence siblings).
+    # No document enters the system without these — the regex-classifier
+    # fallback that used to live in `_classify` has been removed.
+    #
+    # Placement note: these MUST run after Phase 5 (Section insertion)
+    # because both extractors read Section nodes from kg_nodes to build
+    # their NIT-text prompt. Failures are captured into the summary but
+    # do NOT abort the build — Tier-1 typology checks degrade to
+    # ADVISORY when the facts are null (UNKNOWN-fire path), which keeps
+    # the pipeline live for downstream review while we follow up on
+    # the extraction gap.
+    t0 = time.perf_counter()
+    extraction_results: dict[str, dict] = {}
+    extraction_errors: dict[str, str] = {}
+    try:
+        from modules.extraction.tender_type_extractor import run as run_tender_type
+        extraction_results["tender_type"] = run_tender_type(doc_id, commit=True)
+    except Exception as exc:    # noqa: BLE001 — surface every error path
+        extraction_errors["tender_type"] = repr(exc)
+    try:
+        from modules.extraction.tender_facts_extractor import run as run_tender_facts
+        extraction_results["tender_facts"] = run_tender_facts(doc_id, commit=True)
+    except Exception as exc:    # noqa: BLE001
+        extraction_errors["tender_facts"] = repr(exc)
+    summary.timing_ms["llm_extraction"]      = int((time.perf_counter() - t0) * 1000)
+    summary.defeasibility["llm_extraction_errors"] = extraction_errors
+    summary.defeasibility["llm_extraction_ran"]    = list(extraction_results.keys())
 
     # ── 7. Regex validator pass + RuleNode/DEFEATS/ValidationFinding/
     #       VIOLATES_RULE materialisation (phases 7–12).

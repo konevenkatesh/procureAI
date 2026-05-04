@@ -274,10 +274,10 @@ def commit_to_kg(doc_id: str, result: dict) -> dict:
         integrity_pact_required_extracted_by     str
         integrity_pact_required_model            str
 
-    The legacy unreliable fields (`estimated_value_cr_classified`,
-    `estimated_value_reliable=false`, etc.) are NOT touched — they
-    remain as audit history of what the regex classifier produced
-    before this LLM-based extraction landed."""
+    The legacy regex-classifier fields have been removed from the
+    schema entirely (kg_builder no longer writes them; consumers no
+    longer read them). LLM-extracted values are now the single source
+    of truth for estimated_value_cr."""
     nodes = _rest_get("kg_nodes", {
         "select":    "node_id,properties",
         "doc_id":    f"eq.{doc_id}",

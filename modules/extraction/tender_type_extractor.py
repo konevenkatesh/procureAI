@@ -412,9 +412,10 @@ def commit_to_kg(doc_id: str, result: dict) -> dict:
         raise ValueError(f"No TenderDocument node for doc_id={doc_id}")
     node = nodes[0]
     new_props = dict(node["properties"] or {})
-    # Authoritative tender_type fields (replace the unreliable
-    # `tender_type_classified` / `tender_type_reliable=false` left
-    # behind by the regex classifier).
+    # Authoritative tender_type fields. The legacy regex-classifier
+    # fields (`tender_type_classified` / `tender_type_reliable=false`)
+    # have been removed from the schema entirely — LLM extraction is
+    # now the single source of truth.
     new_props["tender_type"]                 = result["tender_type"]
     new_props["tender_type_reliable"]        = bool(result["reliable"])
     new_props["tender_type_confidence"]      = result["confidence"]

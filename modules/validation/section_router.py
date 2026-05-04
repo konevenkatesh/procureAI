@@ -96,11 +96,28 @@ BID_VALIDITY_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Missing-PVC-Clause — Price Variation / Price Adjustment clauses are
+# almost always in GCC or SCC (Vol-II) per the clause-template
+# positions in the rules table. Heading search returns near-zero hits
+# (Vizag: 1 stub heading match) — the actual clause body lives inside
+# larger sections with generic headings, so the filter has to be
+# permissive on section_type and the BGE-M3 + smart_truncate combo
+# does the surfacing. PPP docs handle price variation through
+# concession terms, not tender PVC, so AP-GO-019 / MPW-133 SKIP at
+# the rule layer; the PPP filter still has GCC for completeness.
+PVC_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "SCC", "Specifications"],
+    "SBD_Format":    ["GCC", "SCC", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC"],     # SKIP at rule layer; filter retained for completeness
+    "default":       ["GCC", "SCC", "Specifications"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":      EMD_SECTION_ROUTER,
     "Bid-Validity-Short": BID_VALIDITY_SECTION_ROUTER,
-    # Future typologies plug in here, e.g.
-    # "Integrity-Pact-Missing": INTEGRITY_PACT_SECTION_ROUTER,
+    "Missing-PVC-Clause": PVC_SECTION_ROUTER,
+    # Future typologies plug in here.
 }
 
 
@@ -132,17 +149,23 @@ def detect_family(doc_id: str) -> str:
 
     Heuristic order (first match wins):
 
-        SBD_Format     if Evaluation > 20 sections
+        SBD_Format     if Evaluation >= 10 AND GCC == 0
+                       (the SBD pattern: body sits in Evaluation blocks,
+                        zero GCC-typed sections — Kakinada n_eval=15,
+                        n_gcc=0 fits this; was missed by the prior >20
+                        threshold and routed to `default`, whose filter
+                        `[GCC, SCC, Specifications]` matched zero
+                        candidates and broke retrieval entirely.)
         APCRDA_Works   if GCC > 50 sections AND is_ap_tender AND tender_type Works/EPC
         NREDCAP_PPP    if tender_type=PPP
         default        otherwise
 
-    The thresholds (>20 / >50) come from the observed counts on our 6
-    docs and may need re-tuning as the corpus grows. They are intentionally
-    permissive — being mis-routed to `default` is harmless (broader filter
-    drops in the same content); being mis-routed to `SBD_Format` hides
-    NIT content. Tuning the heuristic later costs nothing because the
-    function is pure.
+    The SBD_Format threshold was lowered (>20 → >=10 with the n_gcc==0
+    co-condition) after the Kakinada PVC re-run found zero candidates
+    in the default filter. The n_gcc==0 guard prevents APCRDA_Works
+    docs (which have BOTH high GCC and some Evaluation sections) from
+    being mis-routed to SBD_Format. APCRDA_Works docs have at least
+    one GCC section, by definition.
     """
     td_props, sec_props = _fetch_doc(doc_id)
     if not td_props:
@@ -157,7 +180,7 @@ def detect_family(doc_id: str) -> str:
     tender_type = td_props.get("tender_type")
 
     # Order matters — most specific first.
-    if n_eval > 20:
+    if n_eval >= 10 and n_gcc == 0:
         return "SBD_Format"
     if n_gcc > 50 and is_ap and tender_type in ("Works", "EPC"):
         return "APCRDA_Works"

@@ -377,7 +377,7 @@ def fetch_tender_facts(doc_id: str) -> dict:
         "is_ap_tender":     bool(p.get("is_ap_tender")),
         "TenderType":       p.get("tender_type"),
         "TenderState":      "AndhraPradesh" if p.get("is_ap_tender") else "Other",
-        "EstimatedValue":   p.get("estimated_value_cr") or p.get("estimated_value_classified") or 0,
+        "EstimatedValue":   p.get("estimated_value_cr") or 0,
     }
 
 

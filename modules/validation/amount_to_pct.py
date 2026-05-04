@@ -30,19 +30,17 @@ Returns:
       "source":                str,             # echo of the input ('emd' | 'pbg')
     }
 
-`contract_value_source` lookup order (mirrors the original FIX C code
-so existing PBG findings keep their attribution):
+`contract_value_source` lookup — LLM-extracted only. The regex-classifier
+fallback (`estimated_value_cr_classified` + `estimated_value_reliable`)
+has been removed: those fields were unreliable on every doc except JA
+(HC misread 365 cr as 0.1 cr; Kakinada missed 152.78 cr entirely).
+tender_facts_extractor is now the single source of truth, run as a
+mandatory step in kg_builder.build_kg() for every new doc.
 
-    1. `estimated_value_cr` (LLM-extracted via tender_facts_extractor)
-       → source = "llm_extracted"
-    2. `estimated_value_cr_classified` AND `estimated_value_reliable=True`
-       → source = "regex_classifier_reliable"
-    3. `estimated_value_cr_classified` non-zero, reliable=False
-       → source = "regex_classifier_unreliable"
-    4. nothing usable
-       → source = "missing"  (or "no_tender_document" if the node
-                              doesn't exist; caller treats both as
-                              needs_contract_value=True)
+    1. `estimated_value_cr` set     → source = "llm_extracted"
+    2. nothing usable                → source = "missing"
+       (or "no_tender_document" if the node doesn't exist; caller
+       treats both as needs_contract_value=True)
 
 The `source` parameter ("emd" | "pbg") doesn't change the math today
 — it's recorded in the return dict so a downstream auditor can trace
@@ -72,10 +70,12 @@ H = {"apikey":        settings.supabase_anon_key,
 
 
 def _fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
-    """Same lookup order as the original FIX C code in tier1_pbg_check.py.
+    """LLM-extracted contract value only.
 
-    Returns (value_or_None, source_label). Caller decides whether to
-    use a `regex_classifier_unreliable` value or treat it as missing.
+    Returns (value_or_None, source_label). The regex-classifier
+    fallback was removed; if `estimated_value_cr` is null the
+    extractor either hasn't run or couldn't find a value, and the
+    caller MUST treat it as missing (status=PENDING_VALUE).
     """
     rows = requests.get(f"{REST}/rest/v1/kg_nodes",
                         params={"select":"properties","doc_id":f"eq.{doc_id}",
@@ -85,23 +85,12 @@ def _fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
         return None, "no_tender_document"
     p = rows[0].get("properties") or {}
 
-    # 1) LLM-extracted (preferred)
     v = p.get("estimated_value_cr")
-    if v is not None:
-        try:
-            return float(v), "llm_extracted"
-        except (TypeError, ValueError):
-            pass
-
-    # 2/3) regex-classifier value, with reliability flag
-    v = p.get("estimated_value_cr_classified")
-    reliable = bool(p.get("estimated_value_reliable"))
     if v is not None:
         try:
             vf = float(v)
             if vf > 0:
-                return vf, ("regex_classifier_reliable"
-                            if reliable else "regex_classifier_unreliable")
+                return vf, "llm_extracted"
         except (TypeError, ValueError):
             pass
 
