@@ -248,24 +248,73 @@ Every entry follows this structure:
 
 ---
 
+## L21 — kg_builder Regex Validator: Hard-Coded Pass vs Flag-Gated
+
+**Date:** May 2026  
+**What we did:** `experiments/tender_graph/kg_builder.py` ran the regex `RuleVerificationEngine` unconditionally during phase 7 of every `build_kg()` call, materialising `ValidationFinding` nodes with `tier=null` and `VIOLATES_RULE` edges directly into `kg_nodes` / `kg_edges`.  
+**What happened:** Every rebuild polluted the database with regex output. We had to manually delete tier=null findings + their edges **four separate times** during this project: once after ingesting Tirupathi/JA, once after the High Court / Kakinada / Vijayawada batch, once after rebuild for find_line_range fix (FIX A), and once after the multi-file Tirupathi re-ingest. Each cycle left wrong-attribution findings (e.g. Tirupathi's "0.1% PBG" — actually a liquidated-damages rate misattributed by regex). The regex validator was superseded by Tier 1 BGE-M3 + LLM (L18, L20) months ago, but its phase-7 call was never disabled.  
+**Why we changed:** Two parallel paths (regex + Tier 1) writing to the same tables produces silently-wrong findings on every rebuild. Manual cleanup is fragile — it works only if you remember to run it AND know exactly what to delete. The right architecture has exactly one writer per finding.  
+**What we changed to:** Module-level constant `RUN_REGEX_VALIDATOR = False` near the top of `kg_builder.py`, plus an early-return guard at phase 7. When the flag is False, `summary.defeasibility["validator_skipped"]=True`, `validator_violations=0`, `validator=0ms`, and phases 7–12 are skipped wholesale. The disabled phases (RuleNode insert, DEFEATS edges, ValidationFinding, VIOLATES_RULE) are kept in place below the guard so they can be reactivated for diff/debug by flipping the flag.  
+**Result:** PASS. Smoke-tested by rebuilding `vizag_ugss_exp_001`: `Sections=161`, `HAS_SECTION=161`, **`ValidationFinding=0`, `VIOLATES_RULE=0`**, `validator_skipped=True`, `validator=0ms`. Subsequent rebuilds of Tirupathi (multi-file) and Vijayawada (RFP-only) confirmed the no-pollution behaviour. Tier 1 BGE-M3 + LLM is now the sole writer of ValidationFindings — every finding in the DB has `tier=1`, structured properties, and verbatim evidence.
+
+---
+
+## L22 — Multi-File Ingest for Concession Documents: DCA-Only vs DCA + RFP
+
+**Date:** May 2026  
+**What we did:** Tirupathi WtE was originally ingested with only the DCA (Draft Concession Agreement) file. The contract-value field on its TenderDocument node was empty (`estimated_value_cr=null`, `estimated_value_cr_classified=0.0`, regex unreliable).  
+**What happened:** FIX C's amount-to-percentage path (L20) extracted `amount_cr=12.87` correctly from the DCA but couldn't compute `implied_percentage` because no contract value was available. The Tirupathi finding sat in `status='PENDING_VALUE'` with `needs_contract_value=true` and no `VIOLATES_RULE` edge. When we tried `tender_facts_extractor` to fill in the value, the LLM returned `confidence=0.0` even with `n_sections=3, max_chars=3000` — because **the DCA never states the project cost**. It references it only as a Schedule placeholder (line 816 of the Tirupathi DCA: *"a sum of Rs. ……………….Crores ………………"*). The cost lives in the **RFP** file (`RFP_Tirupathi_NITI_01042026.md` line 42: *"Total Project Cost | **INR 257.51 crore** (Rupees two hundred and fifty-seven crore and fifty-one lakhs only)"*), which we had processed but never ingested.  
+**Why we changed:** NREDCAP-style PPP / DBFOT packages always come as multi-file sets (RFP + DCA + Schedule + Model PPA). Each file plays a different role: the RFP carries the bid-process facts and project cost; the DCA carries the contract clauses including PBG. Ingesting only one of them gives the system half the document. Vizag works because we already ingest its 5 volumes as multi-file. PPP docs need the same treatment.  
+**What we changed to:** Re-ingested Tirupathi via `build_kg(SOURCES=[RFP, DCA], clear_existing=True)`. Section count grew from 191 → 289. The RFP's NIT-block now sits in the KG with `section_type='NIT'`, the LLM-extractor finds the cost on first hit, and BGE-M3 retrieval has access to both the RFP's Clause 16.1 (*"INR.12.87 crore..."*) and the DCA's Clause 9.1 (same amount) — so Tier 1 stays robust whichever file the retrieval ranks higher.  
+**Result:** PASS. After multi-file re-ingest:
+- Tirupathi: `tender_facts_extractor` → 257.51 cr, confidence 1.0, reliable=True, verbatim evidence quoted above. Tier 1 → ValidationFinding `430976ed-…`, **status=OPEN**, amount=12.87cr, CV=257.51cr (`source='llm_extracted'`), implied_percentage=4.9979%, VIOLATES_RULE edge `60ba384d-…`. PENDING_VALUE → OPEN as required by the task.
+- Vijayawada: DCA markdown does not exist in `processed_md/` (only RFP MD + raw PDFs). RFP-only path was sufficient because the Vijayawada RFP states the project cost on its own first NIT page (line 42, same format as Tirupathi RFP). `tender_facts_extractor` → 324.70 cr, confidence 1.0, reliable=True. Tier 1 → ValidationFinding `f08b318f-…`, status=OPEN, amount=16.24cr, CV=324.7cr (**source flipped from `regex_classifier_unreliable` → `llm_extracted`**), implied_percentage=5.0015%, VIOLATES_RULE edge `dc2049cd-…`. The regex-derived 324.7 happened to match the LLM value exactly — but the audit trail now records it as LLM-verified rather than regex-best-guess.
+
+**Followup logged:** Convert the unprocessed Vijayawada DCA / Schedule / Model PPA PDFs to markdown and add them to Vijayawada's KG. Same for Tirupathi's Schedule + Model PPA. Both will become relevant once we move past PBG and start checking Schedule-bound rules (Schedule 2 PPA terms, etc.).
+
+---
+
+## L23 — Kakinada PBG: Absent, Not Lost (PBG-Missing Typology Filed)
+
+**Date:** May 2026  
+**What we did:** Searched the processed Kakinada markdown for PBG percentages; found none. Initial assumption: markdown-conversion gap.  
+**What happened:** Investigated the source `.docx` directly (unzipped `word/document.xml`, grepped for `Performance Security`, `Security Deposit`, `Performance Bank Guarantee`, `PBG`, percentage patterns, INR amount patterns). The .docx contains exactly three references to "Performance Security" — **all in penalty/forfeiture contexts**:
+1. *"...liable for black listing and the Contract will be liable for termination duly forfeiting Performance Security and all the amounts due to him."*
+2. *"...the Engineer-in-charge/Department shall have the right to deduct any money due to the contractor including his amount of performance security."*
+3. *"...fails or refuses to furnish...balance EMD and additional performance security in accordance with the instructions of tenderers."*
+
+No standalone clause **defines** the Performance Security as a percentage or as an INR amount. The document instead mandates **EMD: 1% of estimated contract value** + **retention: 7½% withheld, reduced to 2½% after defects-liability period**. The `.docx` and `.md` agree exactly — nothing was lost in conversion. This is structurally how Kakinada (Smart City) Standard Bidding Documents are built: the PBG slot is replaced by retention money.  
+**Why we changed:** This isn't a code change — it's a calibration of expectations. The system's "no Tier 1 PBG finding for Kakinada" output is **correct behaviour**, not a missed violation. The grep-based pattern audit caught the absence early; the .docx investigation confirmed it definitively.  
+**What we changed to:** Nothing in code. **Filed two follow-up typologies as deferred work** (per user direction in Plan-mode review):
+- **PBG-Missing typology** — a separate rule that fires when a Works tender does not state a Performance Security clause at all. Different from PBG-Shortfall (which assumes a clause exists and checks the percentage). Some procurement frameworks (CVC, AP-PWD G.O. Ms 94) consider a missing PBG to be a hard-block typology in its own right.
+- **Retention-Money-Substitution recogniser** — a recognise-only signal that some Smart City SBDs (Kakinada-style) explicitly substitute retention for PBG. Useful for the drafter ("this tender uses retention instead of PBG; consider whether AP-GO-175 PBG threshold applies or whether retention-percentage rules govern").
+
+Both are **out of scope tonight** — they will be addressed after EMD-Shortfall lands, since EMD-Shortfall on Kakinada is straightforward (1% EMD is explicit in the markdown) and gives us a second working typology before we expand the rule taxonomy.  
+**Result:** Investigation complete. No code change. Two typologies filed for future work.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
 - Knowledge layer: 1,223 TYPE_1 rules, 499 DRAFTING_CLAUSE templates, 27 defeasibility pairs — all verified by content reading
 - tender_type extraction: LLM via OpenRouter, all 6 documents correct (NIT-or-fallback, L19)
+- contract_value extraction (`tender_facts_extractor`): LLM-based, reliable on the two docs needed for PBG implied-percentage compute (Tirupathi 257.51cr, Vijayawada 324.70cr — both confidence 1.0, verbatim evidence). Pattern: `n_sections=3, max_chars=3000`. (L22)
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
 - Tier 1 PBG-Shortfall via BGE-M3 + LLM with section_type filter + tight query + top-10 + LLM rerank — percentage path (L18) AND amount path with implied-percentage fallback (L20). Works on all 5 docs that have a PBG clause in source.
 - find_line_range anchored to next-heading (L17) — no orphaned content metadata
+- Regex validator pass disabled in kg_builder via `RUN_REGEX_VALIDATOR=False` flag (L21) — no more tier=null pollution on rebuilds
+- Multi-file ingest pattern for NREDCAP-style PPP packages (RFP + DCA) (L22)
 - KG schema: kg_nodes + kg_edges, correct structure
 - Frontend: reads from Supabase, shows BLOCK/PASS with findings
 
 ### What Is Broken or Missing
-- Contract value extraction is regex-only (`estimated_value_reliable=False` on all 6 docs). LLM-based `tender_facts_extractor` was paused mid-build; needs to be finished so PPP implied percentages and Tirupathi PENDING_VALUE can resolve (L20 honest gap).
-- Kakinada PBG missing from markdown — needs investigation
-- Regex validator still runs inside kg_builder on every build (L14) — needs disabling
+- JA + High Court Tier-1 findings predate FIX C — they have `extraction_path=null` rather than `extraction_path='percentage'`. Functionally fine (the percentage_found field is intact at 2.5%) but the schema is mixed. Will be unified the next time those docs are re-run for any reason.
+- Vijayawada DCA / Schedule / Model PPA PDFs not converted to markdown — Vijayawada KG is RFP-only. Tirupathi Schedule + Model PPA also still PDF-only. Fine for PBG; will matter for Schedule-bound rules later.
 - Tier 2 (P2 presence checks via BGE-M3) — not yet built
 - Tier 3 (P4 semantic judgment via LLM) — not yet built
 - 88% of HARD_BLOCK rules have no detection code
+- **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
 ### Document Corpus (6 of 10 in KG)
 | doc_id | Type | Department | Tier-1 PBG Finding |
@@ -273,6 +322,6 @@ Every entry follows this structure:
 | vizag_ugss_exp_001 | Works | GVMC Sewerage | 2.5% (percentage path, cos 0.6844) |
 | judicial_academy_exp_001 | Works | APCRDA | 2.5% (percentage path, cos 0.6650) |
 | high_court_exp_001 | Works | AP High Court | 2.5% (percentage path, cos 0.6567) |
-| vijayawada_wte_exp_001 | PPP | NREDCAP | INR 16.24cr ≈ 5.00% (amount path, regex CV) |
-| tirupathi_wte_exp_001 | PPP | NREDCAP | INR 12.87cr — PENDING_VALUE (no contract_value) |
-| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | none — no PBG in markdown |
+| tirupathi_wte_exp_001 | PPP | NREDCAP | INR 12.87cr → **4.998%** (amount path, CV from LLM 257.51cr, OPEN) |
+| vijayawada_wte_exp_001 | PPP | NREDCAP | INR 16.24cr → **5.002%** (amount path, CV from LLM 324.70cr, OPEN) |
+| kakinada_pkg11_exp_001 | Works | Kakinada Smart City | **none** — no PBG clause in source (system correct, L23) |
