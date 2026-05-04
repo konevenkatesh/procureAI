@@ -44,6 +44,7 @@ Public API:
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 import time
@@ -68,6 +69,17 @@ from step2_sections import (
 # ── Configuration ─────────────────────────────────────────────────────
 
 MATCH_THRESHOLD = 0.40        # SequenceMatcher cutoff for clause title vs section heading
+
+# DISABLED — see L14 / L21 in LESSONS_LEARNED.md.
+# The regex validator (RuleVerificationEngine) used to run inside build_kg
+# at phase 7, materialising ValidationFinding nodes with tier=null and
+# VIOLATES_RULE edges. Tier 1 BGE-M3 + LLM (scripts/tier1_pbg_check.py)
+# is the replacement: it produces tier=1 findings with verbatim evidence
+# and full audit trails. The regex validator polluted the database four
+# separate times across this project (every rebuild) — it has been
+# superseded, not augmented. Set this flag to True only if you need to
+# diff the regex output against Tier 1 for debugging.
+RUN_REGEX_VALIDATOR = False
 
 # Section-type → substring(s) that must appear in clause_templates.position_section
 SECTION_TO_POSITION: dict[str, list[str]] = {
@@ -124,6 +136,156 @@ def _normalise_heading(text: str) -> str:
     return t
 
 
+# Qdrant collection used for section-vector retrieval. Shared across all
+# tender docs; payloads carry a `doc_id` filter. v0.4 schema fields:
+#     doc_id            : string         (filter for cross-doc isolation)
+#     section_id        : kg_node UUID   (Section node_id — primary join key)
+#     section_type      : string         (NIT|ITB|GCC|SCC|...)
+#     heading           : string
+#     source_file       : string
+#     line_start_local  : int            (1-indexed in source MD file)
+#     line_end_local    : int
+#     word_count        : int
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
+QDRANT_COLLECTION = "tender_sections"
+BGE_M3_DIM = 1024
+
+
+def _qdrant_request(method: str, path: str, body: dict | None = None) -> dict:
+    import requests as _req
+    url = f"{QDRANT_URL.rstrip('/')}{path}"
+    fn = getattr(_req, method.lower())
+    r = fn(url, json=body, timeout=60) if body is not None else fn(url, timeout=60)
+    r.raise_for_status()
+    return r.json() if r.text else {}
+
+
+def _ensure_qdrant_collection():
+    """Create `tender_sections` (1024-dim, cosine) if it doesn't exist.
+    No-op when the collection is already present."""
+    try:
+        _qdrant_request("GET", f"/collections/{QDRANT_COLLECTION}")
+        return
+    except Exception:
+        pass
+    _qdrant_request("PUT", f"/collections/{QDRANT_COLLECTION}", {
+        "vectors": {"size": BGE_M3_DIM, "distance": "Cosine"},
+    })
+    # Indexed payload field for fast filter-by-doc_id
+    try:
+        _qdrant_request("PUT", f"/collections/{QDRANT_COLLECTION}/index", {
+            "field_name": "doc_id",
+            "field_schema": "keyword",
+        })
+    except Exception:
+        pass   # already exists
+
+
+def _qdrant_clear_doc(doc_id: str) -> int:
+    """Delete every Qdrant point whose payload doc_id == this doc_id.
+    Returns deleted count from the response (often 0 — Qdrant doesn't
+    always echo). Idempotent: safe to call when nothing is indexed."""
+    try:
+        resp = _qdrant_request(
+            "POST", f"/collections/{QDRANT_COLLECTION}/points/delete",
+            {"filter": {"must": [{"key": "doc_id", "match": {"value": doc_id}}]}},
+        )
+        return resp.get("result", {}).get("operation_id", 0) and 1 or 0
+    except Exception:
+        return 0
+
+
+def _qdrant_count_doc(doc_id: str) -> int:
+    """Return exact point count for this doc_id."""
+    try:
+        resp = _qdrant_request(
+            "POST", f"/collections/{QDRANT_COLLECTION}/points/count",
+            {"filter": {"must": [{"key": "doc_id", "match": {"value": doc_id}}]},
+             "exact": True},
+        )
+        return int(resp["result"]["count"])
+    except Exception:
+        return 0
+
+
+def _ingest_sections_to_qdrant(
+    doc_id: str,
+    sections: list[dict],
+    section_node_ids: list[str],
+) -> tuple[int, dict]:
+    """Embed each section's full_text via BGE-M3 and upsert to Qdrant
+    with the v0.4 payload schema. Returns (n_points_after, timing_dict).
+    """
+    import time as _time
+    timings: dict[str, int] = {}
+
+    if not sections:
+        return 0, {"embed_ms": 0, "upsert_ms": 0}
+
+    t0 = _time.perf_counter()
+    from sentence_transformers import SentenceTransformer
+    cached = getattr(_ingest_sections_to_qdrant, "_model", None)
+    if cached is None:
+        model = SentenceTransformer("BAAI/bge-m3")
+        model.max_seq_length = 1024
+        _ingest_sections_to_qdrant._model = model
+    else:
+        model = cached
+    timings["model_load_ms"] = int((_time.perf_counter() - t0) * 1000)
+
+    # Idempotent: clear any prior points for this doc before re-ingesting
+    _ensure_qdrant_collection()
+    _qdrant_clear_doc(doc_id)
+
+    # Embed in small batches (BGE-M3 is memory-hungry on long sections)
+    t0 = _time.perf_counter()
+    texts = [s.get("full_text") or "" for s in sections]
+    vectors = model.encode(
+        texts,
+        normalize_embeddings=True,   # so Qdrant cosine = dot product
+        show_progress_bar=False,
+        batch_size=4,
+    ).tolist()
+    timings["embed_ms"] = int((_time.perf_counter() - t0) * 1000)
+
+    # Build points. Qdrant point IDs are deterministic UUID5 of
+    # (doc_id, section_node_id) so re-ingestion is a true upsert and
+    # never proliferates duplicates.
+    import uuid
+    NS = uuid.uuid5(uuid.NAMESPACE_URL, "procureai/tender_sections/v0.4")
+    points = []
+    for sec, node_id, vec in zip(sections, section_node_ids, vectors):
+        point_id = str(uuid.uuid5(NS, f"{doc_id}:{node_id}"))
+        points.append({
+            "id":     point_id,
+            "vector": vec,
+            "payload": {
+                "doc_id":           doc_id,
+                "section_id":       node_id,                       # kg_node UUID
+                "section_type":     sec.get("section_type"),
+                "heading":          sec.get("heading"),
+                "source_file":      sec.get("source_file"),
+                "line_start_local": sec.get("line_start_local"),
+                "line_end_local":   sec.get("line_end_local"),
+                "word_count":       sec.get("word_count"),
+            },
+        })
+
+    t0 = _time.perf_counter()
+    # Qdrant accepts up to thousands of points per upsert; keep batches
+    # at 100 to bound memory + latency for retries.
+    BATCH = 100
+    for i in range(0, len(points), BATCH):
+        _qdrant_request(
+            "PUT", f"/collections/{QDRANT_COLLECTION}/points?wait=true",
+            {"points": points[i:i + BATCH]},
+        )
+    timings["upsert_ms"] = int((_time.perf_counter() - t0) * 1000)
+
+    n_after = _qdrant_count_doc(doc_id)
+    return n_after, timings
+
+
 def _batch_insert(table: str, rows: list[dict], *, batch: int = 100,
                    max_retries: int = 3) -> list[dict]:
     """Insert rows in chunks; return all inserted records (with autogen ids).
@@ -163,31 +325,52 @@ def _clear_kg(doc_id: str) -> tuple[int, int]:
 def _split_and_classify(source_files: list[Path]) -> list[dict]:
     """Split each source file via builder.section_splitter, then classify
     section_type via the heading-content-primary `classify_sections`
-    walker (filename hint = starter default; sub-clause sections inherit
-    the latched parent type). Returns a list of section dicts (no DB
-    writes yet)."""
+    walker.
+
+    Returns sections with line_start/line_end in GLOBAL (concatenated
+    full_text) coordinates. The validator runs on full_text and reports
+    line numbers in that coordinate system, so section attribution must
+    use the same coordinates.
+
+    Concatenation contract — kept in sync with `build_kg`:
+        full_text = "\\n\\n".join(file.read_text() for file in source_files)
+    so each file boundary inserts ONE extra blank line between files
+    (the "\\n\\n" join sequence). file N starts at global line:
+        sum(line_count(file_i) for i < N) + N    (for the inserted blank lines)
+    """
     from builder.section_splitter import split_into_sections
 
     out: list[dict] = []
-    for path in source_files:
+    global_offset = 0     # line offset for the current file in full_text
+
+    for file_idx, path in enumerate(source_files):
         text = path.read_text(encoding="utf-8")
         per_file_rows: list[dict] = []
         for ref, body in split_into_sections(text, path.stem):
             heading = ref.split("/", 1)[1] if "/" in ref else ref
-            line_start, line_end = find_line_range(text, body)
+            ls_local, le_local = find_line_range(text, body)
             per_file_rows.append({
-                "section_type": None,        # filled in by classify_sections below
-                "heading":      heading,
-                "line_start":   line_start,
-                "line_end":     line_end,
-                "word_count":   len(body.split()),
-                "full_text":    body,
-                "source_file":  path.name,
+                "section_type":     None,    # filled in by classify_sections below
+                "heading":          heading,
+                # Global coordinates (used by validator-line attribution)
+                "line_start":       global_offset + ls_local,
+                "line_end":         global_offset + le_local,
+                # Local coordinates kept for diagnostics / human reading
+                "line_start_local": ls_local,
+                "line_end_local":   le_local,
+                "word_count":       len(body.split()),
+                "full_text":        body,
+                "source_file":      path.name,
             })
         types = classify_sections(per_file_rows, path.name, file_text=text)
         for row, t in zip(per_file_rows, types):
             row["section_type"] = t
         out.extend(per_file_rows)
+        # Advance global_offset: this file's line count + 1 blank line
+        # inserted by "\n\n".join().
+        n_lines_this_file = text.count("\n") + 1
+        global_offset += n_lines_this_file + 1
+
     return out
 
 
@@ -276,38 +459,39 @@ def _compute_defeated_set(
 
 # ── Phase 4: validator → set of violated rule_ids ─────────────────────
 
-def _run_validator(document_text: str, document_name: str) -> set[str]:
-    """Run the regex/cascade validator and return the set of rule_ids
-    whose findings appeared. We use rule_ids (not just typology) because
-    a typology can map to many rules and we want fine-grained edges."""
+def _run_validator_with_lines(
+    document_text: str, document_name: str
+) -> tuple[dict[str, int | None], list[dict]]:
+    """Run the regex validator and return:
+        rule_id_to_line: {rule_id → line_no | None}    — None ⇒ doc-level
+        findings:        full finding records for ValidationFinding nodes
+
+    A `rule_id` maps to a line number when the matcher could pinpoint
+    where in the document the violation lives (e.g. a numeric shortfall
+    check found "2.5%" at line 1451). It maps to None for absence-type
+    violations (e.g. "no integrity pact clause anywhere"). kg_builder
+    uses the line_no to look up the Section node that contains it."""
     from modules.validator.rule_verification_engine import RuleVerificationEngine
     eng = RuleVerificationEngine()
     report = eng.verify(document_text, document_name=document_name)
-    rule_ids: set[str] = set()
+    rule_id_to_line: dict[str, int | None] = {}
+    findings: list[dict] = []
     for f in (report.hard_blocks + report.warnings + report.advisories):
-        rule_ids.add(f.rule_id)
+        line_no = getattr(f, "line_no", None)
+        # Primary rule_id and all triggered rule_ids inherit the same line
+        rule_id_to_line[f.rule_id] = line_no
         for trig in (f.triggered_rule_ids or []):
-            rule_ids.add(trig)
-    return rule_ids
-
-
-def _validation_findings_for_kg(document_text: str, document_name: str) -> list[dict]:
-    """Same call as _run_validator but returns full finding records to
-    materialise as ValidationFinding nodes."""
-    from modules.validator.rule_verification_engine import RuleVerificationEngine
-    eng = RuleVerificationEngine()
-    report = eng.verify(document_text, document_name=document_name)
-    out: list[dict] = []
-    for f in (report.hard_blocks + report.warnings + report.advisories):
-        out.append({
+            rule_id_to_line[trig] = line_no
+        findings.append({
             "rule_id":       f.rule_id,
             "typology_code": f.typology_code,
             "severity":      f.severity,
             "evidence":      (f.evidence_text or "")[:280],
             "source_clause": f.source_clause or "",
             "defeated_by":   list(f.defeated_by or []),
+            "line_no":       line_no,
         })
-    return out
+    return rule_id_to_line, findings
 
 
 # ── Phase 5: classify the doc to decide context (is_ap_tender etc.) ──
@@ -428,12 +612,18 @@ def build_kg(
         "node_type":  "Section",
         "label":      f"{s['section_type']}: {s['heading'][:80]}",
         "properties": {
-            "section_type": s["section_type"],
-            "heading":      s["heading"],
-            "line_start":   s["line_start"],
-            "line_end":     s["line_end"],
-            "word_count":   s["word_count"],
-            "source_file":  s["source_file"],
+            "section_type":     s["section_type"],
+            "heading":          s["heading"],
+            # Global coords (concatenated full_text) — used by validator
+            # line-attribution lookup.
+            "line_start":       s["line_start"],
+            "line_end":         s["line_end"],
+            # Local coords (within this single source file) — what a
+            # reviewer would see when opening the file in an editor.
+            "line_start_local": s.get("line_start_local"),
+            "line_end_local":   s.get("line_end_local"),
+            "word_count":       s["word_count"],
+            "source_file":      s["source_file"],
         },
         "source_ref": f"section:{i}",
     } for i, s in enumerate(sections)]
@@ -454,96 +644,73 @@ def build_kg(
     _batch_insert("kg_edges", has_section_edges)
     summary.timing_ms["has_section_edges"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 7. Fetch DRAFTING_CLAUSE templates only
+    # ── 6b. BGE-M3 ingest of section vectors → Qdrant.
+    # Same `sections` list (full_text in memory) feeds the embedder.
+    # Payload schema is the v0.4 contract used by Tier-1 retrieval:
+    #     doc_id, section_id (kg_node UUID), section_type, heading,
+    #     source_file, line_start_local, line_end_local, word_count.
+    # Idempotent: prior points for this doc_id are deleted before
+    # upsert, and point IDs are deterministic UUID5(doc_id, node_id)
+    # so re-runs upsert in place rather than appending duplicates.
     t0 = time.perf_counter()
-    drafting = rest_select("clause_templates", params={
-        "select":      "clause_id,title,position_section,mandatory,"
-                       "cross_references,rule_ids,applicable_tender_types,clause_type",
-        "clause_type": "eq.DRAFTING_CLAUSE",
-        "order":       "clause_id.asc",
-    })
-    summary.defeasibility["drafting_clause_templates"] = len(drafting)
-    by_position: dict[str, list[dict]] = defaultdict(list)
-    for t in drafting:
-        by_position[t["position_section"] or ""].append(t)
-    summary.timing_ms["fetch_templates"] = int((time.perf_counter() - t0) * 1000)
+    n_qdrant, qdrant_timings = _ingest_sections_to_qdrant(
+        doc_id, sections, section_node_ids,
+    )
+    summary.timing_ms["qdrant_ingest"] = int((time.perf_counter() - t0) * 1000)
+    summary.defeasibility["qdrant_points_after_ingest"] = n_qdrant
+    summary.defeasibility["qdrant_timings_ms"] = qdrant_timings
 
-    # ── 8. Match → ClauseInstance nodes + HAS_CLAUSE edges
+    # ── 7. Regex validator pass + RuleNode/DEFEATS/ValidationFinding/
+    #       VIOLATES_RULE materialisation (phases 7–12).
+    #
+    # Gated behind RUN_REGEX_VALIDATOR (see top of file). Disabled by
+    # default — Tier 1 BGE-M3 + LLM is the replacement that produces
+    # tier=1 findings with verbatim evidence. The regex pass below
+    # was found to produce wrong attributions and tier=null pollution
+    # on every rebuild (L14 / L21).
+    if not RUN_REGEX_VALIDATOR:
+        summary.defeasibility["validator_violations"] = 0
+        summary.defeasibility["validator_skipped"]   = True
+        summary.timing_ms["validator"] = 0
+        # Final counts (re-read to be authoritative even when the
+        # validator phases are skipped).
+        summary.nodes_by_type = _count_by(table="kg_nodes",
+                                           group_col="node_type", doc_id=doc_id)
+        summary.edges_by_type = _count_by(table="kg_edges",
+                                           group_col="edge_type", doc_id=doc_id)
+        summary.timing_ms["total"] = int((time.perf_counter() - t_total) * 1000)
+        return summary
+
+    # ── 7. Run the validator FIRST so we know which rules to materialise.
+    # Honest scope: we no longer match clause_templates to sections —
+    # that path produced 0.40-confidence noise that was misattributing
+    # violations to wrong sections. v0.3 will replace it with BGE-M3
+    # cross-encoder. For now, the KG only materialises rules that the
+    # validator actually has something to say about.
     t0 = time.perf_counter()
-    matches = _match_clauses(sections, section_node_ids, by_position, drafting)
-    clause_rows = [{
-        "doc_id":     doc_id,
-        "node_type":  "ClauseInstance",
-        "label":      m["_template"]["title"],
-        "properties": {
-            "template_id":             m["_template"]["clause_id"],
-            "match_confidence":        m["_match_confidence"],
-            "section_type":            m["_section_type"],
-            "position_section":        m["_template"].get("position_section"),
-            "mandatory":               m["_template"].get("mandatory"),
-            "applicable_tender_types": m["_template"].get("applicable_tender_types") or [],
-            "rule_ids":                m["_template"].get("rule_ids") or [],
-            "cross_references":        m["_template"].get("cross_references") or [],
-        },
-        "source_ref": f"template:{m['_template']['clause_id']}",
-        "_section_node_id": m["_section_node_id"],   # stripped before insert
-    } for m in matches]
-    # Strip private keys that aren't real columns
-    clean_clause_rows = [{k: v for k, v in r.items() if not k.startswith("_")}
-                          for r in clause_rows]
-    inserted_clauses = _batch_insert("kg_nodes", clean_clause_rows)
-    clause_node_ids = [r["node_id"] for r in inserted_clauses]
+    rule_id_to_line, findings = _run_validator_with_lines(
+        full_text, document_name=document_name,
+    )
+    violated_rule_ids: set[str] = set(rule_id_to_line.keys())
+    summary.defeasibility["validator_violations"] = len(violated_rule_ids)
+    summary.timing_ms["validator"] = int((time.perf_counter() - t0) * 1000)
 
-    # HAS_CLAUSE edges from each clause's owning Section.
-    # Iterate `matches` (the original records) rather than `clause_rows`
-    # because the row dicts had their private `_match_confidence` field
-    # stripped before insert.
-    has_clause_edges = [{
-        "doc_id":       doc_id,
-        "from_node_id": match["_section_node_id"],
-        "to_node_id":   cid,
-        "edge_type":    "HAS_CLAUSE",
-        "weight":       match["_match_confidence"],
-        "properties":   {"confidence": str(match["_match_confidence"])},
-    } for match, cid in zip(matches, clause_node_ids)]
-    _batch_insert("kg_edges", has_clause_edges)
-    summary.timing_ms["clause_match_insert"] = int((time.perf_counter() - t0) * 1000)
-
-    # ── 9. Distinct rule_ids referenced + their metadata + RuleNode insert
+    # ── 8. Pull the rule rows we need: violated rules + their defeaters.
     t0 = time.perf_counter()
-    referenced_rule_ids: set[str] = set()
-    for m in matches:
-        for rid in (m["_template"].get("rule_ids") or []):
-            referenced_rule_ids.add(rid)
-    # Also pull defeaters that aren't directly referenced — we still want
-    # to materialise them as RuleNodes so their DEFEATS / OVERRIDES_VIOLATION
-    # edges have valid targets.
-    rules_by_id = _fetch_rules(referenced_rule_ids)
+    rules_by_id = _fetch_rules(violated_rule_ids)
 
-    # Now expand the rule set with DEFEATERS whose victims are in our
-    # referenced set. Two complementary lookups:
-    #   reverse: each referenced rule has a `defeated_by` array → pull those
-    #   forward: scan ALL wired defeaters in the catalog (rules where
-    #            `defeats` is non-empty) and keep any whose defeats list
-    #            intersects our referenced rule_ids.
-    # The forward path is necessary because `defeated_by` is not always
-    # populated as the inverse of `defeats` — only `defeats` is wired
-    # for the 27 active defeaters today.
-    extra_defeaters: set[str] = set()
-    for r in rules_by_id.values():
-        for did in (r.get("defeated_by") or []):
-            if did not in rules_by_id:
-                extra_defeaters.add(did)
-    # Forward scan
+    # Forward scan: find every wired defeater whose `defeats` array
+    # touches one of our violated rules. Materialise both ends so
+    # DEFEATS edges have valid targets.
     wired_defeaters = _fetch_wired_defeaters()
+    extra_defeaters: set[str] = set()
     for d in wired_defeaters:
         victims = set(d.get("defeats") or [])
-        if victims & referenced_rule_ids and d["rule_id"] not in rules_by_id:
+        if victims & violated_rule_ids and d["rule_id"] not in rules_by_id:
             extra_defeaters.add(d["rule_id"])
     if extra_defeaters:
         rules_by_id.update(_fetch_rules(extra_defeaters))
 
-    # Drop non-TYPE_1 rules from edge participation (they aren't actionable).
     actionable: dict[str, dict] = {
         rid: r for rid, r in rules_by_id.items()
         if r.get("rule_type") == "TYPE_1_ACTIONABLE"
@@ -551,21 +718,21 @@ def build_kg(
     summary.defeasibility["distinct_rules_referenced"] = len(rules_by_id)
     summary.defeasibility["actionable_TYPE_1"]         = len(actionable)
 
-    # Insert RuleNode for every rule we'll touch (actionable or defeater)
+    # Insert RuleNode for every rule we'll touch
     rule_node_id: dict[str, str] = {}
     rule_node_rows = [{
         "doc_id":     doc_id,
         "node_type":  "RuleNode",
         "label":      f"{rid}: {(r.get('natural_language') or '')[:90]}",
         "properties": {
-            "rule_id":         rid,
-            "layer":           r.get("layer"),
-            "severity":        r.get("severity"),
-            "rule_type":       r.get("rule_type"),
-            "pattern_type":    r.get("pattern_type"),
-            "typology_code":   r.get("typology_code"),
+            "rule_id":             rid,
+            "layer":               r.get("layer"),
+            "severity":            r.get("severity"),
+            "rule_type":           r.get("rule_type"),
+            "pattern_type":        r.get("pattern_type"),
+            "typology_code":       r.get("typology_code"),
             "verification_method": r.get("verification_method"),
-            "defeats":         r.get("defeats") or [],
+            "defeats":             r.get("defeats") or [],
         },
         "source_ref": f"rules:{rid}",
     } for rid, r in rules_by_id.items()]
@@ -574,18 +741,17 @@ def build_kg(
         rule_node_id[row["properties"]["rule_id"]] = ins["node_id"]
     summary.timing_ms["rule_node_insert"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 10. Defeasibility — which rule_ids are defeated by an active defeater
+    # ── 9. Defeasibility — which rule_ids are defeated by an active defeater
     t0 = time.perf_counter()
     defeated_ids, defeater_pairs = _compute_defeated_set(
         rules_by_id, is_ap_tender=ctx["is_ap_tender"],
     )
-    active_defeaters = list(defeater_pairs.keys())
-    summary.defeasibility["active_defeaters"]     = len(active_defeaters)
-    summary.defeasibility["defeated_rule_ids"]    = len(defeated_ids)
-    summary.defeasibility["active_defeater_ids"]  = sorted(active_defeaters)
+    summary.defeasibility["active_defeaters"]    = len(defeater_pairs)
+    summary.defeasibility["defeated_rule_ids"]   = len(defeated_ids)
+    summary.defeasibility["active_defeater_ids"] = sorted(defeater_pairs.keys())
     summary.timing_ms["defeasibility_resolve"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 11. DEFEATS edges between RuleNodes (only when both ends materialised)
+    # ── 10. DEFEATS edges (RuleNode → RuleNode)
     t0 = time.perf_counter()
     defeats_edges: list[dict] = []
     for defeater, victims in defeater_pairs.items():
@@ -608,14 +774,7 @@ def build_kg(
         _batch_insert("kg_edges", defeats_edges)
     summary.timing_ms["defeats_edges"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 12. Run the validator → violated rule_ids
-    t0 = time.perf_counter()
-    violated_rule_ids = _run_validator(full_text, document_name=document_name)
-    findings = _validation_findings_for_kg(full_text, document_name=document_name)
-    summary.defeasibility["validator_violations"] = len(violated_rule_ids)
-    summary.timing_ms["validator"] = int((time.perf_counter() - t0) * 1000)
-
-    # ── 13. ValidationFinding nodes
+    # ── 11. ValidationFinding nodes (one per finding, for diagnostics).
     t0 = time.perf_counter()
     finding_rows = [{
         "doc_id":     doc_id,
@@ -629,120 +788,104 @@ def build_kg(
             "source_clause": f["source_clause"],
             "defeated":      f["rule_id"] in defeated_ids,
             "status":        "OPEN",
+            "line_no":       f["line_no"],
         },
         "source_ref": "validation_finding",
     } for f in findings]
-    inserted_findings = _batch_insert("kg_nodes", finding_rows)
-    finding_node_id_by_idx = {i: row["node_id"] for i, row in enumerate(inserted_findings)}
+    if finding_rows:
+        _batch_insert("kg_nodes", finding_rows)
     summary.timing_ms["finding_nodes"] = int((time.perf_counter() - t0) * 1000)
 
-    # ── 14. SATISFIES_RULE / VIOLATES_RULE edges per ClauseInstance
+    # ── 12. VIOLATES_RULE edges — Section/Document → RuleNode
+    #
+    # Honest attribution: each violation is attached to the Section node
+    # whose [line_start, line_end] contains the violating evidence's
+    # line_no. For absence-type violations (line_no=None), the violation
+    # is doc-level — we attach it to the TenderDocument node.
+    #
+    # NO SATISFIES_RULE edges are created. The previous logic that
+    # emitted "this clause satisfies this rule" whenever a 0.40-confidence
+    # template match referenced a rule_id in its declared metadata was
+    # decoration, not verification. Until BGE-M3 cross-encoder lands,
+    # the only honest claim is "we know this rule was violated and where".
     t0 = time.perf_counter()
-    sat_edges: list[dict] = []
+
+    def _section_for_line(line_no: int | None) -> str | None:
+        """Find the Section node whose line range contains line_no.
+        Returns the Section's node_id, or None if no section covers it."""
+        if line_no is None:
+            return None
+        for s, sec_id in zip(sections, section_node_ids):
+            if int(s["line_start"]) <= line_no <= int(s["line_end"]):
+                return sec_id
+        return None
+
     vio_edges: list[dict] = []
     overrides_edges: list[dict] = []
+    attribution_stats = {"section": 0, "document": 0, "skipped_no_target": 0}
 
-    # Defeater rule_id → list of clause_instance node_ids whose violation
-    # it overrode (used to generate OVERRIDES_VIOLATION edges below)
-    overridden_by: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for rid, line_no in rule_id_to_line.items():
+        target_rule_node = rule_node_id.get(rid)
+        if not target_rule_node:
+            attribution_stats["skipped_no_target"] += 1
+            continue
+        r = actionable.get(rid)
+        if not r:
+            attribution_stats["skipped_no_target"] += 1
+            continue
 
-    for clause_node, match in zip(inserted_clauses, matches):
-        clause_id = clause_node["node_id"]
-        for rid in (match["_template"].get("rule_ids") or []):
-            if rid not in actionable:
-                # Skip TYPE_2 / TYPE_3 / unclassified rules — they don't
-                # take part in PASS/FAIL adjudication.
-                continue
-            r = actionable[rid]
-            target_rule_node = rule_node_id.get(rid)
-            if not target_rule_node:
-                continue
-            if rid in violated_rule_ids:
-                is_defeated = rid in defeated_ids
-                vio_edges.append({
+        section_node = _section_for_line(line_no)
+        from_node = section_node if section_node else doc_node_id
+        attribution = "section" if section_node else "document"
+        attribution_stats[attribution] += 1
+
+        is_defeated = rid in defeated_ids
+        vio_edges.append({
+            "doc_id":       doc_id,
+            "from_node_id": from_node,
+            "to_node_id":   target_rule_node,
+            "edge_type":    "VIOLATES_RULE",
+            "weight":       1.0,
+            "properties": {
+                "rule_id":      rid,
+                "severity":     r.get("severity"),
+                "typology":     r.get("typology_code"),
+                "defeated":     is_defeated,
+                "attribution":  attribution,        # "section" or "document"
+                "line_no":      line_no,            # None for doc-level
+            },
+        })
+
+        # OVERRIDES_VIOLATION: defeater RuleNode → Section/Document where
+        # the would-be violation lives.
+        if is_defeated:
+            for defeater_rid, victims in defeater_pairs.items():
+                if rid not in victims:
+                    continue
+                defeater_node = rule_node_id.get(defeater_rid)
+                if not defeater_node:
+                    continue
+                overrides_edges.append({
                     "doc_id":       doc_id,
-                    "from_node_id": clause_id,
-                    "to_node_id":   target_rule_node,
-                    "edge_type":    "VIOLATES_RULE",
+                    "from_node_id": defeater_node,
+                    "to_node_id":   from_node,
+                    "edge_type":    "OVERRIDES_VIOLATION",
                     "weight":       1.0,
                     "properties": {
-                        "rule_id":   rid,
-                        "severity":  r.get("severity"),
-                        "typology":  r.get("typology_code"),
-                        "defeated":  is_defeated,
+                        "defeater_rule":  defeater_rid,
+                        "defeated_rule":  rid,
+                        "context":        "AP-tender" if ctx["is_ap_tender"] else "Central",
+                        "attribution":    attribution,
                     },
                 })
-                if is_defeated:
-                    # find the active defeater(s) that took it out
-                    for defeater_rid, victims in defeater_pairs.items():
-                        if rid in victims:
-                            overridden_by[defeater_rid].append(
-                                (clause_id, rid),
-                            )
-            else:
-                sat_edges.append({
-                    "doc_id":       doc_id,
-                    "from_node_id": clause_id,
-                    "to_node_id":   target_rule_node,
-                    "edge_type":    "SATISFIES_RULE",
-                    "weight":       1.0,
-                    "properties":   {"rule_id": rid, "severity": r.get("severity")},
-                })
 
-    # OVERRIDES_VIOLATION edges: defeater RuleNode → ClauseInstance whose
-    # would-be violation it overrode.
-    for defeater_rid, pairs in overridden_by.items():
-        from_id = rule_node_id.get(defeater_rid)
-        if not from_id:
-            continue
-        for clause_id, victim_rid in pairs:
-            overrides_edges.append({
-                "doc_id":       doc_id,
-                "from_node_id": from_id,
-                "to_node_id":   clause_id,
-                "edge_type":    "OVERRIDES_VIOLATION",
-                "weight":       1.0,
-                "properties": {
-                    "defeater_rule":  defeater_rid,
-                    "defeated_rule":  victim_rid,
-                    "context":        "AP-tender" if ctx["is_ap_tender"] else "Central",
-                },
-            })
-
-    if sat_edges:        _batch_insert("kg_edges", sat_edges)
-    if vio_edges:        _batch_insert("kg_edges", vio_edges)
-    if overrides_edges:  _batch_insert("kg_edges", overrides_edges)
+    if vio_edges:       _batch_insert("kg_edges", vio_edges)
+    if overrides_edges: _batch_insert("kg_edges", overrides_edges)
     summary.defeasibility["violations_overridden"] = sum(
         1 for e in vio_edges if e["properties"]["defeated"]
     )
+    summary.defeasibility["attribution_stats"] = attribution_stats
     summary.timing_ms["rule_edges"] = int((time.perf_counter() - t0) * 1000)
-
-    # ── 15. CROSS_REFERENCES edges between materialised ClauseInstances
-    t0 = time.perf_counter()
-    template_to_clause_nodes: dict[str, list[str]] = defaultdict(list)
-    for clause_node, match in zip(inserted_clauses, matches):
-        template_to_clause_nodes[match["_template"]["clause_id"]].append(
-            clause_node["node_id"]
-        )
-
-    xref_edges: list[dict] = []
-    for clause_node, match in zip(inserted_clauses, matches):
-        from_id = clause_node["node_id"]
-        for xref_template in (match["_template"].get("cross_references") or []):
-            for to_id in template_to_clause_nodes.get(xref_template, []):
-                if to_id == from_id:
-                    continue
-                xref_edges.append({
-                    "doc_id":       doc_id,
-                    "from_node_id": from_id,
-                    "to_node_id":   to_id,
-                    "edge_type":    "CROSS_REFERENCES",
-                    "weight":       1.0,
-                    "properties":   {"via_template": xref_template},
-                })
-    if xref_edges:
-        _batch_insert("kg_edges", xref_edges)
-    summary.timing_ms["xref_edges"] = int((time.perf_counter() - t0) * 1000)
 
     # ── 16. Final counts (re-read to be authoritative)
     summary.nodes_by_type = _count_by(table="kg_nodes",
