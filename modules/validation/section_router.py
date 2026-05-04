@@ -142,11 +142,36 @@ IP_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Missing-LD-Clause — Liquidated Damages anchors live in GCC (most
+# templates: CLAUSE-LD-001, CLAUSE-WORKS-LD-INCENTIVE-001, CLAUSE-LD-
+# WAIVER-001) and SCC (Services per-day rate: CLAUSE-LD-PERFORMANCE-
+# SERVICES-001). Same retrieval region as PVC, simpler than IP.
+#
+# Unlike PVC's NREDCAP_PPP entry which was kept "for completeness"
+# while the rule layer SKIPped, GFR-083 actively fires on PPP/DBFOT
+# (TenderType=ANY catch-all) — so the NREDCAP_PPP filter is real and
+# the script will retrieve+rerank+materialise on Tirupathi/Vijayawada
+# just like the Works docs. Concession Agreement DCAs DO carry GCC
+# sections, so [GCC, SCC] is the correct retrieval region for them.
+#
+# SBD_Format includes Evaluation because Kakinada has zero GCC-typed
+# sections (n_eval=15, n_gcc=0 — the same SBD pattern that drove the
+# section_router threshold tuning in L28). The body lives in
+# Evaluation blocks and the LD clause, where present, is in there.
+LD_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "SCC"],
+    "SBD_Format":    ["GCC", "SCC", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC", "SCC"],
+    "default":       ["GCC", "SCC", "Specifications"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":      EMD_SECTION_ROUTER,
     "Bid-Validity-Short": BID_VALIDITY_SECTION_ROUTER,
     "Missing-PVC-Clause": PVC_SECTION_ROUTER,
     "Missing-Integrity-Pact": IP_SECTION_ROUTER,
+    "Missing-LD-Clause":   LD_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

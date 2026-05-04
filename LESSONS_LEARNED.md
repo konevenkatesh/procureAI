@@ -429,6 +429,32 @@ The single-bool design conflates (3) and (4), which is exactly what L24 honesty 
 
 ---
 
+## L31 — Missing-LD-Clause + Corpus-Gap Distinction
+
+**Date:** May 2026
+**What we did:** Built the sixth Tier-1 typology — Missing-LD-Clause — completing the presence-shape trilogy (PVC / IP / LD). All three follow the same machinery: BGE-M3 retrieval → Qdrant top-K within a section_router-chosen filter → LLM rerank with structured extraction → L24 evidence guard → L29 absence marker for `chosen_index=null` paths. Three primary rules drive selection: MPW-124 (Works, P1), MPS-125 (Non-Consulting Services, P1), GFR-083 (catch-all, P2). MPW-124 wins on Works docs; GFR-083 catches PPP/DBFOT. No UNKNOWN→ADVISORY downgrade fires for this typology because the conditions resolve fully from `tender_type` (LLM-extracted, reliable=True for all 6 docs).
+**What happened:** 5 of 6 corpus docs were correctly compliant — the LLM picked verified LD evidence with `evidence_match_score >= 97`, including:
+- Vizag: explicit GCC formula "5% per month, max 10% of contract value" (cosine 0.6280, score=99).
+- HC: GCC §48 "Liquidated Damages" with PCC by-reference to rate (cosine 0.7237, score=100).
+- JA: same MPW PCC-by-reference pattern as HC (cosine 0.6740, score=97).
+- Kakinada: LD reference embedded in an Evaluation-typed block ("Liquidated Damages shall be levied as per the condition No.48.3 of conditions of contract") — the SBD pattern from L28 again, where the body lives in Evaluation rather than GCC.
+- Tirupathi: GCC §14.8 "Delay Liquidated Damages" with explicit "0.1% per day of Performance Security" formula (cosine 0.6594, score=100).
+
+The sixth doc (Vijayawada — sister NREDCAP DBFOT to Tirupathi) returned `chosen_index=null, ld_clause_present=false` — surfacing as an ADVISORY-absent finding through the L29 absence path. Investigation showed Vijayawada has **zero GCC sections in the KG** (Forms=50, NIT=20, Evaluation=20, Scope=9), while Tirupathi has 191 GCC sections from its ingested DCA. This is the L22 multi-file ingest gap surfacing on a Tier-1 finding: Vijayawada's KG is RFP-only because its DCA / Schedule / Model PPA PDFs were never converted to markdown, so the LD clause that almost certainly mirrors Tirupathi's GCC §14.8 was never ingested. The LLM correctly reported what it could see; what it could see was incomplete.
+
+**Why we changed:** A finding that says "violation" when the underlying cause is "we didn't ingest the source file" is misleading at the audit-trail layer. A reviewer cannot distinguish "this tender genuinely lacks the clause" from "we didn't load the file containing the clause" without external context. Same family of failure as L24 (LLM hallucination — fabricated evidence) and L29 (absence findings forced through the presence-evidence path) — the system was claiming verdicts on artefacts it didn't have full visibility into. The fix is a new audit-field pair: `corpus_gap: bool` and `corpus_gap_reason: string`, plus a severity downgrade to ADVISORY when `corpus_gap=true`. The finding stays in the database (don't silently delete it — that loses the audit trail showing the system DID flag the gap), but a reviewer reading the row immediately sees this is a corpus-completeness issue, not a real procurement violation.
+
+**What we changed:**
+- `scripts/tier1_ld_check.py` — new file, port of `tier1_pvc_check.py` with the LD-specific prompt, rules, and section filter.
+- `modules/validation/section_router.py` — added `LD_SECTION_ROUTER` (`APCRDA_Works → [GCC, SCC]`, `SBD_Format → [GCC, SCC, Evaluation]`, `NREDCAP_PPP → [GCC, SCC]`, `default → [GCC, SCC, Specifications]`) and registered it in the `SECTION_ROUTERS` dict. Unlike PVC's NREDCAP_PPP entry which is a SKIP placeholder, LD's NREDCAP_PPP entry is real — GFR-083 actively fires on PPP/DBFOT.
+- DB-level patch on Vijayawada's ValidationFinding `e4e52039-d4d8-4416-9ed8-ef878a3b3daa` and its VIOLATES_RULE edge `6f15aa0b-f54e-4eae-865d-a58fb26230c0`: added `corpus_gap=true`, `corpus_gap_reason='Vijayawada DCA not ingested. LD clause expected in DCA GCC section 14.8 mirroring Tirupathi pattern. Finding will resolve to compliant after DCA ingest.'`, severity `HARD_BLOCK → ADVISORY`. The finding remains visible (not deleted) so the audit trail records the gap detection.
+
+**Forward applicability:** The `corpus_gap` field is reusable for every future typology. Any time a presence-shape finding triggers because retrieval came up empty AND we have external evidence that the relevant source file is missing from the KG (different sister-doc has the clause; the ingest manifest shows the file was never converted; an LLM-extracted facts pass returned `null` due to file absence), the finding should carry `corpus_gap=true`. After re-ingest, the next typology run will find the clause and the finding will be cleared by `_delete_prior_tier1_*` cleanup. Three corpus gaps are known today: Vijayawada DCA + Schedule + Model PPA (per L22, not yet converted); Tirupathi Schedule + Model PPA (per L22, not yet converted). Each of these is a candidate for L31 corpus_gap flagging on any future typology that touches Schedule/PPA territory.
+
+The presence-shape trilogy (PVC / IP / LD) is now structurally identical at the script level — same imports, same machinery, only the prompt and section filter differ. Any future Missing-X typology can be a near-mechanical port of any of the three.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -455,15 +481,15 @@ The single-bool design conflates (3) and (4), which is exactly what L24 honesty 
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across five typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across six typologies
 
-| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact |
-|--------|-----|-----|-------------|-----|---------------|
-| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) |
-| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) |
-| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) |
-| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) |
-| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) |
-| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) |
+| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD |
+|--------|-----|-----|-------------|-----|---------------|----|
+| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month |
+| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) |
+| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) |
+| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) |
+| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS |
+| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | ADVISORY absent — **corpus gap, L22** (DCA not ingested) |
 
-**Total: 17 ValidationFindings, 17 VIOLATES_RULE edges.** Five typologies × six documents = thirty possible finding slots: 17 are filled with violations, 13 are correctly silent (compliant docs, PPP rule-layer skips on PVC, EMD genuinely-absent-from-source on Vizag). All presence findings have `evidence_match_score >= 98`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. Every Integrity-Pact finding is ADVISORY because the IP_Threshold subterm is org-defined per CVC-116 — UNKNOWN→ADVISORY downgrade per L27.
+**Total: 18 ValidationFindings, 18 VIOLATES_RULE edges.** Six typologies × six documents = thirty-six possible finding slots: 18 are filled with violations, 18 are correctly silent (compliant docs, PPP rule-layer skips on PVC, EMD genuinely-absent-from-source on Vizag). All presence findings have `evidence_match_score >= 97`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. Vijayawada's LD finding carries `corpus_gap=true` + ADVISORY severity downgrade per L31 — the LD clause exists in the un-ingested DCA, not a real source absence.
