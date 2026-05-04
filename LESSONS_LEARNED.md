@@ -405,6 +405,30 @@ This is a typology-local helper for now (only `tier1_bid_validity_check.py` uses
 
 ---
 
+## L30 — Multilateral-Funded Tenders Have Dual Compliance Requirements
+
+**Date:** May 2026
+**What we did:** Built the fifth Tier-1 typology — Missing-Integrity-Pact — and discovered on the first JA test run that the typology's "presence" boolean was not enough on multilateral-funded Indian tenders. ADB-funded ($788.8M) and World Bank-funded ($800M) Amaravati capital city works (Judicial Academy, High Court, HOD, etc.) ship with the **lender's anticorruption framework** (ADB Anticorruption Policy + Integrity Principles and Guidelines + OAI sanctions list + IEF; or World Bank Sanctions Procedures + Anticorruption Guidelines + ineligibility cross-checks). That framework is NOT a substitute for the regulated **CVC Pre-bid Integrity Pact** that Indian procurement law (CVC-086, MPS-022) requires regardless of funding source. A naive presence check would either (a) incorrectly mark the doc compliant on the strength of the ADB framework, or (b) report "absent" without recording that the ADB framework IS present (losing audit-trail value). Both are wrong.
+**What happened:** First run of `tier1_integrity_pact_check.py` on JA returned `chosen_index=null, integrity_pact_present=false, found=false` — correctly identifying that no CVC IP exists, but discarding the ADB framework content the LLM had observed in candidate [0] ("Section V — Fraud and Corruption", lines 1945–2016, cosine 0.5886). The reasoning quote noted "None of the candidates contain the specific elements of a Pre-bid Integrity Pact, such as a binding agreement between the buyer and bidder, monitored by Independent External Monitors (IEMs) approved by the Central Vigilance Commission" — accurate, but the audit trail had no record of what WAS detected. A reviewer reading that finding could not distinguish "the doc has nothing about anticorruption at all" from "the doc has the ADB framework but not the CVC IP" — and those two situations have different remediation paths.
+**Why we changed:** Indian procurement law and multilateral-lender procurement law operate as parallel compliance regimes on the same document. The CVC IP and the ADB/WB framework are distinct instruments with distinct enforcement mechanisms (CVC-empanelled IEMs vs ADB OAI / WB Sanctions Board). The system must detect both **independently** and report each separately, so the finding records the actual state of affairs:
+- both present → compliant (CVC IP is the operative satisfier);
+- CVC IP only → compliant;
+- multilateral framework only → CVC-IP-missing violation, with the multilateral evidence preserved as audit trail and an explanatory note that the lender framework does NOT substitute;
+- neither → CVC-IP-missing violation, absence finding per L29.
+
+The single-bool design conflates (3) and (4), which is exactly what L24 honesty principles forbid.
+
+**What we changed:**
+- `scripts/tier1_integrity_pact_check.py` — rerank prompt now asks the LLM for THREE independent booleans (`adb_framework_detected`, `cvc_ip_detected`, `integrity_pact_present`) plus a `pact_type` enum (`'CVC_IP' | 'ADB_framework_only' | 'WB_framework_only' | 'multilateral_framework_only' | 'none'`). The prompt explicitly enumerates what counts as CVC IP (bilateral pact, IEMs, CVC Office Order, IP proforma) vs what counts as multilateral framework (ADB IPG / OAI sanctions / IEF, WB Guidelines / Sanctions Procedures, lender ineligibility cross-checks). `integrity_pact_present` is locked to `cvc_ip_detected` post-hoc by the script (defence in depth — never trust an LLM-supplied invariant).
+- Three reason labels: `compliant_integrity_pact_present` (CVC IP found), `integrity_pact_absent_violation_multilateral_only` (lender framework but no CVC IP), `integrity_pact_absent_violation` (neither). The multilateral-only label triggers a `note` field in the finding spelling out that "the multilateral lender framework does not substitute for CVC Pre-bid Integrity Pact requirement under Indian procurement law (CVC-086, MPS-022)." The label itself appends "(multilateral framework detected, CVC IP missing)" so a UI list-view reader sees the nuance without expanding the row.
+- Multilateral-only findings carry the verified lender-framework evidence quote (L24 guard runs as normal — the quote is real text from the doc), `cvc_ip_detected=false`, `adb_framework_detected=true`, `pact_type='multilateral_framework_only'`. Pure-absence findings still trigger the L29 `absence_finding_no_evidence` path.
+- `modules/validation/section_router.py` IP block annotated with the dual-compliance contract and an explicit "DO NOT add a multilateral-funding SKIP rule" warning so a future contributor doesn't accidentally waive CVC IP for ADB/WB-funded docs. The router stays at `[NIT, Forms]` for every family — funding source does not change retrieval scope.
+
+**Result:** All 6 corpus docs ran cleanly. JA/HC/Tirupathi correctly carry `pact_type='multilateral_framework_only'` with verified evidence (JA: ADB+WB clause from "Section V - Fraud and Corruption"; HC: WB Guidelines for Program for Results Financing; Tirupathi: WB ineligibility cross-check). Vizag/Kakinada/Vijayawada are pure absence findings (`pact_type='none'`). All six are ADVISORY because the IP_Threshold subterm is org-defined per CVC-116 (L27 UNKNOWN→ADVISORY downgrade). Six new ValidationFindings, six new VIOLATES_RULE edges, all with the L24 guard outcome (Section→Rule for multilateral-only with verified quote, TenderDocument→Rule for pure absence with the L29 marker).
+**Forward applicability:** Any future typology that has a parallel-compliance shape (Indian rule + lender rule, or AP-State rule + Central rule on the same artefact) should adopt the same two-bool pattern: detect each instrument independently, lock the "compliant" boolean to the regulated instrument, preserve the secondary evidence and a note explaining what was found vs what is required. World-Bank-funded portions of the corpus will need the same structural treatment for any future typology where WB-specific clauses (e.g. WB Standard Bidding Documents for Works) might be mistaken for the Indian regulated equivalent.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -431,14 +455,15 @@ This is a typology-local helper for now (only `tier1_bid_validity_check.py` uses
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across three typologies
-| doc_id | PBG | EMD | Bid-Validity |
-|--------|---------|---------|---------|
-| vizag_ugss_exp_001 | 2.5% (HARD_BLOCK, cos 0.6844) | none — no EMD% in source (L24 guard) | 180 days — compliant (cos 0.4389, score 100) |
-| judicial_academy_exp_001 | 2.5% (HARD_BLOCK, cos 0.6650) | 1.0% (ADVISORY, cos 0.5141) | 90 days — compliant (cos 0.4848, score 100, smart_truncate L26) |
-| high_court_exp_001 | 2.5% (HARD_BLOCK, cos 0.6567) | 1.0% (ADVISORY, cos 0.5904) | (not yet run) |
-| tirupathi_wte_exp_001 | 12.87cr → 4.998% (HARD_BLOCK, amount) | 2.57cr → **0.998%** (HARD_BLOCK, amount) | 180 days — compliant (cos 0.6973, score 100) |
-| vijayawada_wte_exp_001 | 16.24cr → 5.002% (HARD_BLOCK, amount) | 3.24cr → **0.998%** (HARD_BLOCK, amount) | 180 days — compliant (cos 0.6925, score 100) |
-| kakinada_pkg11_exp_001 | none — no PBG clause in source (L23) | 1.0% (ADVISORY, cos 0.5384, default family) | 90 days — compliant (cos 0.5863, score 100) |
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across five typologies
 
-**Total: 10 ValidationFindings, 10 VIOLATES_RULE edges.** All findings have `evidence_match_score >= 98`; nine of ten are 100 (substring fast-path). Three typologies × six documents = eighteen possible finding slots: ten are filled with violations, eight are correctly silent (5 of those are PBG/EMD genuinely-absent-from-source; 5 are Bid-Validity correctly compliant).
+| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact |
+|--------|-----|-----|-------------|-----|---------------|
+| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) |
+| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) |
+| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) |
+| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) |
+| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) |
+| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) |
+
+**Total: 17 ValidationFindings, 17 VIOLATES_RULE edges.** Five typologies × six documents = thirty possible finding slots: 17 are filled with violations, 13 are correctly silent (compliant docs, PPP rule-layer skips on PVC, EMD genuinely-absent-from-source on Vizag). All presence findings have `evidence_match_score >= 98`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. Every Integrity-Pact finding is ADVISORY because the IP_Threshold subterm is org-defined per CVC-116 — UNKNOWN→ADVISORY downgrade per L27.

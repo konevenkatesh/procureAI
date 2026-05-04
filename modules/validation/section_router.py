@@ -113,10 +113,40 @@ PVC_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Missing-Integrity-Pact — IP applicability statements live in NIT
+# (mandate clauses) and Forms (bidder declaration / pact proforma).
+# Per the read-first scan of clause_templates: CLAUSE-IP-PREAMBLE-001
+# (Forms), CLAUSE-INTEGRITY-PACT-MANDATE-001 (NIT), CLAUSE-IP-WORKS-001
+# (NIT) — none in GCC/SCC/Specifications. The user-set router for this
+# typology is intentionally [NIT, Forms] across every family because
+# the IP anchors are stable across document templates (unlike PVC which
+# moves between GCC and Evaluation per family).
+#
+# IMPORTANT (L30): APCRDA_Works documents under the Amaravati capital
+# city program are funded by ADB ($788.8M) + World Bank ($800M), and
+# therefore ship with the LENDER's anticorruption framework (ADB IPG,
+# OAI sanctions, IEF, World Bank Sanctions Procedures, etc.). The
+# multilateral-lender framework DOES NOT substitute for the regulated
+# CVC Pre-bid Integrity Pact — Indian procurement law (CVC-086,
+# MPS-022) requires the CVC IP regardless of funding source. The
+# router stays at [NIT, Forms] for these docs and CVC-086 / MPS-022
+# still fire; the LLM rerank prompt (in tier1_integrity_pact_check.py)
+# distinguishes the two instruments via separate `adb_framework_detected`
+# and `cvc_ip_detected` booleans, with `integrity_pact_present` locked
+# to cvc_ip_detected. DO NOT add a multilateral-funding SKIP rule.
+IP_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "Forms"],
+    "SBD_Format":    ["NIT", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "Forms"],
+    "default":       ["NIT", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":      EMD_SECTION_ROUTER,
     "Bid-Validity-Short": BID_VALIDITY_SECTION_ROUTER,
     "Missing-PVC-Clause": PVC_SECTION_ROUTER,
+    "Missing-Integrity-Pact": IP_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
