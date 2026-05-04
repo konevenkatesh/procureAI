@@ -705,6 +705,24 @@ def main() -> int:
         line_end_local   = None
         qdrant_similarity = None
 
+    # L29: For ABSENCE findings (pvc_present=False, no candidate
+    # chosen), there is no LLM evidence quote to verify — the absence
+    # itself is the violation. Skip the L24 evidence_guard semantics
+    # entirely and overwrite the audit fields with absence-finding
+    # markers. The four ev_* locals are downgraded from
+    # (False / 0 / "skipped") to (None / None / explicit-absence-label)
+    # so the persisted finding makes it obvious the verifier was
+    # never expected to run.
+    is_absence_finding = (not pvc_present and section is None)
+    if is_absence_finding:
+        ev_passed = None
+        ev_score  = None
+        ev_method = "absence_finding_no_evidence"
+        evidence  = ("Price Variation Clause not found in document "
+                     "after searching GCC, SCC, Evaluation section types")
+        print(f"  → ABSENCE finding — skipping evidence_guard "
+              f"(no quote to verify)")
+
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
     label = (
