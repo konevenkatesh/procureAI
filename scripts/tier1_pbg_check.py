@@ -58,9 +58,10 @@ CLAUSE_TEMPLATE_ID = "CLAUSE-AP-CONTRACTOR-SECURITY-DEPOSIT-001"
 QDRANT_URL  = os.environ.get("QDRANT_URL", "http://localhost:6333")
 COLLECTION  = "tender_sections"
 
-LLM_BASE_URL = os.environ["LLM_BASE_URL"]
-LLM_API_KEY  = os.environ["LLM_API_KEY"]
-LLM_MODEL    = os.environ["LLM_MODEL"]
+# LLM model name kept locally only for printout / audit. The actual
+# call goes through modules.validation.llm_client which reads the same
+# env vars and handles retries — see import below the helpers section.
+LLM_MODEL    = os.environ.get("LLM_MODEL", "qwen/qwen-2.5-72b-instruct")
 
 
 # ── Supabase REST helpers (same pattern as elsewhere in the codebase) ──
@@ -474,39 +475,10 @@ def fetch_contract_value_cr(doc_id: str) -> tuple[float | None, str]:
 
 
 
-def call_llm(system: str, user: str) -> tuple[str, dict]:
-    """Returns (raw_content_string, raw_response_dict). Uses OpenRouter
-    via the OpenAI SDK (same path as the tender_type extractor).
-
-    Includes one retry on the OpenRouter "empty choices" transient: in
-    practice the upstream sometimes returns a 200 with `choices=[]`,
-    which crashes `resp.choices[0]`. We sleep 2s and retry once; if
-    the second attempt also returns no choices, raise so the caller
-    sees a real failure rather than a silently empty extraction."""
-    from openai import OpenAI
-    client = OpenAI(base_url=LLM_BASE_URL.rstrip("/"), api_key=LLM_API_KEY)
-    extra_headers = {
-        "HTTP-Referer": "https://github.com/konevenkatesh/procureAI",
-        "X-Title": "AP Procurement Validator",
-    }
-    kwargs = dict(
-        model=LLM_MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user",   "content": user},
-        ],
-        temperature=0.0,
-        max_tokens=512,
-        extra_headers=extra_headers,
-    )
-    resp = client.chat.completions.create(**kwargs)
-    if not resp.choices or len(resp.choices) == 0:
-        print("  [call_llm] empty choices on first attempt — retrying once after 2s")
-        time.sleep(2)
-        resp = client.chat.completions.create(**kwargs)
-        if not resp.choices or len(resp.choices) == 0:
-            raise RuntimeError("OpenRouter empty choices (after retry)")
-    return (resp.choices[0].message.content or ""), resp.model_dump()
+# Lifted to modules/validation/llm_client.py. Single OpenRouter
+# wrapper used by every Tier-1 script. The shared call_llm includes
+# the same one-retry-on-empty-choices behaviour that lived here.
+from modules.validation.llm_client import call_llm
 
 
 def parse_llm_response(raw: str) -> dict:
@@ -676,7 +648,7 @@ def main() -> int:
     print(f"\n── Step 4: LLM rerank + extraction (qwen-2.5-72b @ openrouter) ──")
     user_prompt = build_pbg_rerank_prompt(candidates)
     print(f"  prompt size: {len(user_prompt)} chars (~{len(user_prompt)//4} tokens)")
-    raw_content, _full_resp = call_llm(LLM_SYSTEM, user_prompt)
+    raw_content = call_llm(LLM_SYSTEM, user_prompt, max_tokens=512)
     timings["llm"] = time.perf_counter() - t0
     print(f"  wall:        {timings['llm']:.2f}s")
     print(f"\n── Raw LLM JSON ──")
@@ -749,7 +721,7 @@ def main() -> int:
         print(f"\n── Step 4b: FIX C — amount-fallback rerank ──")
         amount_prompt = build_pbg_amount_rerank_prompt(candidates)
         print(f"  prompt size: {len(amount_prompt)} chars (~{len(amount_prompt)//4} tokens)")
-        raw_amount_content, _ = call_llm(LLM_SYSTEM, amount_prompt)
+        raw_amount_content = call_llm(LLM_SYSTEM, amount_prompt, max_tokens=512)
         timings["llm_amount"] = time.perf_counter() - t0
         print(f"  wall:        {timings['llm_amount']:.2f}s")
         print(f"\n── Raw LLM JSON (amount pass) ──")
