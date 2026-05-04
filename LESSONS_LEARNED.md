@@ -294,6 +294,32 @@ Both are **out of scope tonight** — they will be addressed after EMD-Shortfall
 
 ---
 
+## L24 — LLM Hallucination: Evidence Quote Fabrication
+
+**Date:** May 2026  
+**What happened:** Approach A ran EMD extraction on Vizag. LLM returned verbatim-looking evidence quote *"1% of the Estimated Contract Value (ECV) Rs.1,25,50,000/-"* — identical to JA's actual EMD text. Vizag has no such text anywhere in its 5 volumes.  
+**Why it happened:** The LLM received a section with no EMD content. The "verbatim" instruction in the prompt did not prevent fabrication when the section contained no answer. The model generated a plausible-sounding quote from its training data.  
+**Impact:** A finding would have been created with fabricated evidence. CAG audit would have been misled.  
+**Prevention:** After LLM extraction, always verify the evidence quote exists in the actual section text before creating a ValidationFinding. String match the evidence quote against the source section full_text. If the quote is not found verbatim → discard the extraction as hallucinated.  
+**Status:** **IMPLEMENTED** in `scripts/tier1_pbg_check.py` via the `verify_evidence_in_section(evidence, full_text)` helper. Two-stage check: (a) substring match on aggressively-normalised text (lowercase + drop markdown markers `**`, `__`, `*`, `_`, `|`, `\\` + drop `<br>` + collapse whitespace), (b) `difflib`-based partial-ratio fallback (sliding window, threshold ≥ 85). Wired into both extraction paths (percentage rerank + amount rerank). On verification failure: prints `HALLUCINATION_DETECTED`, forces `found=False` and `section=None`, and the materialise block is bypassed — no finding, no edge.
+
+ValidationFinding rows now carry four new audit fields:
+- `evidence_in_source: bool` — raw match result
+- `evidence_verified: bool` — same value today; reserved for future "human-confirmed" override semantics
+- `evidence_match_score: int` — 0-100 (100 for substring hit, ratio×100 for partial)
+- `evidence_match_method: str` — `"substring" | "partial_ratio" | "no_match" | "empty" | "skipped"`
+
+**Verification on Vizag PBG (re-run after the guard landed):**
+- Negative control (Vizag "Security" section + JA's hallucinated quote): PASS=False, score=40, method=`no_match` — fabrication correctly caught.
+- Positive control (Vizag "Security" section + Vizag's real PBG quote): PASS=True, score=99, method=`partial_ratio` — real quote verified.
+- Live tier1 run: ValidationFinding `1cf504ff-…` materialised with `evidence_in_source=true`, `evidence_verified=true`, `evidence_match_score=99`, `evidence_match_method=partial_ratio`. The `partial_ratio` win (rather than substring hit) reflects that the LLM dropped a comma and trailing whitespace from the source quote — well within tolerance.
+
+The helper stays inside `tier1_pbg_check.py` for now; lift to a shared module after a second typology proves the API shape (per L24 review). `rapidfuzz` would expose `fuzz.partial_ratio` directly but is not installed in this venv — `difflib` (stdlib) gives the same semantics with no new dependency.
+
+**Forward applicability:** every future Tier-1 extraction script (`tier1_emd_check.py`, Integrity Pact, Judicial Preview, etc.) MUST call this guard before any `kg_nodes` insert. EMD work is paused until then.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -302,6 +328,7 @@ Both are **out of scope tonight** — they will be addressed after EMD-Shortfall
 - contract_value extraction (`tender_facts_extractor`): LLM-based, reliable on the two docs needed for PBG implied-percentage compute (Tirupathi 257.51cr, Vijayawada 324.70cr — both confidence 1.0, verbatim evidence). Pattern: `n_sections=3, max_chars=3000`. (L22)
 - condition_when evaluator: parses and evaluates all operator types, three-valued logic
 - Tier 1 PBG-Shortfall via BGE-M3 + LLM with section_type filter + tight query + top-10 + LLM rerank — percentage path (L18) AND amount path with implied-percentage fallback (L20). Works on all 5 docs that have a PBG clause in source.
+- Hallucination guard (L24): every Tier-1 finding's evidence quote is now verified against the chosen-candidate's source text before materialising — `verify_evidence_in_section` with substring + difflib partial-ratio (threshold 85). Audit fields persisted on every ValidationFinding (`evidence_in_source`, `evidence_verified`, `evidence_match_score`, `evidence_match_method`).
 - find_line_range anchored to next-heading (L17) — no orphaned content metadata
 - Regex validator pass disabled in kg_builder via `RUN_REGEX_VALIDATOR=False` flag (L21) — no more tier=null pollution on rebuilds
 - Multi-file ingest pattern for NREDCAP-style PPP packages (RFP + DCA) (L22)

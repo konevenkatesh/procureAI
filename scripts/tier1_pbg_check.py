@@ -333,6 +333,122 @@ def _truncate_for_rerank(text: str, cap: int = RERANK_PER_SECTION_CHAR_CAP) -> t
     ), True
 
 
+# ── Hallucination guard (L24) ─────────────────────────────────────────
+#
+# Even with the prompt rule "Evidence MUST be an exact substring", the
+# LLM can fabricate a plausible-sounding quote when its assigned section
+# has no answer to give. On Vizag (which has NO EMD-percentage line in
+# any of its 5 source volumes), Approach A's LLM returned the literal
+# wording from JA — a different document. A finding could have shipped
+# with verbatim-looking but fabricated evidence.
+#
+# Fix: after the LLM returns an evidence quote, string-match it against
+# the actual chosen-candidate full_text BEFORE materialising any
+# kg_node. Two-stage check, stdlib-only:
+#   1. Substring match on normalized text (catches 95%+ of true positives)
+#   2. difflib partial-ratio fallback (sliding window of len(evidence)
+#      across full_text; max SequenceMatcher.ratio × 100)
+#   PASS threshold: 85.
+#
+# rapidfuzz would expose `fuzz.partial_ratio` directly but is not
+# installed in this venv. difflib gives the same semantics.
+
+import difflib
+
+_HTML_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_MD_NOISE = re.compile(r"[\*\_\|\\`]+")
+_WS = re.compile(r"\s+")
+
+
+def _normalise_for_match(s: str) -> str:
+    """Aggressive normalisation: lowercase, drop markdown markers,
+    drop HTML <br>, collapse whitespace. Both sides of the match
+    pass through this so superficial markup or whitespace differences
+    in the LLM quote don't trigger HALLUCINATION_DETECTED."""
+    s = (s or "").lower()
+    s = _HTML_BR.sub(" ", s)
+    s = _MD_NOISE.sub(" ", s)
+    s = _WS.sub(" ", s).strip()
+    return s
+
+
+# Evidence cap for the partial-ratio fallback — keeps the
+# O(N×M) sliding window bounded. The LLM evidence quotes in this
+# project are typically 50–250 chars; 500 is a generous cap.
+_EVIDENCE_MATCH_CAP = 500
+# PASS threshold matches the user spec (fuzz.partial_ratio >= 85).
+_EVIDENCE_MATCH_THRESHOLD = 85
+
+
+def verify_evidence_in_section(
+    evidence: str,
+    full_text: str,
+    *,
+    threshold: int = _EVIDENCE_MATCH_THRESHOLD,
+) -> tuple[bool, int, str]:
+    """Returns (passed, score, method).
+
+    - `passed`: True iff the evidence quote can be located in the
+      section text either as a normalised substring (score=100) or
+      as a high-similarity sliding-window match (score >= threshold).
+    - `score`: 0-100. 100 for substring hit; partial-ratio×100 for
+      fallback.
+    - `method`: "substring" | "partial_ratio" | "empty" | "no_match".
+
+    Caller MUST discard the LLM extraction (i.e. force `found=False`,
+    skip materialise) when passed=False — that signals the LLM
+    fabricated the quote and we have no real evidence to record."""
+    if not evidence or not full_text:
+        return False, 0, "empty"
+
+    n_ev   = _normalise_for_match(evidence)
+    n_full = _normalise_for_match(full_text)
+    if not n_ev or not n_full:
+        return False, 0, "empty"
+
+    # Stage 1 — cheap substring check on normalised text
+    if n_ev in n_full:
+        return True, 100, "substring"
+
+    # Stage 2 — difflib partial-ratio: slide a window of len(n_ev)
+    # over n_full and return the best SequenceMatcher.ratio × 100.
+    # Cap the evidence to keep the inner loop bounded (rare edge case
+    # — LLMs usually quote 50–250 chars; this guards against pathological
+    # 5000-char "evidence" that would explode runtime).
+    short = n_ev[:_EVIDENCE_MATCH_CAP]
+    if len(short) >= len(n_full):
+        ratio = difflib.SequenceMatcher(None, short, n_full).ratio()
+        score = int(ratio * 100)
+        return score >= threshold, score, "partial_ratio"
+
+    best_ratio = 0.0
+    win_len = len(short)
+    # Step the window in 1/4-window strides for speed; refine the
+    # winning region with stride=1 afterwards. Two-phase coarse-then-fine
+    # search drops the cost from O(N) windows to ~O(N/k + window) without
+    # missing matches (the fine phase rescans a window-width neighbourhood).
+    coarse_stride = max(1, win_len // 4)
+    coarse_winner = -1
+    for i in range(0, len(n_full) - win_len + 1, coarse_stride):
+        window = n_full[i:i + win_len]
+        r = difflib.SequenceMatcher(None, short, window).ratio()
+        if r > best_ratio:
+            best_ratio = r
+            coarse_winner = i
+    # Fine phase around the coarse winner
+    if coarse_winner >= 0:
+        lo = max(0, coarse_winner - coarse_stride)
+        hi = min(len(n_full) - win_len + 1, coarse_winner + coarse_stride + 1)
+        for i in range(lo, hi):
+            window = n_full[i:i + win_len]
+            r = difflib.SequenceMatcher(None, short, window).ratio()
+            if r > best_ratio:
+                best_ratio = r
+
+    score = int(best_ratio * 100)
+    return score >= threshold, score, ("partial_ratio" if score >= threshold else "no_match")
+
+
 def build_pbg_rerank_prompt(candidates: list[dict]) -> str:
     """Stitch top-k candidates into one prompt. The LLM picks the
     correct candidate index AND extracts the percentage in one call,
@@ -716,6 +832,25 @@ def main() -> int:
         similarity = None
         print(f"  → no candidate chosen by LLM (percentage path)")
 
+    # Hallucination guard (L24) — verify the LLM evidence quote actually
+    # exists in the chosen section's full_text. If the quote can't be
+    # located, the LLM fabricated it and we MUST NOT materialise.
+    pct_evidence_in_source = False
+    pct_evidence_score     = 0
+    pct_evidence_method    = "skipped"
+    if found and section is not None and evidence:
+        pct_evidence_in_source, pct_evidence_score, pct_evidence_method = (
+            verify_evidence_in_section(evidence, section["full_text"])
+        )
+        print(f"  evidence_verified : {pct_evidence_in_source}  "
+              f"(score={pct_evidence_score}, method={pct_evidence_method})")
+        if not pct_evidence_in_source:
+            print(f"  HALLUCINATION_DETECTED on percentage path — discarding extraction.")
+            print(f"    LLM evidence  : {evidence[:200]!r}")
+            print(f"    section first : {section['full_text'][:200]!r}")
+            found   = False
+            section = None
+
     # ── Step 4b/5b: FIX C — fixed-amount fallback for PPP docs ───────
     # If the percentage rerank returned found=false, the document may
     # express PBG as a fixed INR amount (Tirupathi: 12.87 cr,
@@ -783,6 +918,24 @@ def main() -> int:
                     print(f"  implied_pct              : NOT COMPUTED — "
                           f"contract_value missing/zero (will flag needs_contract_value=true)")
 
+    # Hallucination guard (L24) — same check as the percentage path,
+    # applied to the amount-pass evidence quote and its chosen section.
+    amt_evidence_in_source = False
+    amt_evidence_score     = 0
+    amt_evidence_method    = "skipped"
+    if amount_found and amount_section is not None and amount_evidence:
+        amt_evidence_in_source, amt_evidence_score, amt_evidence_method = (
+            verify_evidence_in_section(amount_evidence, amount_section["full_text"])
+        )
+        print(f"  amount evidence_verified : {amt_evidence_in_source}  "
+              f"(score={amt_evidence_score}, method={amt_evidence_method})")
+        if not amt_evidence_in_source:
+            print(f"  HALLUCINATION_DETECTED on amount path — discarding extraction.")
+            print(f"    LLM evidence  : {amount_evidence[:200]!r}")
+            print(f"    section first : {amount_section['full_text'][:200]!r}")
+            amount_found   = False
+            amount_section = None
+
     # ── Decision ─────────────────────────────────────────────────────
     # A violation can come from EITHER path. Mutually exclusive in
     # practice — we only run the amount path when percentage said nothing.
@@ -815,12 +968,17 @@ def main() -> int:
         finding_section = section
         finding_label = f"{TYPOLOGY}: PBG = {pct}% (expected ≥ {RULE_THRESHOLD_PCT}%)"
         finding_props_extra = {
-            "extraction_path":     "percentage",
-            "percentage_found":    pct,
-            "evidence":            evidence,
-            "qdrant_similarity":   round(similarity, 4),
-            "rerank_chosen_index": chosen,
-            "rerank_reasoning":    reason,
+            "extraction_path":      "percentage",
+            "percentage_found":     pct,
+            "evidence":             evidence,
+            "qdrant_similarity":    round(similarity, 4),
+            "rerank_chosen_index":  chosen,
+            "rerank_reasoning":     reason,
+            # Hallucination guard audit (L24)
+            "evidence_in_source":   pct_evidence_in_source,
+            "evidence_verified":    pct_evidence_in_source,
+            "evidence_match_score": pct_evidence_score,
+            "evidence_match_method": pct_evidence_method,
         }
     elif amount_violation_computed or amount_pending_value:
         path = "amount"
@@ -837,15 +995,20 @@ def main() -> int:
             )
         finding_props_extra = {
             "extraction_path":      "amount",
-            "amount_cr":            amount_cr,
-            "evidence":             amount_evidence,
-            "qdrant_similarity":    round(amount_similarity, 4),
-            "rerank_chosen_index":  amount_chosen,
-            "rerank_reasoning":     amount_reason,
-            "contract_value_cr":    contract_value_cr,
+            "amount_cr":             amount_cr,
+            "evidence":              amount_evidence,
+            "qdrant_similarity":     round(amount_similarity, 4),
+            "rerank_chosen_index":   amount_chosen,
+            "rerank_reasoning":      amount_reason,
+            "contract_value_cr":     contract_value_cr,
             "contract_value_source": contract_value_source,
-            "implied_percentage":   implied_pct,
-            "needs_contract_value": amount_pending_value,
+            "implied_percentage":    implied_pct,
+            "needs_contract_value":  amount_pending_value,
+            # Hallucination guard audit (L24)
+            "evidence_in_source":    amt_evidence_in_source,
+            "evidence_verified":     amt_evidence_in_source,
+            "evidence_match_score":  amt_evidence_score,
+            "evidence_match_method": amt_evidence_method,
         }
     else:
         path = None
