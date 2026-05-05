@@ -185,9 +185,24 @@ def parse_llm_json(raw: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Replace every invalid `\X` with `\\X`. This preserves the
-        # literal character. The fix targets the failure mode where
-        # the LLM faithfully reproduces source markdown escapes
-        # per the L35 strict-quote rule.
-        sanitized = _JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)
-        return json.loads(sanitized)
+        pass
+
+    # Two failure modes to repair before re-parsing:
+    #   (a) Invalid `\X` escapes leaked from L35 strict-quote markdown
+    #       reproduction (`\(`, `\)`, `\.`, `\-`).
+    #   (b) Literal control characters (TAB, LF, CR) inside string
+    #       values. These appear when the LLM faithfully copies
+    #       markdown table cells (which are TAB-delimited in our
+    #       processed_md output) into the evidence quote per L35.
+    sanitized = _JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)
+    try:
+        # strict=False relaxes the JSON spec to allow control chars
+        # (chr(0x00)-chr(0x1F)) inside string values. The parsed
+        # Python str preserves the literal control character — when
+        # round-tripped through L24's normaliser, it matches the
+        # source byte-for-byte.
+        return json.loads(sanitized, strict=False)
+    except json.JSONDecodeError:
+        # Final fallback: also try without the escape-sanitisation
+        # (in case strict=False is enough on its own).
+        return json.loads(text, strict=False)

@@ -306,6 +306,32 @@ JP_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Turnover-Threshold-Excess — PQ turnover requirements live in
+# Volume-I tendering machinery (NIT / ITB / Datasheet) for SBD-style
+# docs and in RFP Volume-I Clause 4.2(b) (ITB-shaped) for NREDCAP PPP
+# DCAs. Two PQ shapes coexist in the AP corpus:
+#   1. Bid-Capacity formula (3AN-B / 2AN-B) — Vizag, JA, HC, Kakinada.
+#      No fixed INR threshold to test against the ≤2× cap.
+#   2. Fixed INR turnover floor — Tirupathi, Vijayawada (PPP DCAs).
+#      Avg 3-yr turnover ≥ INR X cr. This is the typology-firing shape.
+#
+# Corpus discovery (typology-12 read-first): in HC, Tirupathi and
+# Vijayawada the PQ Financial section is classified as
+# `section_type='Evaluation'` (heading "Technical Requirements" /
+# "4.2 Financial Criteria"), NOT NIT or ITB. The first run with
+# `[NIT, ITB]`-only filters produced 3 false UNVERIFIED findings via
+# L36 grep fallback. Fix: include `Evaluation` for every family — the
+# PQ-Financial heading has no canonical Volume placement across the
+# AP corpus's mixed family shapes (APCRDA SBD, NREDCAP PPP RFP,
+# Kakinada SBD), so the filter has to be the union of the three.
+TURNOVER_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Evaluation"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Evaluation"],
+    "default":       ["NIT", "ITB", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -317,6 +343,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Blacklist-Not-Checked":       BLACKLIST_SECTION_ROUTER,
     "BG-Validity-Gap":             BG_VALIDITY_SECTION_ROUTER,
     "Judicial-Preview-Bypass":     JP_SECTION_ROUTER,
+    "Turnover-Threshold-Excess":   TURNOVER_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
