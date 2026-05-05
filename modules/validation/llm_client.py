@@ -14,14 +14,22 @@ etc.). Lifted out of the script-level duplicates in
     one-file edit
   - future async / batch / fallback-model support attaches here
 
-Public API — exactly one function:
+Public API:
 
     call_llm(system_prompt, user_prompt,
              *, model=None, max_tokens=1024) → str
+        Returns the assistant message content (string). Raises
+        `RuntimeError("OpenRouter empty choices (after retry)")` if
+        the upstream returns no choices on two consecutive attempts.
 
-Returns the assistant message content (string). Raises
-`RuntimeError("OpenRouter empty choices (after retry)")` if the
-upstream returns no choices on two consecutive attempts.
+    parse_llm_json(raw) → dict
+        Parse the LLM's JSON response, robust to common malformed-JSON
+        patterns surfaced by the L35 strict-quote prompt directive.
+        Strips ```json fences, extracts the {…} body if there's
+        leading/trailing prose, and falls back to escape-sanitisation
+        when `json.loads` rejects on invalid backslash sequences (e.g.
+        markdown's `\\.` or `\\(` that the LLM faithfully reproduces
+        from source per the L35 verbatim-quote rule).
 
 Module-level constants:
     MODEL    = LLM_MODEL env var (default: qwen/qwen-2.5-72b-instruct)
@@ -35,7 +43,9 @@ HTTP-Referer headers identify our app on the OpenRouter dashboard
 """
 from __future__ import annotations
 
+import json
 import os
+import re
 import time
 
 
@@ -123,3 +133,61 @@ def call_llm(
         if not resp.choices or len(resp.choices) == 0:
             raise RuntimeError("OpenRouter empty choices (after retry)")
     return resp.choices[0].message.content or ""
+
+
+# Valid JSON escape characters per RFC-8259: " \ / b f n r t u
+# Anything else after a backslash is a malformed escape that
+# `json.loads` rejects.
+_JSON_VALID_ESCAPE_RE = re.compile(r'\\(?!["\\/bfnrtu])')
+
+
+def parse_llm_json(raw: str) -> dict:
+    """Parse an LLM JSON response, robust to common malformed-JSON
+    patterns surfaced by the L35 strict-quote prompt directive.
+
+    Why this lives here and not in evidence_guard.py: every Tier-1
+    typology script that asks the LLM for structured output hits
+    this same parsing problem. AP source markdown often contains
+    `\\.` (escaped period in markdown), `\\(` and `\\)` (escaped
+    parentheses), and similar — valid markdown but invalid JSON
+    escape sequences. When the L35 prompt directive instructs the
+    LLM to "preserve markdown formatting verbatim", those escapes
+    leak into its output and break `json.loads`.
+
+    Sequence:
+      1. Strip ```json / ``` fences if present.
+      2. Extract the {…} body if there's leading/trailing prose.
+      3. Try `json.loads`; if it succeeds, return.
+      4. If it raises `JSONDecodeError`, re-write any backslash NOT
+         followed by a valid JSON escape character with a doubled
+         backslash. The original character is preserved as a
+         literal — when the resulting Python string round-trips
+         through L24's normaliser, the literal backslash + the
+         following character matches the source text byte-for-byte.
+
+    Returns the parsed dict (caller is responsible for the schema
+    expected — this helper is shape-agnostic).
+
+    Raises `json.JSONDecodeError` if the response is malformed
+    beyond the escape-sanitiser's reach (e.g. unbalanced braces,
+    missing quotes around keys). Callers that want a softer failure
+    can catch that and treat as "LLM produced unparseable output —
+    no extraction" — equivalent to the L35 UNVERIFIED branch.
+    """
+    text = raw.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```\s*$", "", text)
+    if not text.startswith("{"):
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            text = m.group(0)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Replace every invalid `\X` with `\\X`. This preserves the
+        # literal character. The fix targets the failure mode where
+        # the LLM faithfully reproduces source markdown escapes
+        # per the L35 strict-quote rule.
+        sanitized = _JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)
+        return json.loads(sanitized)

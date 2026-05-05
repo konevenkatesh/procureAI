@@ -69,7 +69,7 @@ from modules.validator.condition_evaluator import evaluate as evaluate_when, Ver
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
-from modules.validation.llm_client       import call_llm
+from modules.validation.llm_client       import call_llm, parse_llm_json
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -407,37 +407,11 @@ def build_eproc_rerank_prompt(candidates: list[dict]) -> str:
 
 
 def parse_llm_response(raw: str) -> dict:
-    """Parse the LLM's JSON response, robust to common malformed-JSON
-    patterns when the LLM faithfully reproduces source markdown
-    formatting (per the L35 strict-quote prompt directive).
-
-    Specifically: AP source markdown often contains `\\.` (a markdown-
-    escaped period), which is valid markdown but invalid JSON
-    (`\\.` is not a recognised JSON escape sequence — JSON only
-    accepts `\\\\`, `\\/`, `\\b`, `\\f`, `\\n`, `\\r`, `\\t`, `\\"`,
-    `\\uXXXX`). When the LLM quotes the source verbatim per the
-    L35 prompt, those escapes leak into its output and break
-    `json.loads`. We rewrite invalid `\\X` sequences to `\\\\X`
-    BEFORE parsing so the original character is preserved as a
-    literal backslash + X. Same rationale for the other
-    occasionally-leaked markdown escapes.
-    """
-    text = raw.strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```\s*$", "", text)
-    if not text.startswith("{"):
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            text = m.group(0)
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        # Replace any backslash NOT followed by a valid JSON escape
-        # character with a doubled backslash. Valid escapes per
-        # RFC-8259: \" \\ \/ \b \f \n \r \t \uXXXX.
-        sanitized = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', text)
-        return json.loads(sanitized)
+    """Thin wrapper kept for in-script readability — the actual
+    parsing logic now lives in modules.validation.llm_client per
+    L35 (lifted so every typology script benefits from the
+    JSON-escape sanitiser without copy-paste)."""
+    return parse_llm_json(raw)
 
 
 # ── Rule selection via condition_evaluator ────────────────────────────

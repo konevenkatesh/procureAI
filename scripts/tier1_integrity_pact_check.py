@@ -68,7 +68,7 @@ from modules.validator.condition_evaluator import evaluate as evaluate_when, Ver
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
-from modules.validation.llm_client       import call_llm
+from modules.validation.llm_client       import call_llm, parse_llm_json
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -389,19 +389,24 @@ def build_ip_rerank_prompt(candidates: list[dict]) -> str:
         "- Evidence MUST be an exact substring of the chosen candidate's text.\n"
         "- If neither instrument is in any candidate, set chosen_index=null, "
         "  integrity_pact_present=false, adb_framework_detected=false, "
-        "  cvc_ip_detected=false, pact_type='none', found=false."
+        "  cvc_ip_detected=false, pact_type='none', found=false.\n"
+        "\n"
+        "QUOTE FORMAT — STRICT (per L35):\n"
+        "- Return a SINGLE CONTIGUOUS quote from ONE sentence or ONE clause only.\n"
+        "- Do NOT stitch multiple paragraphs into one quote.\n"
+        "- Do NOT add ellipsis ('...') between lines.\n"
+        "- Do NOT paraphrase, summarise, or condense — quote EXACTLY as it appears in the supplied text.\n"
+        "- Do NOT introduce or remove markdown formatting (asterisks, underscores, italics) — preserve the source formatting verbatim.\n"
+        "- Pick the SHORTEST contiguous span that proves the instrument is present; one sentence is usually enough."
     )
 
 
 def parse_llm_response(raw: str) -> dict:
-    text = raw.strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```\s*$", "", text)
-    if not text.startswith("{"):
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            text = m.group(0)
-    return json.loads(text)
+    """Thin wrapper kept for in-script readability — actual parsing
+    logic lives in modules.validation.llm_client.parse_llm_json
+    (lifted per L35 so every typology script benefits from the
+    JSON-escape sanitiser without copy-paste)."""
+    return parse_llm_json(raw)
 
 
 # ── Rule selection via condition_evaluator ────────────────────────────
@@ -667,7 +672,17 @@ def main() -> int:
     ev_score = 0
     ev_method = "skipped"
 
-    if chosen is not None and isinstance(chosen, int) and 0 <= chosen < len(candidates):
+    # L35 three-state contract: track LLM's pre-verification verdict
+    # separately from post-verification. For IP the "found something"
+    # signal is broader than just CVC IP — it includes the multilateral
+    # ADB/WB framework (which the existing logic treats as a CVC-IP-
+    # absent violation WITH verified ADB-quote attribution).
+    llm_found_something = (
+        (chosen is not None) and (cvc_detected or adb_detected)
+    )
+    llm_chose_candidate = chosen is not None and isinstance(chosen, int) and 0 <= chosen < len(candidates)
+
+    if llm_chose_candidate:
         section = candidates[chosen]
         similarity = section["similarity"]
         print(f"  → using candidate [{chosen}]: {section['heading'][:60]} "
@@ -678,47 +693,47 @@ def main() -> int:
             )
             print(f"  evidence_verified : {ev_passed}  (score={ev_score}, method={ev_method})")
             if not ev_passed:
-                print(f"  HALLUCINATION_DETECTED — discarding extraction.")
+                print(f"  L24_FAILED — LLM found instrument but quote is unverifiable. "
+                      f"Routing to UNVERIFIED finding (NOT absence).")
                 print(f"    LLM evidence  : {evidence[:200]!r}")
-                # Hallucinated quote — cannot trust either detection bool.
-                # Discard: treat as absence, drop both flags.
-                section = None
-                ip_present = False
-                cvc_detected = False
-                adb_detected = False
-                pact_type = "none"
         else:
-            print(f"  ⚠ no evidence quote provided — treating as not-verified")
+            print(f"  ⚠ no evidence quote provided — treating as L24-failed (empty)")
             ev_passed = False; ev_score = 0; ev_method = "empty"
-            section = None
-            # Empty quote is the same failure mode as hallucination —
-            # we can't audit what we can't see. Drop both detection
-            # bools so the finding doesn't claim ADB-detected on
-            # unverifiable text.
+    else:
+        print(f"  → no candidate chosen by LLM")
+        if ip_present or adb_detected or cvc_detected:
+            print(f"  ⚠ LLM flags set but chosen_index=null — treating as nothing found")
             ip_present = False
             cvc_detected = False
             adb_detected = False
             pact_type = "none"
-    else:
-        print(f"  → no candidate chosen by LLM")
-        if ip_present:
-            print(f"  ⚠ ip_present=True but chosen_index=null — treating as False")
-            ip_present = False
-            cvc_detected = False
+            llm_found_something = False
 
-    # 8. Apply rule check (presence shape).
-    # CVC IP is the only thing that satisfies Indian law. ADB / WB
-    # multilateral frameworks DO NOT substitute. ip_present is already
-    # locked to cvc_ip_detected above.
-    is_violation = (rule["shape"] == "presence" and not ip_present)
-    if ip_present:
+    # 8. Three-way decision branch (per L35):
+    #    (a) llm_found_something AND ev_passed AND cvc_detected
+    #         → COMPLIANT, no finding
+    #    (b) llm_found_something AND ev_passed AND adb_only
+    #         → ABSENCE-MULTILATERAL (CVC IP missing, ADB framework
+    #           verified — finding with explanatory note + edge)
+    #    (c) llm_found_something AND NOT ev_passed
+    #         → UNVERIFIED (LLM thought instrument was present but
+    #           quote unverifiable — finding NO edge, human review)
+    #    (d) NOT llm_found_something
+    #         → ABSENCE-PURE (nothing found — finding + edge with
+    #           L29 absence_finding_no_evidence marker)
+    is_compliant   = llm_found_something and ev_passed and cvc_detected
+    is_unverified  = llm_found_something and not ev_passed
+    is_absence_pure         = not llm_found_something
+    is_absence_multilateral = (llm_found_something and ev_passed
+                               and adb_detected and not cvc_detected)
+
+    if is_compliant:
         reason_label = "compliant_integrity_pact_present"
         finding_note = None
-    elif adb_detected:
-        # Multilateral framework was found but CVC IP was not. The
-        # CVC-IP-missing violation still stands; the audit note
-        # captures what WAS found so the reviewer doesn't waste time
-        # re-searching for the lender framework.
+    elif is_unverified:
+        reason_label = "integrity_pact_unverified_llm_found_quote_failed_l24"
+        finding_note = None
+    elif is_absence_multilateral:
         reason_label = "integrity_pact_absent_violation_multilateral_only"
         finding_note = (
             "Multilateral lender anticorruption framework detected "
@@ -726,25 +741,34 @@ def main() -> int:
             "the CVC Pre-bid Integrity Pact requirement under Indian "
             "procurement law (CVC-086, MPS-022). CVC IP still missing."
         )
-    else:
+    else:  # is_absence_pure
         reason_label = "integrity_pact_absent_violation"
         finding_note = None
 
     print(f"\n── Decision ──")
-    print(f"  rule           : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
-    print(f"  ip_present     : {ip_present}")
-    print(f"  pact_type      : {pact_type!r}")
-    print(f"  reason_label   : {reason_label}")
-    print(f"  is_violation   : {is_violation}")
+    print(f"  rule              : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
+    print(f"  llm_found_something: {llm_found_something}  (cvc={cvc_detected}, adb={adb_detected})")
+    print(f"  ev_passed         : {ev_passed}  (score={ev_score}, method={ev_method})")
+    print(f"  is_compliant            : {is_compliant}")
+    print(f"  is_unverified           : {is_unverified}")
+    print(f"  is_absence_pure         : {is_absence_pure}")
+    print(f"  is_absence_multilateral : {is_absence_multilateral}")
+    print(f"  reason_label      : {reason_label}")
     if finding_note:
-        print(f"  note           : {finding_note}")
+        print(f"  note              : {finding_note}")
 
-    if not is_violation:
+    if is_compliant:
         return 0
 
-    # 9. Materialise finding + edge
+    # 9. Materialise finding (UNVERIFIED, ABSENCE-PURE, or
+    # ABSENCE-MULTILATERAL). The VIOLATES_RULE edge is emitted for
+    # ABSENCE-PURE and ABSENCE-MULTILATERAL but NOT for UNVERIFIED
+    # (per L35 — UNVERIFIED is not a violation until human reviewer
+    # confirms).
     t0 = time.perf_counter()
-    if section is not None:
+    if section is not None and (is_unverified or is_absence_multilateral):
+        # Section attribution preserved on UNVERIFIED (LLM identified
+        # WHERE) and on ABSENCE-MULTILATERAL (verified ADB quote).
         section_node_id = section["section_node_id"]
         section_heading = section["heading"]
         source_file     = section["source_file"]
@@ -764,39 +788,38 @@ def main() -> int:
         line_end_local   = None
         qdrant_similarity = None
 
-    # L29: ABSENCE findings skip evidence_guard semantics.
-    # Two distinct absence shapes here:
-    #   (a) Pure absence — neither CVC IP nor multilateral framework
-    #       detected. section is None. Evidence is the search-trace
-    #       description; ev_* are nulled.
-    #   (b) Multilateral-only — ADB/WB framework detected (so we have
-    #       a verified quote and a non-null section) but CVC IP is
-    #       missing. NOT an absence finding for L29 purposes — the
-    #       quote IS in the document. The L24 evidence_guard already
-    #       ran and verified the multilateral-framework quote; we
-    #       keep those audit fields. The CVC-IP-missing violation
-    #       carries the verified ADB quote and the explanatory note.
-    is_absence_finding = (not ip_present and section is None)
-    if is_absence_finding:
+    if is_absence_pure:
         ev_passed = None
         ev_score  = None
         ev_method = "absence_finding_no_evidence"
-        evidence  = ("Integrity Pact not found in document "
-                     "after searching NIT, Forms section types")
-        print(f"  → ABSENCE finding — skipping evidence_guard "
+        evidence  = (f"Integrity Pact not found in document "
+                     f"after searching {', '.join(section_types)} section types")
+        print(f"  → ABSENCE-PURE finding — skipping evidence_guard "
               f"(no quote to verify)")
+    elif is_unverified:
+        print(f"  → UNVERIFIED finding — LLM identified instrument but quote "
+              f"failed L24 verification (score={ev_score}, method={ev_method})")
+    # is_absence_multilateral keeps the verified ADB-quote ev_* values
+    # as-is (L24 ran and passed against the ADB framework).
 
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
-    label_suffix = (
-        " (multilateral framework detected, CVC IP missing)"
-        if adb_detected and not ip_present else ""
-    )
-    label = (
-        f"{TYPOLOGY}: Integrity Pact absent — {rule['rule_id']} "
-        f"({rule['severity']}) requires Pre-bid Integrity Pact for this "
-        f"tender{label_suffix}"
-    )
+    if is_unverified:
+        label = (
+            f"{TYPOLOGY}: UNVERIFIED — LLM found IP/multilateral instrument "
+            f"but quote failed L24 (score={ev_score}, method={ev_method}); "
+            f"requires human review against {(section['heading'][:60] if section else 'TenderDocument')!r}"
+        )
+    else:
+        label_suffix = (
+            " (multilateral framework detected, CVC IP missing)"
+            if is_absence_multilateral else ""
+        )
+        label = (
+            f"{TYPOLOGY}: Integrity Pact absent — {rule['rule_id']} "
+            f"({rule['severity']}) requires Pre-bid Integrity Pact for this "
+            f"tender{label_suffix}"
+        )
 
     finding_props = {
         "rule_id":            rule["rule_id"],
@@ -804,7 +827,8 @@ def main() -> int:
         "severity":           rule["severity"],
         "evidence":           evidence,
         "extraction_path":    "presence",
-        "integrity_pact_present": ip_present,
+        "llm_found_clause":   llm_found_something,
+        "integrity_pact_present": cvc_detected,    # mirrors LLM verdict (pre-L24)
         "cvc_ip_detected":        cvc_detected,
         "adb_framework_detected": adb_detected,
         "pact_type":              pact_type,
@@ -838,7 +862,17 @@ def main() -> int:
         # L27 audit — record the UNKNOWN→ADVISORY downgrade origin
         "verdict_origin":              rule.get("verdict_origin"),
         "severity_origin":             rule.get("severity_origin"),
-        "status":              "OPEN",
+        # L35 status / human-review markers
+        "status":                     "UNVERIFIED" if is_unverified else "OPEN",
+        "requires_human_review":      bool(is_unverified),
+        "human_review_reason": (
+            "LLM found Integrity Pact / multilateral instrument but evidence "
+            f"quote failed L24 verification (score={ev_score}, method={ev_method}). "
+            f"Reviewer should open the section above (line_start={line_start_local}, "
+            f"line_end={line_end_local}) and confirm the CVC IP is "
+            f"present in the source text."
+            if is_unverified else None
+        ),
         "defeated":            False,
     }
 
@@ -850,7 +884,12 @@ def main() -> int:
         "source_ref": f"tier1:integrity_pact_check:{rule['rule_id']}",
     }])[0]
 
-    edge = rest_post("kg_edges", [{
+    # VIOLATES_RULE edge ONLY for ABSENCE findings (pure or multilateral).
+    # UNVERIFIED findings are NOT violations until human reviewer
+    # confirms (per L35 contract).
+    edge = None
+    if not is_unverified:
+        edge = rest_post("kg_edges", [{
         "doc_id":       DOC_ID,
         "from_node_id": section_node_id,
         "to_node_id":   rule_node_id,
@@ -863,7 +902,7 @@ def main() -> int:
             "defeated":             False,
             "tier":                 1,
             "extraction_path":      "presence",
-            "integrity_pact_present": ip_present,
+            "integrity_pact_present": cvc_detected,
             "cvc_ip_detected":        cvc_detected,
             "adb_framework_detected": adb_detected,
             "pact_type":              pact_type,
@@ -877,9 +916,14 @@ def main() -> int:
         },
     }])[0]
     timings["materialise"] = time.perf_counter() - t0
-    print(f"  → ValidationFinding {finding['node_id']}")
-    print(f"  → VIOLATES_RULE     {edge['edge_id']}  "
-          f"{'Section' if section else 'TenderDocument'}→Rule")
+    print(f"  → ValidationFinding {finding['node_id']}  "
+          f"(status={'UNVERIFIED' if is_unverified else 'OPEN'})")
+    if edge is not None:
+        print(f"  → VIOLATES_RULE     {edge['edge_id']}  "
+              f"{'Section' if section else 'TenderDocument'}→Rule")
+    else:
+        print(f"  → no VIOLATES_RULE edge "
+              f"(UNVERIFIED finding — awaiting human review)")
 
     # Summary
     timings["total_wall"] = time.perf_counter() - t_start
