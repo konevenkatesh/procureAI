@@ -86,6 +86,34 @@ COLLECTION  = "tender_sections"
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen/qwen-2.5-72b-instruct")
 
 
+# L36 source-grep fallback vocabulary. When the LLM rerank returns
+# `chosen_index=null` (absence), we cross-check the doc's full
+# section_filter coverage (NOT just the retrieved top-10) for any
+# of these keywords before declaring genuine absence. If any keyword
+# matches, the absence is downgraded to UNVERIFIED — likely a
+# retrieval-coverage gap (the section that holds the clause didn't
+# rank in top-K), not a real bypass.
+#
+# This prevents the Vizag false-positive pattern (see L36): Vizag
+# carried explicit bidder self-declaration at line 1567 ("Bid-
+# Securing Declaration: We have not been suspended nor declared
+# ineligible by the Authority...") but the BSD section didn't make
+# the top-10 by cosine similarity, so the LLM saw none of it.
+GREP_FALLBACK_KEYWORDS = [
+    "blacklist",
+    "debar",        # matches "debar", "debarred", "debarment"
+    "ineligible",
+    "suspended",
+    "transgression",
+    "WB sanctions",
+    "ADB sanctions",
+    "World Bank",   # narrower-but-cleaner — paired with sanction context in source
+    "sanctions policies",
+    "Bid-Securing Declaration",
+    "previous transgressions",
+]
+
+
 # Answer-shaped query — mirrors the literal wording of MPS-021,
 # GFR Rule 151, CLAUSE-BLACKLIST-DISCLOSURE-FORM-001, and the
 # WB/ADB debarment cross-check anchor.
@@ -504,6 +532,89 @@ def select_blacklist_rule(tender_facts: dict) -> dict | None:
 
 # ── Idempotent re-run cleanup ─────────────────────────────────────────
 
+def grep_source_for_keywords(doc_id: str, section_types: list[str],
+                              keywords: list[str]) -> tuple[bool, list[dict]]:
+    """L36 source-grep fallback. Pulls EVERY Section node for the doc
+    whose section_type is in `section_types`, slices each section's
+    full_text from disk via the same `_slice_source_file` helper used
+    by `resolve_section`, and case-insensitively searches each section
+    for any of `keywords`. Returns:
+
+        (any_hit: bool, hits: list[{section_node_id, heading,
+                                     source_file, line_start_local,
+                                     line_end_local, keyword_matches:
+                                     list[str], snippet: str}])
+
+    `any_hit` is True iff at least one section contained at least one
+    keyword. `hits` is the per-section evidence (truncated snippet
+    around the first match) so the human reviewer can see exactly
+    where the retrieval missed.
+
+    Why this isn't redundant with the BGE-M3 + Qdrant top-K retrieval:
+    BGE-M3 ranks sections by semantic similarity and we cap at top-10.
+    On long-tail docs with many ITB/Forms sections, a clause that
+    contains the exact keyword but is short or buried in a larger
+    section may rank below top-K. This grep is exhaustive across the
+    section_filter — slower but complete. Only invoked on the absence
+    path (already a rare outcome), so the cost is bounded.
+
+    The keyword list is intentionally narrow and SOURCE-AGNOSTIC: it
+    matches verbatim text that ANY blacklist-check clause must contain,
+    not LLM-style paraphrases. False-positive risk is minimal because
+    the typology check is already running — finding "ineligible" in
+    a doc that purports to be a procurement document is strong signal
+    that some form of eligibility/debarment language exists.
+    """
+    sections = rest_get("kg_nodes", {
+        "select":    "node_id,properties",
+        "doc_id":    f"eq.{doc_id}",
+        "node_type": "eq.Section",
+    })
+    # Filter to the typology's section_filter
+    filtered = [
+        s for s in sections
+        if (s.get("properties") or {}).get("section_type") in section_types
+    ]
+
+    hits: list[dict] = []
+    keyword_lc = [kw.lower() for kw in keywords]
+
+    for s in filtered:
+        p = s.get("properties") or {}
+        source_file = p.get("source_file")
+        ls          = p.get("line_start_local") or p.get("line_start")
+        le          = p.get("line_end_local")   or p.get("line_end")
+        if not (source_file and ls and le):
+            continue
+        try:
+            full_text = _slice_source_file(source_file, ls, le)
+        except FileNotFoundError:
+            continue
+        text_lc = full_text.lower()
+        matched_kws = [keywords[i] for i, kw_lc in enumerate(keyword_lc)
+                        if kw_lc in text_lc]
+        if not matched_kws:
+            continue
+        # Snippet around the first matched keyword for the audit log
+        first_kw_lc = matched_kws[0].lower()
+        idx = text_lc.find(first_kw_lc)
+        snippet_start = max(0, idx - 80)
+        snippet_end   = min(len(full_text), idx + 160)
+        snippet = full_text[snippet_start:snippet_end].replace("\n", " ").strip()
+        hits.append({
+            "section_node_id":   s["node_id"],
+            "heading":           p.get("heading"),
+            "source_file":       source_file,
+            "line_start_local":  ls,
+            "line_end_local":    le,
+            "section_type":      p.get("section_type"),
+            "keyword_matches":   matched_kws,
+            "snippet":           snippet,
+        })
+
+    return (len(hits) > 0, hits)
+
+
 def _delete_prior_tier1_blacklist(doc_id: str) -> tuple[int, int]:
     edges = rest_get("kg_edges", {
         "select": "edge_id",
@@ -688,13 +799,45 @@ def main() -> int:
             bl_required = False
             llm_found_clause = False
 
-    # 8. Three-way decision (per L35)
-    is_compliant  = llm_found_clause and ev_passed
-    is_unverified = llm_found_clause and not ev_passed
-    is_absence    = not llm_found_clause
+    # 8. Three-way decision (per L35) + L36 source-grep fallback.
+    # When the LLM rerank returns chosen_index=null (absence), do an
+    # exhaustive grep of the full section_filter coverage (NOT just
+    # the retrieved top-10) for any of the GREP_FALLBACK_KEYWORDS.
+    # If any match → downgrade ABSENCE to UNVERIFIED (likely
+    # retrieval-coverage gap, not real bypass). This prevents the
+    # Vizag false-positive pattern from L36.
+    is_compliant   = llm_found_clause and ev_passed
+    is_unverified  = llm_found_clause and not ev_passed
+    raw_is_absence = not llm_found_clause
+
+    grep_hits: list[dict] = []
+    grep_promoted_to_unverified = False
+    if raw_is_absence:
+        print(f"\n── L36 source-grep fallback (absence path) ──")
+        any_hit, grep_hits = grep_source_for_keywords(
+            DOC_ID, section_types, GREP_FALLBACK_KEYWORDS,
+        )
+        print(f"  scanned section_types : {section_types}")
+        print(f"  keywords              : {GREP_FALLBACK_KEYWORDS}")
+        print(f"  any_hit               : {any_hit}  ({len(grep_hits)} section(s) match)")
+        if any_hit:
+            for h in grep_hits[:3]:
+                print(f"    [{h['section_type']}] {h['heading'][:50]!r:55s} "
+                      f"lines={h['line_start_local']}-{h['line_end_local']}  "
+                      f"matched={h['keyword_matches']}")
+                print(f"      snippet: ...{h['snippet'][:140]}...")
+            if len(grep_hits) > 3:
+                print(f"    ... and {len(grep_hits) - 3} more")
+            grep_promoted_to_unverified = True
+            print(f"  → ABSENCE downgraded to UNVERIFIED — retrieval-coverage gap")
+
+    is_absence = raw_is_absence and not grep_promoted_to_unverified
+    is_unverified = is_unverified or grep_promoted_to_unverified
 
     if is_compliant:
         reason_label = "compliant_blacklist_check_present"
+    elif grep_promoted_to_unverified:
+        reason_label = "blacklist_check_unverified_grep_fallback_retrieval_gap"
     elif is_unverified:
         reason_label = "blacklist_check_unverified_llm_found_quote_failed_l24"
     else:
@@ -704,6 +847,8 @@ def main() -> int:
     print(f"  rule              : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
     print(f"  llm_found_clause  : {llm_found_clause}")
     print(f"  ev_passed         : {ev_passed}  (score={ev_score}, method={ev_method})")
+    print(f"  raw_is_absence    : {raw_is_absence}")
+    print(f"  grep_fallback_hit : {grep_promoted_to_unverified}")
     print(f"  is_compliant      : {is_compliant}")
     print(f"  is_unverified     : {is_unverified}")
     print(f"  is_absence        : {is_absence}")
@@ -739,16 +884,41 @@ def main() -> int:
         ev_score  = None
         ev_method = "absence_finding_no_evidence"
         evidence  = (f"Blacklist-check requirement not found in document "
-                     f"after searching {', '.join(section_types)} section types")
-        print(f"  → ABSENCE finding — skipping evidence_guard "
-              f"(no quote to verify)")
+                     f"after searching {', '.join(section_types)} section types "
+                     f"(also exhaustive grep across all matching sections — no "
+                     f"keyword hits)")
+        print(f"  → ABSENCE finding — LLM rerank empty AND grep fallback "
+              f"empty; genuine absence")
+    elif grep_promoted_to_unverified:
+        # L36 retrieval-coverage gap. The LLM rerank's top-10 didn't
+        # contain the clause, but exhaustive grep across the full
+        # section_filter found keyword matches. Promote to UNVERIFIED
+        # so a human reviewer can confirm. The grep_hits payload
+        # captures exactly which sections were missed by retrieval.
+        ev_passed = None
+        ev_score  = None
+        ev_method = "grep_fallback_retrieval_gap"
+        evidence  = (f"LLM rerank top-{K} returned no blacklist-check candidate, "
+                     f"but exhaustive grep across {', '.join(section_types)} found "
+                     f"keyword hits in {len(grep_hits)} section(s) — likely a "
+                     f"retrieval coverage gap (relevant section(s) didn't rank in "
+                     f"top-{K} by cosine similarity). First match: "
+                     f"{grep_hits[0]['snippet'][:160] if grep_hits else 'n/a'}")
+        print(f"  → UNVERIFIED finding (grep fallback) — retrieval missed "
+              f"{len(grep_hits)} section(s) carrying blacklist keywords")
     elif is_unverified:
         print(f"  → UNVERIFIED finding — LLM identified clause but quote "
               f"failed L24 verification (score={ev_score}, method={ev_method})")
 
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
-    if is_unverified:
+    if grep_promoted_to_unverified:
+        label = (
+            f"{TYPOLOGY}: UNVERIFIED (L36 grep-fallback) — LLM rerank "
+            f"missed the clause; exhaustive grep found {len(grep_hits)} "
+            f"section(s) with keyword hits; requires human review"
+        )
+    elif is_unverified:
         label = (
             f"{TYPOLOGY}: UNVERIFIED — LLM found blacklist-check requirement "
             f"but quote failed L24 (score={ev_score}, method={ev_method}); "
@@ -760,6 +930,30 @@ def main() -> int:
             f"({rule['severity']}) requires bidder declaration / buyer "
             f"verification of past debarments for this tender"
         )
+
+    # L36 grep-fallback audit: when the fallback fired, capture the
+    # missed sections + matching keywords so the reviewer can see
+    # exactly where retrieval failed.
+    grep_audit = None
+    if grep_promoted_to_unverified:
+        grep_audit = {
+            "scanned_section_types":  section_types,
+            "keywords":               GREP_FALLBACK_KEYWORDS,
+            "hits_count":             len(grep_hits),
+            "hits": [
+                # Cap to 10 hits to keep the JSONB row manageable;
+                # the full list is recoverable by re-running grep.
+                {"section_node_id":  h["section_node_id"],
+                 "heading":          h["heading"],
+                 "section_type":     h["section_type"],
+                 "source_file":      h["source_file"],
+                 "line_start_local": h["line_start_local"],
+                 "line_end_local":   h["line_end_local"],
+                 "keyword_matches":  h["keyword_matches"],
+                 "snippet":          h["snippet"][:300]}
+                for h in grep_hits[:10]
+            ],
+        }
 
     finding_props = {
         "rule_id":               rule["rule_id"],
@@ -778,7 +972,7 @@ def main() -> int:
         "extracted_by":          "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
         "retrieval_strategy": (
             f"qdrant_top{K}_router_{family}_section_filter_"
-            f"{'-'.join(section_types)}_llm_rerank"
+            f"{'-'.join(section_types)}_llm_rerank+grep_fallback"
         ),
         "doc_family":            family,
         "section_filter":        section_types,
@@ -804,6 +998,13 @@ def main() -> int:
         "status":                     "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":      bool(is_unverified),
         "human_review_reason": (
+            f"L36 grep fallback fired: LLM rerank top-{K} did not surface a "
+            f"blacklist-check clause, but exhaustive grep across "
+            f"{section_types} found keyword hits in {len(grep_hits)} section(s). "
+            f"Reviewer should confirm whether the doc actually carries the "
+            f"requirement (open the listed sections in grep_audit.hits) or "
+            f"whether the keyword matches are incidental."
+            if grep_promoted_to_unverified else
             "LLM found blacklist-check requirement but evidence quote "
             f"failed L24 verification (score={ev_score}, method={ev_method}). "
             f"Reviewer should open the section above (line_start={line_start_local}, "
@@ -811,6 +1012,8 @@ def main() -> int:
             f"or buyer-verification clause is present in the source text."
             if is_unverified else None
         ),
+        # L36 grep-fallback audit (null on COMPLIANT / UNVERIFIED-via-L24 / pure ABSENCE)
+        "grep_fallback_audit":         grep_audit,
         "defeated":            False,
     }
 
