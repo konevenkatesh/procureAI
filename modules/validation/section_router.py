@@ -188,13 +188,41 @@ MA_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# E-Procurement-Bypass — mandate clauses live in NIT (AP-GO-012
+# stores/works mandate, EPROC-PROCESS-001) and ITB (DSC requirement,
+# AP RFP single-stage e-procurement, AP two-cover residual).
+#
+# CLAUSE-AP-EPROCUREMENT-WORKS-1LAKH-001 (NIT) is the primary anchor
+# for AP corpus docs; CLAUSE-EPROC-PROCESS-001 (NIT) carries the DSC
+# language; CLAUSE-AP-RFP-DIGITAL-SIGNATURE-001 (ITB) carries the
+# e-portal upload requirements; CLAUSE-AP-RFP-SINGLE-STAGE-TWO-SUBSTAGE
+# -001 (ITB) explicitly says "Bid Process shall be conducted by way
+# of E-PROCUREMENT".
+#
+# CLAUSE-AP-TWO-COVER-SYSTEM-001 (ITB) is residual two-cover language
+# that lives alongside e-procurement on AP docs — NOT a bypass signal
+# by itself; the LLM prompt distinguishes "doc mandates e-procurement"
+# from "doc has legacy two-cover language alongside e-procurement".
+#
+# SBD_Format includes Evaluation because Kakinada has zero NIT-typed
+# body sections beyond the title (ITT body lives in Evaluation per
+# the L28 SBD pattern).
+EPROC_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation"],
+    "NREDCAP_PPP":   ["NIT", "ITB"],
+    "default":       ["NIT", "ITB"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
-    "EMD-Shortfall":              EMD_SECTION_ROUTER,
-    "Bid-Validity-Short":         BID_VALIDITY_SECTION_ROUTER,
-    "Missing-PVC-Clause":         PVC_SECTION_ROUTER,
-    "Missing-Integrity-Pact":     IP_SECTION_ROUTER,
-    "Missing-LD-Clause":          LD_SECTION_ROUTER,
+    "EMD-Shortfall":               EMD_SECTION_ROUTER,
+    "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
+    "Missing-PVC-Clause":          PVC_SECTION_ROUTER,
+    "Missing-Integrity-Pact":      IP_SECTION_ROUTER,
+    "Missing-LD-Clause":           LD_SECTION_ROUTER,
     "Mobilisation-Advance-Excess": MA_SECTION_ROUTER,
+    "E-Procurement-Bypass":        EPROC_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

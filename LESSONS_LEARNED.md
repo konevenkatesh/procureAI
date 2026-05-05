@@ -523,6 +523,39 @@ The Vizag 5%+5% split is a corpus observation worth flagging: a future typology 
 
 ---
 
+## L35 — E-Procurement-Bypass + L24 False-Positive From LLM Quote-Stitching
+
+**Date:** May 2026
+**What we did:** Built the eighth Tier-1 typology — E-Procurement-Bypass — verifying that procurements ≥ Rs.1 lakh (AP) / ≥ Rs.2 lakh (Central) carry an explicit mandate to submit bids via an e-procurement portal (apeprocurement.gov.in / GeM-CPPP / NIC GePNIC / equivalent). Same machinery as the presence-shape trilogy (PVC / IP / LD): BGE-M3 retrieval into [NIT, ITB] (or [NIT, ITB, Evaluation] for SBD format) → top-K → LLM rerank with structured extraction (`e_procurement_present`, `platform`, `digital_signature_required`, `offline_alternative_present`, `go_reference`) → L24 evidence guard → L29 absence-finding marker on chosen_index=null. AP-GO-012 is the canonical primary rule across the corpus (`TenderState=AP AND EstimatedValue>=100000`) — fires on all 6 docs since they're all multi-crore.
+**What happened:** The 6-doc run exposed a NEW class of L24 failure that the prior 7 typologies did not surface: **LLM evidence-stitching across non-contiguous source spans**. Three docs (vizag, tirupathi, vijayawada) had the LLM correctly identify e-procurement as MANDATED and quote real source text, but **the quote was not a single contiguous substring**. Direct source-grep verification confirms:
+
+| doc | LLM-quoted excerpt | Source location |
+|---|---|---|
+| vizag | `"Bidders 'shall' mandatorily submit all the copies of the Bid vide web portal..."` | Vol-I L987 (verbatim, but with markdown `__*"shall" mandatorily*__` + curly quotes that L24's normalizer doesn't fully canonicalise) |
+| tirupathi | `"Each Bidder is required to upload a soft copy/scanned copy ... The Bidder will not be required to submit a hard copy..."` | RFP L537 + L1362 — LLM literally inserted `"..."` in the quote, stitching two paragraphs |
+| vijayawada | same NREDCAP boilerplate as Tirupathi, same stitching pattern | identical structural failure |
+
+JA, HC, and Kakinada passed L24 cleanly (scores 87 / 98 / 100) because their e-procurement boilerplate sits as one contiguous block in the picked candidate. The 3 "violations" emitted are L24-strict outcomes — the script's contract treats `not ev_passed` as `eproc_present := False`, which materialises a finding. A more lenient interpretation would be: text exists in source per grep → no real bypass → no violation.
+
+**Why we kept the violations as-is rather than relaxing L24:** Two reasons.
+1. **The L24 contract is intentionally strict.** It exists because of L24-original (Vizag EMD hallucination on JA's text). Relaxing the contract globally would re-open that failure mode for every typology that's working today (PBG / EMD / Bid-Validity / PVC / IP / LD / MA all rely on strict substring/partial-ratio).
+2. **The LLM's stitched quote is not a "verbatim source quote".** A reviewer reading the finding sees `evidence_match_score=41, method=no_match` and the LLM's quote with `"..."` in the middle — that's a transparent audit trail. The finding's `severity=HARD_BLOCK` (or ADVISORY for Vizag per L27 EV-UNKNOWN downgrade) reflects what the L24 layer concluded, not what the underlying doc actually contains. A future cleanup pass can either (a) tighten the LLM prompt to require single-contiguous-span quotes (Option A), (b) widen verification to the full doc text (Option B — would catch section-mispicking but not stitching), or (c) add a multi-quote API where the LLM returns a list of evidence quotes and at least one must verify (Option C).
+
+**What we changed:**
+- `scripts/tier1_eproc_check.py` (new) — port of `tier1_ld_check.py` with e-procurement-specific prompt and ignore rules. The prompt explicitly instructs the LLM to ignore the legacy two-cover sealed bid system (which lives alongside e-procurement on AP docs and is NOT a bypass by itself), reverse auction parameters (a method on top of e-procurement, not the platform mandate), GeM cost-breakup forms, and PMC MoU framework agreements.
+- `modules/validation/section_router.py` — `EPROC_SECTION_ROUTER` added: `[NIT, ITB]` for APCRDA_Works / NREDCAP_PPP / default; `[NIT, ITB, Evaluation]` for SBD_Format because Kakinada has zero NIT-typed body sections beyond title (per L28 SBD pattern).
+- L24 audit fields persisted on every finding (`evidence_match_score`, `evidence_match_method`) so a reviewer can distinguish "real bypass" from "L24 false positive from stitching" — score < 85 + method=no_match is the signal.
+
+**Result:** 6-doc run produced 3 violations (vizag ADVISORY, tirupathi HARD_BLOCK, vijayawada HARD_BLOCK) and 3 compliant-confirmations (JA / HC / Kakinada). Per source-grep, all 6 docs DO mandate e-procurement; the 3 violations are L24-strict false positives flagged for a follow-on fix. Total corpus state: **20 ValidationFindings** across 8 typologies on 6 docs.
+
+**Forward applicability:** The L24 quote-stitching false-positive is a NEW failure mode worth structural fix in a follow-on commit. Two specific patterns surfaced:
+1. **Markdown-formatted source + curly-quote LLM output**: the L24 normalizer needs extending to handle `\.` escapes, curly→straight quote conversion, and markdown italic+bold marker collapse beyond just `**` / `__`.
+2. **Multi-paragraph stitching with literal `"..."`**: the LLM is instructed not to fabricate but is stitching across paragraphs separated by ellipsis. Either the prompt needs "no ellipsis, no stitching, single contiguous span" enforcement, OR the L24 verification needs to accept multi-quote payloads.
+
+Both are typology-agnostic fixes worth lifting into `modules/validation/evidence_guard.py`. Tonight's E-Procurement-Bypass typology surfaces the issue; the fix is its own follow-on commit. The 3 spurious findings can be batch-resolved by a re-run after the L24 fix lands.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -549,15 +582,15 @@ The Vizag 5%+5% split is a corpus observation worth flagging: a future typology 
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across seven typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across eight typologies
 
-| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD | MA |
-|--------|-----|-----|-------------|-----|---------------|----|----|
-| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% (5+5 split, ADVISORY-rule on EV-UNKNOWN) |
-| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% |
-| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% |
-| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) | compliant (no MA clause — absent = compliant) |
-| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS | silence (PPP rule-layer SKIP) |
-| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | compliant 0.1%/day of PS *(DCA ingested via L22 closure)* | silence (PPP rule-layer SKIP) |
+| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD | MA | E-Proc |
+|--------|-----|-----|-------------|-----|---------------|----|----|----|
+| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% (5+5 split, ADVISORY-rule on EV-UNKNOWN) | ADVISORY violation (L24 partial_ratio=73; per L35 evidence quote contains the literal mandate but markdown italic/bold + curly quotes prevent verbatim match) |
+| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% | compliant (apeprocurement.gov.in, score 87) |
+| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% | compliant (apeprocurement.gov.in, score 98) |
+| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) | compliant (no MA clause — absent = compliant) | compliant (apeprocurement.gov.in, score 100 substring) |
+| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS | silence (PPP rule-layer SKIP) | HARD_BLOCK violation (L24 partial_ratio=41; per L35 the mandate is in source L537+L1362 but LLM stitched paragraphs with literal "..." in the quote) |
+| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | compliant 0.1%/day of PS *(DCA ingested via L22 closure)* | silence (PPP rule-layer SKIP) | HARD_BLOCK violation (L24 partial_ratio=41; same NREDCAP RFP stitching pattern as Tirupathi) |
 
-**Total: 17 ValidationFindings, 17 VIOLATES_RULE edges.** Seven typologies × six documents = forty-two possible finding slots: 17 are filled with violations, 25 are correctly silent. The MA typology added 6 new "correctly silent" outcomes — 3 AP Works docs at exactly the 10% cap (compliant), 1 SBD doc with no MA clause (absent = compliant per L34), 2 PPP docs with rule-layer SKIP (no rule in the 23-rule set fires on `TenderType=PPP`). All presence findings have `evidence_match_score >= 90`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30.
+**Total: 20 ValidationFindings, 20 VIOLATES_RULE edges.** Eight typologies × six documents = forty-eight possible finding slots: 20 are filled with violations, 28 are correctly silent. E-Procurement-Bypass added 3 violations and 3 compliant-confirmations across the 6-doc run; the 3 violations are flagged in L35 as L24-stitching false positives (text exists in source per direct grep, LLM stitched non-contiguous spans into the evidence quote, partial_ratio fell below the 85 threshold). All presence findings (where verified) have `evidence_match_score >= 87`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. The L24 false-positive observation in L35 motivates a follow-on fix: stricter "single contiguous span" prompt instruction or wider verification scope.
