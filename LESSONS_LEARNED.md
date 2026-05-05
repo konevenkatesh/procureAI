@@ -602,6 +602,48 @@ The fundamental insight is that **L24 is a confidence layer, not a verdict layer
 
 ---
 
+## L37 — BG-Validity-Gap: Four-State Shape + PPP Knowledge-Layer Gap
+
+**Date:** May 2026
+**What we did:** Built the tenth Tier-1 typology — BG-Validity-Gap — verifying that the doc specifies a Bank Guarantee / Performance Security validity period that extends through DLP / warranty period + buffer (typically 60 days beyond, per MPG-097 / CLAUSE-WBG-001 / MPW 2022). MPW-082 is the canonical primary for Works docs. The 9-rule typology has no clean PPP-conditioned rule, so the rule selector falls back to AP-GO-015 (Mobilisation Advance BG validity) on PPP docs — UNKNOWN→ADVISORY downgrade per L27.
+
+**What's new in shape:** This typology extends the L35 three-state contract with a fourth outcome — **GAP_VIOLATION**. The previous nine typologies map outcomes to {COMPLIANT (no row), UNVERIFIED (no edge), ABSENCE (with edge)}. BG-Validity-Gap adds a fourth state: **GAP_VIOLATION** = LLM found a BG-validity clause AND L24 verified the quote AND the validity does NOT extend through DLP/warranty. This is a real OPEN violation (with edge) but the audit trail carries the verified inadequate quote — distinct from ABSENCE (no clause at all) and from UNVERIFIED (LLM found but unverifiable).
+
+```
+COMPLIANT       — llm_found AND ev_passed AND extends_dlp
+GAP_VIOLATION   — llm_found AND ev_passed AND NOT extends_dlp     (NEW state)
+UNVERIFIED      — llm_found AND NOT ev_passed
+ABSENCE         — NOT llm_found → L36 grep fallback decides
+```
+
+The L36 source-grep fallback continues to apply on the ABSENCE branch (no need to re-run grep for GAP_VIOLATION since the LLM already verified inadequacy with a real quote).
+
+**What happened:** 6-doc result:
+- **Vizag/HC**: COMPLIANT — both APCRDA Works carry "PBG valid until 60 days after completion of Defect liability period" (MPW 2022 standard), score 100 substring.
+- **Kakinada**: COMPLIANT — SBD format with "BG valid up to 28 days from expiry of defects liability period" — buffer is shorter (28 days vs MPW's 60), but extends through DLP so the LLM correctly classifies extends_through_dlp_or_warranty=true. Note: a stricter typology that demands ≥60-day buffer would flag this as a sub-violation; today's check is binary (extends-through-DLP or not).
+- **JA**: UNVERIFIED via L36 grep-fallback. LLM was strict — none of the 10 retrieved candidates had explicit "60 days beyond DLP" language to its satisfaction. Grep fallback found 23 sections with BG-validity keywords (Performance Security, Bid Security, Defect Liability) — high recall by design, reviewer must confirm. JA almost certainly DOES carry the validity clause; retrieval just missed it.
+- **Tirupathi/Vijayawada**: GAP_VIOLATION — both NREDCAP DBFOTs carry "Performance Security shall remain valid for a period until 30 (thirty) days after the COD" in DCA §9 ("PERFORMANCE SECURITY AND O&M SECURITY"). LLM classified extends_through_dlp_or_warranty=false, finding emitted with verified evidence quote + edge.
+
+**The PPP knowledge-layer gap:** The Tirupathi/Vijayawada GAP_VIOLATION findings are technically correct under the rule cited (AP-GO-015 ADVISORY) but represent a PPP-structure mismatch worth flagging:
+1. The cited rule (AP-GO-015) is about Mobilisation Advance BG validity, not Performance Security validity. The rule selector picked it because it's the only AP-State rule that fires on PPP docs (UNKNOWN→ADVISORY via the `MobilizationAdvanceProvided=true` subterm).
+2. The DCA §9 heading explicitly says "PERFORMANCE SECURITY AND O&M SECURITY" — the NREDCAP DBFOT structure has TWO securities: Performance Security (covers construction-to-COD) and a separate O&M Security (covers the long post-COD operations period). The 30-day-post-COD buffer on PS is bounded by O&M Security taking over at COD.
+3. The typology's 9 rules don't model this PPP/DCA split. A PPP-aware typology would need to extract BOTH Performance Security AND O&M Security validity, recognise the COD handover boundary, and check that the combined coverage extends through the concession period.
+
+ADVISORY severity is the right outcome here — exactly the kind of "we have a fact but the rule may not apply cleanly" condition L27 was designed to handle. A reviewer can confirm whether the O&M Security clause covers the post-COD obligations the typology is concerned about.
+
+**What we changed:**
+- `scripts/tier1_bg_validity_gap_check.py` (new) — four-state script with the GAP_VIOLATION branch. RULE_CANDIDATES = [MPW-082, MPG-097, MPW-081, MPW25-054, AP-GO-015]. LLM extracts `bg_validity_specified`, `bg_type` (PBG/EMD/BidSecurity/MobilisationAdvanceBG/WarrantyBG), `validity_period_description`, `extends_through_dlp_or_warranty`, `has_buffer_beyond_dlp`, `buffer_days`, `go_reference`, evidence. L36 grep fallback wired on ABSENCE branch with BG-validity-specific keyword vocabulary.
+- `modules/validation/section_router.py` — `BG_VALIDITY_SECTION_ROUTER` added: `[GCC, Forms]` for APCRDA_Works / NREDCAP_PPP; `[GCC, Forms, Evaluation]` for SBD_Format; `[GCC, Forms, ITB]` for default (ITB is the issuer-format anchor for non-canonical docs).
+
+**Forward applicability — three follow-on items:**
+1. **PPP-aware BG validity typology**: split into two sub-checks (Performance Security validity through COD; O&M Security validity through Concession Period + DLP). Knowledge-layer addition of a `BG-Validity-PPP` typology with PPP-conditioned rules would be the cleanest fix. Tonight's findings on Tirupathi/Vijayawada serve as evidence that the current typology doesn't capture the right concept on PPPs.
+2. **Stricter buffer-duration check**: today's check is binary (extends-through-DLP or not). A future enhancement could compare `buffer_days` against a per-rule minimum (e.g. MPG-097 mandates 60 days). Kakinada's 28-day buffer would be flagged under that stricter check.
+3. **Continued L36 grep-fallback proliferation**: the JA UNVERIFIED-via-grep outcome confirms L36 is now the standard safety-net. PVC / IP / LD / E-Proc are still un-back-ported — they continue to use the L35 absence path without grep fallback. Lift candidate when one of those typologies surfaces a Vizag-style false positive.
+
+The four-state shape (COMPLIANT / GAP_VIOLATION / UNVERIFIED / ABSENCE) is now the most expressive contract in the codebase. Threshold-shape typologies (PBG / EMD / Bid-Validity / MA) and presence-shape typologies (PVC / IP / LD / E-Proc / Blacklist) can all express their outcomes within this shape — adopting it for new typologies is now the default.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -628,15 +670,15 @@ The fundamental insight is that **L24 is a confidence layer, not a verdict layer
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across nine typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across ten typologies
 
-| doc_id | PBG | EMD | Bid-Validity | PVC | IP | LD | MA | E-Proc | Blacklist |
-|--------|-----|-----|-------------|-----|----|----|----|----|----|
-| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% | compliant 100% sub | **OPEN absence — flagged as suspect retrieval (L36); source has bidder declaration L1567** |
-| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral) | compliant (PCC) | compliant 10% | compliant 100% sub | compliant (WB/ADB eligibility bar, score 100 partial) |
-| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral) | compliant (PCC) | compliant 10% | compliant 100% sub | compliant (bidder self-decl + WB/ADB cross-check, score 100 sub) |
-| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant Eval-block | compliant (no MA — absent OK) | UNVERIFIED (L35) | compliant (AP-flavoured bidder self-decl, score 100 sub) |
-| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | ADVISORY absent (PPP+UNKNOWN-duration) | ADVISORY absent (multilateral) | compliant 0.1%/day | silence (PPP) | compliant 100% sub | **UNVERIFIED — L35 list-item stitching across "circumstances: i. ... v. ..."** |
-| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | ADVISORY absent (PPP+UNKNOWN-duration) | ADVISORY absent (multilateral) | compliant 0.1%/day | silence (PPP) | compliant 100% sub | **UNVERIFIED — same NREDCAP list-item stitching as Tirupathi** |
+| doc_id | PBG | EMD | BV | PVC | IP | LD | MA | E-Proc | BL | BG-Val |
+|--------|-----|-----|----|-----|----|----|----|--------|----|--------|
+| vizag | HARD 2.5% | silence | ✓ 180d | ✓ | ADV none | ✓ 5%/mo | ✓ 10% | ✓ 100% | UNV grep (L36) | ✓ 60d-post-DLP |
+| judicial_academy | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ WB/ADB | UNV grep (23 hits) |
+| high_court | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ bidder+WB | ✓ 60d-post-DLP |
+| kakinada | silence | ADV 1% | ✓ 90d | ADV absent | ADV none | ✓ §48.3 | ✓ no-MA | UNV (L35) | ✓ AP self-decl | ✓ 28d-post-DLP |
+| tirupathi | HARD 4.998% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** |
+| vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** |
 
-**Total: 23 ValidationFindings (20 OPEN + 3 UNVERIFIED), 20 VIOLATES_RULE edges.** Nine typologies × six documents = fifty-four possible finding slots: 20 OPEN violations, 3 UNVERIFIED-pending-review, 31 correctly silent. Blacklist-Not-Checked produced 3 compliant + 1 OPEN absence (Vizag — flagged as L36 retrieval-coverage suspect) + 2 UNVERIFIED (Tirupathi / Vijayawada — NREDCAP list-item stitching). All OPEN presence findings have `evidence_match_score >= 90` (where verified); UNVERIFIED findings carry `status='UNVERIFIED'` + `requires_human_review=true` + `human_review_reason` + a section-attribution pointer for the reviewer; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. The Vizag Blacklist OPEN absence is the first known false-positive in the OPEN tier — to be auto-resolved by the L36 retrieval-coverage follow-on.
+**Total: 26 ValidationFindings (21 OPEN + 5 UNVERIFIED), 21 VIOLATES_RULE edges.** Ten typologies × six documents = sixty possible finding slots: 21 OPEN violations, 5 UNVERIFIED-pending-review, 34 correctly silent. The 5 UNVERIFIED breakdown: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist (1 grep-fallback Vizag, 2 list-item-stitching Tirupathi/Vijayawada per L36) + 1 BG-Validity-Gap (L36 grep-fallback JA). The 2 BG-Validity-Gap GAP_VIOLATION findings on Tirupathi/Vijayawada are technically correct under the rule cited but reflect a PPP-shape knowledge-layer gap (L37) — the typology's rules don't model the DCA's separate Performance Security + O&M Security structure where 30-days-post-COD on PS is bounded by O&M Security taking over.

@@ -245,6 +245,40 @@ BLACKLIST_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# BG-Validity-Gap — Bank Guarantee validity-duration anchors live
+# in GCC (Performance Bank Guarantee clauses, AP EMD validity, Warranty
+# BG specifications) and Forms (PBG proforma templates with the
+# validity-period field).
+#
+# Per the read-first scan of clause_templates:
+#   GCC   : CLAUSE-WORKS-PBG-001 (PBG amount + structure for Works)
+#           CLAUSE-WBG-001 (Warranty BG: "60 days beyond warranty period")
+#           CLAUSE-AP-EMD-VALIDITY-DLP-001 (AP Works EMD validity beyond DLP)
+#           CLAUSE-CONTRACT-CLOSURE-001 (pre-PBG-release checks)
+#   Forms : PBG / BG proforma templates with embedded validity field
+#   ITB   : CLAUSE-BG-VERIFICATION-001 (issuer + format rules — NOT validity)
+#
+# ITB's BG-format clauses (must be irrevocable, scheduled commercial
+# bank only) do NOT carry the validity-duration spec — they live
+# alongside the PBG/BG validity clause in GCC. Default family adds
+# ITB only as a safety net for non-canonical docs.
+#
+# SBD_Format includes Evaluation per the L28 SBD pattern (Kakinada
+# n_gcc=0; the validity language sits in long Evaluation/ITT blocks).
+#
+# NREDCAP_PPP is retained for completeness even though all 9 typology
+# rules SKIP on TenderType=PPP — the ConcessionAgreement DCAs DO carry
+# Performance Security validity tied to Concession Period + DLP, but
+# no rule in the typology table currently models PPP BG validity.
+# Forward applicability item flagged in L37.
+BG_VALIDITY_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "Forms"],
+    "SBD_Format":    ["GCC", "Forms", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC", "Forms"],
+    "default":       ["GCC", "Forms", "ITB"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -254,6 +288,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Mobilisation-Advance-Excess": MA_SECTION_ROUTER,
     "E-Procurement-Bypass":        EPROC_SECTION_ROUTER,
     "Blacklist-Not-Checked":       BLACKLIST_SECTION_ROUTER,
+    "BG-Validity-Gap":             BG_VALIDITY_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
