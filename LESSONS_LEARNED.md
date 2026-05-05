@@ -496,6 +496,33 @@ This closes a recurring class of bug: every typology that depends on `estimated_
 
 ---
 
+## L34 — Mobilisation-Advance-Excess: Threshold-Shape with "Absent = Compliant"
+
+**Date:** May 2026
+**What we did:** Built the seventh Tier-1 typology — Mobilisation-Advance-Excess — returning to threshold-shape after three consecutive presence-shape typologies (PVC / IP / LD). Same machinery as PBG/EMD/Bid-Validity (BGE-M3 retrieval → top-K → LLM rerank → L24 evidence guard) but with a new outcome shape: **absence of clause = compliant** (the inverse of PVC/IP/LD's "absence = violation"). Mobilisation Advance is OPTIONAL in Indian procurement per GFR Rule 172 — advance payments are exceptional. The check fires a violation only when the doc states an MA percentage AND that percentage exceeds the regulated cap (10% for AP Works > 1cr per AP-GO-014/076; 5% for AP EPC per AP-GO-224; 10% for Central Works per MPW-130).
+**What happened:** Test on JA confirmed the threshold path works: AP-GO-014 fires (WARNING, cap=10%), LLM extracts `mobilisation_advance_pct=10.0` from the AP-GO chain (94/2003 + 267/2018 + 1474/2007 + 57/2024) embedded in JA's GCC, threshold compare `10.0 ≤ 10.0` returns compliant. No finding emitted. Run on the other 5 docs: 3 AP Works docs (Vizag, HC, Kakinada-attempt) sit at exactly 10% (canonical APCRDA boilerplate); Vizag has a notable **5% labour + 5% machinery split** structure that totals 10% — different from JA/HC's flat 10% but the same final cap; Kakinada (SBD format) has no MA clause at all → absent = compliant; Tirupathi/Vijayawada (NREDCAP PPP) hit the rule-layer SKIP path because none of the 4 candidate rules condition on `TenderType=PPP`. **Zero new findings emitted across the 6-doc corpus.** Vizag also exercised the L27 UNKNOWN→ADVISORY downgrade because EV is null (genuinely null per L33) and AP-GO-014's `EstimatedValue>1e7` resolves UNKNOWN — the rule still fired but at ADVISORY severity rather than the native WARNING.
+
+**Why we changed:** Mixing presence-shape and threshold-shape semantics in the same script template would muddy the audit trail. PVC/IP/LD's "absent = violation" is the right answer for clauses that MUST exist (LD is mandatory per GFR Rule 83; IP is mandatory above org-defined threshold per CVC-086; PVC is mandatory for AP Works > 4 lakh AND > 6 months per AP-GO-019). MA is the inverse: the clause is voluntary, but IF present it must respect the cap. Three new outcome labels make the shape explicit:
+- `compliant_no_ma_clause` — LLM found nothing → no violation, no finding.
+- `compliant_clause_present_no_pct_stated` — framework invoked but % deferred to PCC/SCC → no violation today; would need PCC verification to escalate.
+- `compliant_ma_pct_X_within_cap_Y` / `ma_pct_X_exceeds_cap_Y` — the live threshold compare.
+
+The `>` in the threshold compare is intentionally STRICT (not `>=`). 10% exactly is compliant; 10.01% is a violation. AP-GO-014's text says "up to 10%" which is the inclusive interpretation. This matches the user's verification of the rule wording.
+
+**What we changed:**
+- `scripts/tier1_ma_check.py` (new) — port of `tier1_ld_check.py` with the threshold compare added between L24 evidence verification and finding materialisation. RULE_CANDIDATES carry a per-rule `cap_pct` field (5 or 10) used at compare time.
+- `modules/validation/section_router.py` — added `MA_SECTION_ROUTER` mirroring the LD shape (anchors live in GCC + SCC, with the SBD_Format variant adding Evaluation for n_gcc=0 docs). Registered under `SECTION_ROUTERS["Mobilisation-Advance-Excess"]`.
+- LLM prompt distinguishes Mobilisation Advance (the target) from Plant/Machinery Advance (MPW-131, separate 5% cap on equipment), Secured Advance against Material (MPW-132, 75% of invoice), Supplier Advance Payment (GFR Rule 172, 30%/40% limits for Goods/Services), and Notice-to-Proceed mobilisation (the triggering event, not the advance payment).
+- L29 absence-finding marker is NOT used for this typology because absence = compliant → no row to mark. The L29 path is preserved in the script for symmetry with PVC/IP/LD but unreachable on this typology's outcomes.
+
+**Result:** 0 new findings across the corpus. AP Works baseline confirmed at exactly 10% (3 docs); Kakinada's SBD format omits MA entirely (compliant); PPP rule-layer SKIP working as designed. The threshold-shape pattern is now structurally equivalent to PBG/EMD/Bid-Validity at the script level, just with a different `cap_pct` field and a different "absence = compliant" branch.
+
+**Forward applicability:** Future threshold-shape typologies with optional-clause semantics fit this template: e.g. Interest-Rate-On-Advances (CVC-009 — interest-free MA discouraged, but interest-rate floor is the threshold; absence of advance entirely = compliant), Retention-Money-Excess (typically 5-10% retained from contractor bills; absence of retention clause = compliant in some Works forms), Defect-Liability-Period-Short (DLP-Period-Short typology in the rules table — minimum 12-24 months by works type; absence might be a violation depending on the rule layer). The "absent = compliant" branch is a clean copy-paste; the threshold compare is one line.
+
+The Vizag 5%+5% split is a corpus observation worth flagging: a future typology that needs to validate the labour-vs-machinery split structure (per AP-GO-094 §X) would need either (a) a sub-shape detector in the LLM prompt to extract both percentages, or (b) a second rerank pass. Tonight's MA typology aggregates them into the single `mobilisation_advance_pct=10.0` field, which is correct for the cap check but loses the audit-trail granularity.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -522,15 +549,15 @@ This closes a recurring class of bug: every typology that depends on `estimated_
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across six typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across seven typologies
 
-| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD |
-|--------|-----|-----|-------------|-----|---------------|----|
-| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month |
-| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) |
-| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) |
-| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) |
-| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS |
-| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | compliant 0.1%/day of PS *(DCA ingested via L22 closure)* |
+| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD | MA |
+|--------|-----|-----|-------------|-----|---------------|----|----|
+| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% (5+5 split, ADVISORY-rule on EV-UNKNOWN) |
+| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% |
+| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% |
+| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) | compliant (no MA clause — absent = compliant) |
+| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS | silence (PPP rule-layer SKIP) |
+| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | compliant 0.1%/day of PS *(DCA ingested via L22 closure)* | silence (PPP rule-layer SKIP) |
 
-**Total: 17 ValidationFindings, 17 VIOLATES_RULE edges.** Six typologies × six documents = thirty-six possible finding slots: 17 are filled with violations, 19 are correctly silent (5 compliant LD findings, 5 compliant Bid-Validity findings, 4 compliant PVC findings + 2 PPP rule-layer skips, 1 EMD genuinely-absent-from-source on Vizag, 1 PBG genuinely-absent on Kakinada per L23). All presence findings have `evidence_match_score >= 97`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. Vijayawada's prior LD `corpus_gap=true` finding (L31) was resolved by ingesting the DCA — the LD clause was found in DCA §14.8 mirroring Tirupathi, exactly as predicted in `corpus_gap_reason`.
+**Total: 17 ValidationFindings, 17 VIOLATES_RULE edges.** Seven typologies × six documents = forty-two possible finding slots: 17 are filled with violations, 25 are correctly silent. The MA typology added 6 new "correctly silent" outcomes — 3 AP Works docs at exactly the 10% cap (compliant), 1 SBD doc with no MA clause (absent = compliant per L34), 2 PPP docs with rule-layer SKIP (no rule in the 23-rule set fires on `TenderType=PPP`). All presence findings have `evidence_match_score >= 90`; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30.

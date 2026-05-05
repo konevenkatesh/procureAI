@@ -166,12 +166,35 @@ LD_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Mobilisation-Advance-Excess — same retrieval region as LD/PVC.
+# MA anchors live in:
+#   GCC : CLAUSE-MOBILISATION-ADVANCE-WORKS-001 (MPW 2022 §6.5.3 baseline)
+#   SCC : CLAUSE-AP-MOBILIZATION-RESTORED-001 (AP Works 10% per GO 94/2003 + GO 57/2024)
+#         CLAUSE-AP-EPC-MOBILIZATION-001       (AP EPC 5% override)
+#
+# SBD_Format includes Evaluation because Kakinada has zero GCC-typed
+# sections (n_eval=15, n_gcc=0 — same SBD pattern as LD/PVC).
+#
+# NREDCAP_PPP: rule layer SKIPs (no rule in the 23-rule set fires on
+# PPP/DBFOT). Filter retained for completeness so the script can still
+# run if a future PPP MA rule lands. Tirupathi/Vijayawada currently
+# return zero candidates from rule selection — the script exits before
+# retrieval.
+MA_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "SCC"],
+    "SBD_Format":    ["GCC", "SCC", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC", "SCC"],
+    "default":       ["GCC", "SCC", "Specifications"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
-    "EMD-Shortfall":      EMD_SECTION_ROUTER,
-    "Bid-Validity-Short": BID_VALIDITY_SECTION_ROUTER,
-    "Missing-PVC-Clause": PVC_SECTION_ROUTER,
-    "Missing-Integrity-Pact": IP_SECTION_ROUTER,
-    "Missing-LD-Clause":   LD_SECTION_ROUTER,
+    "EMD-Shortfall":              EMD_SECTION_ROUTER,
+    "Bid-Validity-Short":         BID_VALIDITY_SECTION_ROUTER,
+    "Missing-PVC-Clause":         PVC_SECTION_ROUTER,
+    "Missing-Integrity-Pact":     IP_SECTION_ROUTER,
+    "Missing-LD-Clause":          LD_SECTION_ROUTER,
+    "Mobilisation-Advance-Excess": MA_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
