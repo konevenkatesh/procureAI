@@ -6,6 +6,62 @@
 
 ---
 
+## Architecture Patterns Established
+
+A reading guide for new contributors. Every Tier-1 typology check is built on this stack of layers — newer typologies inherit them automatically by following the established script template.
+
+### The four-state outcome contract (introduced L37, default for new typologies)
+
+Every Tier-1 finding falls into exactly one of four states. Threshold-shape typologies (PBG / EMD / Bid-Validity / Mobilisation-Advance) skip GAP_VIOLATION; presence-shape typologies (PVC / IP / LD / E-Proc / Blacklist) skip GAP_VIOLATION too — only typologies whose LLM verdict has BOTH a "found" boolean AND a sub-classification (BG-Validity-Gap is the only one today) use all four. The other three states are universal:
+
+| state | when | finding emitted? | VIOLATES_RULE edge? | DB status |
+|---|---|---|---|---|
+| **COMPLIANT** | LLM found + L24 verified + classification = OK | NO (implicit "no row") | n/a | n/a |
+| **GAP_VIOLATION** | LLM found + L24 verified + classification = inadequate (BG-Validity only) | YES | YES (with verified inadequate quote) | OPEN |
+| **UNVERIFIED** | LLM found + L24 fail OR grep fallback caught a missed clause | YES | NO (awaiting human review) | UNVERIFIED |
+| **ABSENCE** | LLM didn't find + grep fallback also empty | YES | YES (genuine absence violation) | OPEN |
+
+UNVERIFIED is the system-confidence state — the system flagged something but can't audit it; human review required. Never silently treated as compliant.
+
+### Layer reference (when each applies)
+
+| layer | introduced | applies to | what it does |
+|---|---|---|---|
+| **L24 evidence guard** (`modules/validation/evidence_guard.py::verify_evidence_in_section`) | L24 | Every typology where the LLM returns a verbatim quote | Verify the quote exists in the chosen section's `full_text`. Pass = score 100 substring or partial_ratio ≥ 85. Fail = LLM hallucinated or stitched. **It's a confidence layer, not a verdict layer** (L35) — failed verification means "we don't have audit-grade evidence", not "the document is non-compliant". |
+| **L29 absence-finding marker** | L29 | Every Missing-X presence-shape typology | When the absence path materialises a finding, set `evidence_match_method='absence_finding_no_evidence'`, `evidence_in_source/evidence_verified=null`, `evidence_match_score=null`, and synthesise a search-trace evidence string. Distinguishes "real absence" from "L24-failed presence". |
+| **L35 three-state decision** | L35 | All presence-shape scripts (back-ported to PVC / IP / LD / E-Proc / Blacklist) AND all threshold-shape scripts (back-ported to PBG / EMD / Bid-Validity). | Replace binary `is_violation` with three-way `is_compliant / is_unverified / is_absence`. UNVERIFIED finding has NO VIOLATES_RULE edge. The strict-quote prompt directive (single contiguous span, no ellipsis, no stitching, preserve markdown verbatim) lives here too. |
+| **L36 grep fallback** (`modules/validation/grep_fallback.py::grep_source_for_keywords`) | L36 (Vizag false positive) | Every presence-shape script (PVC / IP / LD / E-Proc / Blacklist / BG-Validity) | When the LLM rerank's top-K returns no candidate, exhaustively grep across the full section_filter coverage (NOT just top-K) for typology-specific keywords. Hit → downgrade ABSENCE → UNVERIFIED with `grep_fallback_audit` JSONB payload (section pointers + snippets). Per-typology keyword vocabulary lives next to the rule selector. |
+| **L37 four-state extension (GAP_VIOLATION)** | L37 (BG-Validity-Gap) | Typologies whose LLM verdict needs sub-classification (extends-through-DLP, etc.) | Adds a fourth outcome: LLM found + L24 verified + classification fails. OPEN finding with verified inadequate quote + edge. Distinct from ABSENCE (no clause) and UNVERIFIED (can't verify). |
+| **L24 hallucination guard / JSON sanitiser** (`modules/validation/llm_client.py::parse_llm_json`) | L35 | All scripts that ask the LLM for JSON | Strips ```json fences, extracts {…} body, falls back to backslash-doubling on malformed escapes (`\\.`, `\\(` etc. that AP markdown contains and the LLM faithfully reproduces per the L35 strict-quote rule). |
+
+### Decision flowchart for a new presence-shape typology
+
+```
+  retrieve top-K candidates within section_filter
+       │
+  LLM rerank → returns chosen_index, found, evidence
+       │
+       ├─ chosen_index is int? ──no──→ ABSENCE branch
+       │                              │
+       │                              └─ run L36 grep fallback
+       │                                  │
+       │                                  ├─ any hit? ──yes──→ UNVERIFIED (grep), no edge
+       │                                  └─ no hit ──→ ABSENCE finding + edge (L29 marker)
+       │
+       └─ yes ─→ run L24 evidence guard
+                  │
+                  ├─ ev_passed? ──yes──→ COMPLIANT, no row
+                  └─ ev_passed = no ──→ UNVERIFIED (L24), no edge
+```
+
+### Rule of thumb
+
+- **OPEN** finding with edge → real regulatory violation worth shipping to a CAG audit.
+- **UNVERIFIED** finding without edge → system confidence flag; reviewer opens the section, confirms or downgrades.
+- No finding row → either truly compliant OR rule-layer SKIP (typology N/A on this doc).
+
+---
+
 ## How to Use This Document
 
 Every entry follows this structure:

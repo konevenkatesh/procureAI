@@ -610,15 +610,79 @@ def main() -> int:
     print(f"  → using candidate [{chosen}]: {section['heading'][:60]} "
           f"(cosine={similarity:.4f})")
 
-    # 8. Hallucination guard (L24) — verify evidence is in the section
+    # 8. Hallucination guard (L24).
+    # L35 contract: failed verification routes to UNVERIFIED finding
+    # (status='UNVERIFIED', requires_human_review=true, NO
+    # VIOLATES_RULE edge), NOT silent discard. The LLM did extract an
+    # EMD percentage / amount but we can't verify the quote against
+    # the picked section — a human reviewer should confirm.
     ev_passed, ev_score, ev_method = verify_evidence_in_section(
         evidence, section["full_text"]
     )
     print(f"  evidence_verified : {ev_passed}  (score={ev_score}, method={ev_method})")
     if not ev_passed:
-        print(f"  HALLUCINATION_DETECTED — discarding extraction.")
+        print(f"  L24_FAILED — LLM extracted EMD but quote is unverifiable. "
+              f"Routing to UNVERIFIED finding (NOT silent discard).")
         print(f"    LLM evidence  : {evidence[:200]!r}")
-        print(f"    section first : {section['full_text'][:200]!r}")
+
+        section_node_id = section["section_node_id"]
+        rule_node_id    = get_or_create_rule_node(DOC_ID, rule["rule_id"])
+        unverified_label = (
+            f"{TYPOLOGY}: UNVERIFIED — LLM extracted EMD "
+            f"(total_pct={total_pct}, amount_cr={amount_cr}) but quote "
+            f"failed L24 (score={ev_score}, method={ev_method}); requires "
+            f"human review against {section['heading'][:60]!r}"
+        )
+        unverified_props = {
+            "rule_id":               rule["rule_id"],
+            "typology_code":         TYPOLOGY,
+            "severity":              rule["severity"],
+            "evidence":              evidence,
+            "extraction_path":       "percentage" if total_pct is not None else "amount",
+            "total_pct":             total_pct,
+            "stage1_pct":            stage1_pct,
+            "stage2_pct":            stage2_pct,
+            "two_stage":             two_stage,
+            "amount_cr":             amount_cr,
+            "rule_shape":            rule["shape"],
+            "violation_reason":      "emd_unverified_llm_found_quote_failed_l24",
+            "tier":                  1,
+            "extracted_by":          "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
+            "doc_family":            family,
+            "section_filter":        section_types,
+            "rerank_chosen_index":   chosen,
+            "rerank_reasoning":      reason,
+            "section_node_id":       section_node_id,
+            "section_heading":       section["heading"],
+            "source_file":           section["source_file"],
+            "line_start_local":      section["line_start_local"],
+            "line_end_local":        section["line_end_local"],
+            "qdrant_similarity":     round(similarity, 4),
+            # L24 audit fields (recording the failure)
+            "evidence_in_source":    ev_passed,
+            "evidence_verified":     ev_passed,
+            "evidence_match_score":  ev_score,
+            "evidence_match_method": ev_method,
+            # L35 status / human-review markers
+            "status":                "UNVERIFIED",
+            "requires_human_review": True,
+            "human_review_reason": (
+                f"LLM extracted EMD (total_pct={total_pct}, amount_cr={amount_cr}) "
+                f"but evidence quote failed L24 verification (score={ev_score}, "
+                f"method={ev_method}). Reviewer should open the section above "
+                f"and confirm the EMD value."
+            ),
+            "defeated":              False,
+        }
+        unverified_finding = rest_post("kg_nodes", [{
+            "doc_id":     DOC_ID,
+            "node_type":  "ValidationFinding",
+            "label":      unverified_label,
+            "properties": unverified_props,
+            "source_ref": f"tier1:emd_check:{rule['rule_id']}",
+        }])[0]
+        print(f"  → UNVERIFIED finding {unverified_finding['node_id']}  "
+              f"(no VIOLATES_RULE edge — awaiting human review)")
         return 0
 
     # 9. Decide extraction path (percentage vs amount-converted) and

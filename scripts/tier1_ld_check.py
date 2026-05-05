@@ -63,6 +63,7 @@ from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
 from modules.validation.llm_client       import call_llm, parse_llm_json
+from modules.validation.grep_fallback    import grep_source_for_keywords
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -75,6 +76,22 @@ QDRANT_URL  = os.environ.get("QDRANT_URL", "http://localhost:6333")
 COLLECTION  = "tender_sections"
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen/qwen-2.5-72b-instruct")
+
+
+# L36 source-grep fallback vocabulary. When the LLM rerank returns
+# chosen_index=null (absence), cross-check the full section_filter
+# coverage for any of these keywords. Hit → downgrade ABSENCE to
+# UNVERIFIED (likely retrieval-coverage gap, not real bypass).
+GREP_FALLBACK_KEYWORDS = [
+    "Liquidated Damages",
+    "delay damages",
+    "LD clause",
+    "penalty for delay",
+    "compensation for delay",
+    "per week of delay",
+    "0.5%",
+    "intended completion",
+]
 
 
 # Answer-shaped query — mirrors the literal wording of GCC LD
@@ -653,16 +670,37 @@ def main() -> int:
             ld_present = False
             llm_found_clause = False
 
-    # 8. Apply rule check — three-way branch (per L35):
-    #    (a) llm_found_clause AND ev_passed     → compliant, no finding
-    #    (b) llm_found_clause AND NOT ev_passed → UNVERIFIED finding (no edge)
-    #    (c) NOT llm_found_clause               → absence finding (with edge)
-    is_compliant  = llm_found_clause and ev_passed
-    is_unverified = llm_found_clause and not ev_passed
-    is_absence    = not llm_found_clause
+    # 8. Apply rule check — three-way branch (per L35) + L36 grep fallback.
+    is_compliant   = llm_found_clause and ev_passed
+    is_unverified  = llm_found_clause and not ev_passed
+    raw_is_absence = not llm_found_clause
+
+    grep_hits: list[dict] = []
+    grep_promoted_to_unverified = False
+    if raw_is_absence:
+        print(f"\n── L36 source-grep fallback (absence path) ──")
+        any_hit, grep_hits = grep_source_for_keywords(
+            DOC_ID, section_types, GREP_FALLBACK_KEYWORDS,
+        )
+        print(f"  scanned section_types : {section_types}")
+        print(f"  any_hit               : {any_hit}  ({len(grep_hits)} section(s) match)")
+        if any_hit:
+            for h in grep_hits[:3]:
+                print(f"    [{h['section_type']}] {h['heading'][:50]!r:55s} "
+                      f"lines={h['line_start_local']}-{h['line_end_local']}  "
+                      f"matched={h['keyword_matches'][:3]}")
+            if len(grep_hits) > 3:
+                print(f"    ... and {len(grep_hits) - 3} more")
+            grep_promoted_to_unverified = True
+            print(f"  → ABSENCE downgraded to UNVERIFIED — retrieval-coverage gap")
+
+    is_absence    = raw_is_absence and not grep_promoted_to_unverified
+    is_unverified = is_unverified or grep_promoted_to_unverified
 
     if is_compliant:
         reason_label = "compliant_ld_present"
+    elif grep_promoted_to_unverified:
+        reason_label = "ld_unverified_grep_fallback_retrieval_gap"
     elif is_unverified:
         reason_label = "ld_unverified_llm_found_quote_failed_l24"
     else:
@@ -672,6 +710,8 @@ def main() -> int:
     print(f"  rule              : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
     print(f"  llm_found_clause  : {llm_found_clause}")
     print(f"  ev_passed         : {ev_passed}  (score={ev_score}, method={ev_method})")
+    print(f"  raw_is_absence    : {raw_is_absence}")
+    print(f"  grep_fallback_hit : {grep_promoted_to_unverified}")
     print(f"  is_compliant      : {is_compliant}")
     print(f"  is_unverified     : {is_unverified}")
     print(f"  is_absence        : {is_absence}")
@@ -710,16 +750,35 @@ def main() -> int:
         ev_score  = None
         ev_method = "absence_finding_no_evidence"
         evidence  = (f"Liquidated Damages clause not found in document "
-                     f"after searching {', '.join(section_types)} section types")
-        print(f"  → ABSENCE finding — skipping evidence_guard "
-              f"(no quote to verify)")
+                     f"after searching {', '.join(section_types)} section types "
+                     f"(also exhaustive grep across all matching sections — no "
+                     f"keyword hits)")
+        print(f"  → ABSENCE finding — LLM rerank empty AND grep fallback "
+              f"empty; genuine absence")
+    elif grep_promoted_to_unverified:
+        ev_passed = None
+        ev_score  = None
+        ev_method = "grep_fallback_retrieval_gap"
+        evidence  = (f"LLM rerank top-{K} returned no LD candidate, but "
+                     f"exhaustive grep across {', '.join(section_types)} found "
+                     f"keyword hits in {len(grep_hits)} section(s) — likely a "
+                     f"retrieval coverage gap. First match: "
+                     f"{grep_hits[0]['snippet'][:160] if grep_hits else 'n/a'}")
+        print(f"  → UNVERIFIED finding (grep fallback) — retrieval missed "
+              f"{len(grep_hits)} section(s) carrying LD keywords")
     elif is_unverified:
         print(f"  → UNVERIFIED finding — LLM identified clause but quote "
               f"failed L24 verification (score={ev_score}, method={ev_method})")
 
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
-    if is_unverified:
+    if grep_promoted_to_unverified:
+        label = (
+            f"{TYPOLOGY}: UNVERIFIED (L36 grep-fallback) — LLM rerank "
+            f"missed the clause; exhaustive grep found {len(grep_hits)} "
+            f"section(s) with LD keyword hits; requires human review"
+        )
+    elif is_unverified:
         label = (
             f"{TYPOLOGY}: UNVERIFIED — LLM found LD clause but quote "
             f"failed L24 (score={ev_score}, method={ev_method}); "
@@ -730,6 +789,25 @@ def main() -> int:
             f"{TYPOLOGY}: Liquidated Damages clause absent — {rule['rule_id']} "
             f"({rule['severity']}) requires LD clause for this tender"
         )
+
+    grep_audit = None
+    if grep_promoted_to_unverified:
+        grep_audit = {
+            "scanned_section_types":  section_types,
+            "keywords":               GREP_FALLBACK_KEYWORDS,
+            "hits_count":             len(grep_hits),
+            "hits": [
+                {"section_node_id":  h["section_node_id"],
+                 "heading":          h["heading"],
+                 "section_type":     h["section_type"],
+                 "source_file":      h["source_file"],
+                 "line_start_local": h["line_start_local"],
+                 "line_end_local":   h["line_end_local"],
+                 "keyword_matches":  h["keyword_matches"],
+                 "snippet":          h["snippet"][:300]}
+                for h in grep_hits[:10]
+            ],
+        }
 
     finding_props = {
         "rule_id":            rule["rule_id"],
@@ -749,7 +827,7 @@ def main() -> int:
         "extracted_by":       "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
         "retrieval_strategy": (
             f"qdrant_top{K}_router_{family}_section_filter_"
-            f"{'-'.join(section_types)}_llm_rerank"
+            f"{'-'.join(section_types)}_llm_rerank+grep_fallback"
         ),
         "doc_family":          family,
         "section_filter":      section_types,
@@ -775,6 +853,11 @@ def main() -> int:
         "status":                     "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":      bool(is_unverified),
         "human_review_reason": (
+            f"L36 grep fallback fired: LLM rerank top-{K} did not surface an "
+            f"LD clause, but exhaustive grep across {section_types} found "
+            f"keyword hits in {len(grep_hits)} section(s). Reviewer should "
+            f"open the listed sections in grep_audit.hits."
+            if grep_promoted_to_unverified else
             "LLM found clause but evidence quote failed L24 verification "
             f"(score={ev_score}, method={ev_method}). Reviewer should "
             f"open the section above (line_start={line_start_local}, "
@@ -782,6 +865,8 @@ def main() -> int:
             f"present in the source text."
             if is_unverified else None
         ),
+        # L36 grep-fallback audit
+        "grep_fallback_audit":         grep_audit,
         "defeated":            False,
     }
 

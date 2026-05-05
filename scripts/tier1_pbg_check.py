@@ -683,9 +683,16 @@ def main() -> int:
     # Hallucination guard (L24) — verify the LLM evidence quote actually
     # exists in the chosen section's full_text. If the quote can't be
     # located, the LLM fabricated it and we MUST NOT materialise.
+    # L35: a failed L24 doesn't mean the LLM lied — it means we
+    # can't audit the quote against the picked section. The
+    # decision below routes BOTH-PATHS-FAILED to UNVERIFIED rather
+    # than silent compliant.
     pct_evidence_in_source = False
     pct_evidence_score     = 0
     pct_evidence_method    = "skipped"
+    pct_llm_found_pre_l24  = bool(found)            # snapshot before L24 may wipe `found`
+    pct_evidence_pre_l24   = evidence               # snapshot quote
+    pct_section_pre_l24    = section                # snapshot section attribution
     if found and section is not None and evidence:
         pct_evidence_in_source, pct_evidence_score, pct_evidence_method = (
             verify_evidence_in_section(evidence, section["full_text"])
@@ -693,9 +700,9 @@ def main() -> int:
         print(f"  evidence_verified : {pct_evidence_in_source}  "
               f"(score={pct_evidence_score}, method={pct_evidence_method})")
         if not pct_evidence_in_source:
-            print(f"  HALLUCINATION_DETECTED on percentage path — discarding extraction.")
+            print(f"  L24_FAILED on percentage path — extraction unverifiable. "
+                  f"Will route to UNVERIFIED if amount path also fails.")
             print(f"    LLM evidence  : {evidence[:200]!r}")
-            print(f"    section first : {section['full_text'][:200]!r}")
             found   = False
             section = None
 
@@ -771,6 +778,9 @@ def main() -> int:
     amt_evidence_in_source = False
     amt_evidence_score     = 0
     amt_evidence_method    = "skipped"
+    amount_llm_found_pre_l24  = bool(amount_found)        # L35 snapshot
+    amount_evidence_pre_l24   = amount_evidence
+    amount_section_pre_l24    = amount_section
     if amount_found and amount_section is not None and amount_evidence:
         amt_evidence_in_source, amt_evidence_score, amt_evidence_method = (
             verify_evidence_in_section(amount_evidence, amount_section["full_text"])
@@ -778,9 +788,9 @@ def main() -> int:
         print(f"  amount evidence_verified : {amt_evidence_in_source}  "
               f"(score={amt_evidence_score}, method={amt_evidence_method})")
         if not amt_evidence_in_source:
-            print(f"  HALLUCINATION_DETECTED on amount path — discarding extraction.")
+            print(f"  L24_FAILED on amount path — extraction unverifiable. "
+                  f"Will route to UNVERIFIED (no edge).")
             print(f"    LLM evidence  : {amount_evidence[:200]!r}")
-            print(f"    section first : {amount_section['full_text'][:200]!r}")
             amount_found   = False
             amount_section = None
 
@@ -863,6 +873,79 @@ def main() -> int:
         finding_section = None
         finding_label = None
         finding_props_extra = None
+
+    # L35 UNVERIFIED back-port — if NO violation fires (including
+    # amount_pending_value) BUT at least one LLM path extracted
+    # something that subsequently failed L24, emit an UNVERIFIED
+    # finding so the doc isn't silently treated as compliant. The
+    # threshold compare can't run on unverifiable extractions, but
+    # a human reviewer can confirm.
+    pct_l24_failed = (pct_llm_found_pre_l24 and bool(pct_evidence_pre_l24)
+                       and not pct_evidence_in_source)
+    amt_l24_failed = (amount_llm_found_pre_l24 and bool(amount_evidence_pre_l24)
+                       and not amt_evidence_in_source)
+    nothing_fires = not (pct_violation or amount_violation_computed
+                          or amount_pending_value)
+
+    if (nothing_fires and finding_section is None
+            and (pct_l24_failed or amt_l24_failed)):
+        # Pick the section to attribute the UNVERIFIED finding to —
+        # prefer the percentage-path snapshot since percentage is the
+        # canonical PBG path; fall back to amount-path snapshot.
+        unv_section = pct_section_pre_l24 or amount_section_pre_l24
+        unv_evidence = pct_evidence_pre_l24 or amount_evidence_pre_l24
+        unv_score    = (pct_evidence_score if pct_l24_failed else amt_evidence_score)
+        unv_method   = (pct_evidence_method if pct_l24_failed else amt_evidence_method)
+        unv_path     = "percentage" if pct_l24_failed else "amount"
+        rule_node_id = get_or_create_rule_node(DOC_ID, RULE_ID)
+        unverified_label = (
+            f"{TYPOLOGY}: UNVERIFIED — LLM extracted PBG ({unv_path} path) "
+            f"but quote failed L24 (score={unv_score}, method={unv_method}); "
+            f"requires human review against {unv_section['heading'][:60]!r}"
+        )
+        unverified_props = {
+            "rule_id":               RULE_ID,
+            "typology_code":         TYPOLOGY,
+            "severity":              SEVERITY,
+            "threshold":             RULE_THRESHOLD_PCT,
+            "evidence":              unv_evidence,
+            "extraction_path":       unv_path,
+            "rule_shape":            "range",
+            "violation_reason":      "pbg_unverified_llm_found_quote_failed_l24",
+            "tier":                  1,
+            "extracted_by":          "bge-m3+llm-rerank:qwen-2.5-72b@openrouter",
+            "section_node_id":       unv_section["section_node_id"],
+            "section_heading":       unv_section["heading"],
+            "source_file":           unv_section["source_file"],
+            "line_start_local":      unv_section["line_start_local"],
+            "line_end_local":        unv_section["line_end_local"],
+            "qdrant_similarity":     round(unv_section["similarity"], 4),
+            # L24 audit fields (recording the failure)
+            "evidence_in_source":    False,
+            "evidence_verified":     False,
+            "evidence_match_score":  unv_score,
+            "evidence_match_method": unv_method,
+            # L35 status / human-review markers
+            "status":                "UNVERIFIED",
+            "requires_human_review": True,
+            "human_review_reason": (
+                f"LLM extracted PBG via the {unv_path} path but evidence "
+                f"quote failed L24 verification (score={unv_score}, "
+                f"method={unv_method}). Reviewer should open the section "
+                f"above and confirm the PBG value."
+            ),
+            "defeated":              False,
+        }
+        unverified_finding = rest_post("kg_nodes", [{
+            "doc_id":     DOC_ID,
+            "node_type":  "ValidationFinding",
+            "label":      unverified_label,
+            "properties": unverified_props,
+            "source_ref": f"tier1:pbg_check:{RULE_ID}",
+        }])[0]
+        print(f"\n  → UNVERIFIED finding {unverified_finding['node_id']}  "
+              f"({unv_path}-path L24 failure; no VIOLATES_RULE edge — awaiting human review)")
+        return 0
 
     if finding_section is not None:
         # Step 6: materialise the finding (and edge for genuine violations only)

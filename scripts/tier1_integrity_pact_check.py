@@ -69,6 +69,7 @@ from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
 from modules.validation.llm_client       import call_llm, parse_llm_json
+from modules.validation.grep_fallback    import grep_source_for_keywords
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -81,6 +82,26 @@ QDRANT_URL  = os.environ.get("QDRANT_URL", "http://localhost:6333")
 COLLECTION  = "tender_sections"
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen/qwen-2.5-72b-instruct")
+
+
+# L36 source-grep fallback vocabulary. When the LLM rerank returns
+# chosen_index=null (absence), cross-check the full section_filter
+# coverage for any of these keywords. Hit → downgrade ABSENCE to
+# UNVERIFIED (likely retrieval-coverage gap, not real bypass).
+GREP_FALLBACK_KEYWORDS = [
+    "Integrity Pact",
+    "Pre-bid Integrity",
+    "Independent External Monitor",
+    "IEM",
+    "CVC Office Order",
+    "CVC circular",
+    "Code of Integrity",
+    "CIPP",
+    "anti-corruption",
+    "Anticorruption",
+    "World Bank",
+    "ADB",
+]
 
 
 # Answer-shaped query — mirrors the literal wording of CVC IP / CIPP
@@ -723,12 +744,42 @@ def main() -> int:
     #           L29 absence_finding_no_evidence marker)
     is_compliant   = llm_found_something and ev_passed and cvc_detected
     is_unverified  = llm_found_something and not ev_passed
-    is_absence_pure         = not llm_found_something
+    raw_is_absence_pure     = not llm_found_something
     is_absence_multilateral = (llm_found_something and ev_passed
                                and adb_detected and not cvc_detected)
 
+    # L36 grep fallback fires only on the raw_is_absence_pure branch
+    # (no instrument detected at all). It does NOT apply to
+    # is_absence_multilateral — that branch already has a verified
+    # ADB-quote section attribution; the question there is the L30
+    # CVC-vs-multilateral distinction, not retrieval coverage.
+    grep_hits: list[dict] = []
+    grep_promoted_to_unverified = False
+    if raw_is_absence_pure:
+        print(f"\n── L36 source-grep fallback (absence-pure path) ──")
+        any_hit, grep_hits = grep_source_for_keywords(
+            DOC_ID, section_types, GREP_FALLBACK_KEYWORDS,
+        )
+        print(f"  scanned section_types : {section_types}")
+        print(f"  any_hit               : {any_hit}  ({len(grep_hits)} section(s) match)")
+        if any_hit:
+            for h in grep_hits[:3]:
+                print(f"    [{h['section_type']}] {h['heading'][:50]!r:55s} "
+                      f"lines={h['line_start_local']}-{h['line_end_local']}  "
+                      f"matched={h['keyword_matches'][:3]}")
+            if len(grep_hits) > 3:
+                print(f"    ... and {len(grep_hits) - 3} more")
+            grep_promoted_to_unverified = True
+            print(f"  → ABSENCE-PURE downgraded to UNVERIFIED — retrieval-coverage gap")
+
+    is_absence_pure = raw_is_absence_pure and not grep_promoted_to_unverified
+    is_unverified   = is_unverified or grep_promoted_to_unverified
+
     if is_compliant:
         reason_label = "compliant_integrity_pact_present"
+        finding_note = None
+    elif grep_promoted_to_unverified:
+        reason_label = "integrity_pact_unverified_grep_fallback_retrieval_gap"
         finding_note = None
     elif is_unverified:
         reason_label = "integrity_pact_unverified_llm_found_quote_failed_l24"
@@ -749,6 +800,8 @@ def main() -> int:
     print(f"  rule              : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
     print(f"  llm_found_something: {llm_found_something}  (cvc={cvc_detected}, adb={adb_detected})")
     print(f"  ev_passed         : {ev_passed}  (score={ev_score}, method={ev_method})")
+    print(f"  raw_is_absence_pure     : {raw_is_absence_pure}")
+    print(f"  grep_fallback_hit       : {grep_promoted_to_unverified}")
     print(f"  is_compliant            : {is_compliant}")
     print(f"  is_unverified           : {is_unverified}")
     print(f"  is_absence_pure         : {is_absence_pure}")
@@ -793,14 +846,47 @@ def main() -> int:
         ev_score  = None
         ev_method = "absence_finding_no_evidence"
         evidence  = (f"Integrity Pact not found in document "
-                     f"after searching {', '.join(section_types)} section types")
-        print(f"  → ABSENCE-PURE finding — skipping evidence_guard "
-              f"(no quote to verify)")
+                     f"after searching {', '.join(section_types)} section types "
+                     f"(also exhaustive grep across all matching sections — no "
+                     f"keyword hits)")
+        print(f"  → ABSENCE-PURE finding — LLM rerank empty AND grep fallback "
+              f"empty; genuine absence")
+    elif grep_promoted_to_unverified:
+        ev_passed = None
+        ev_score  = None
+        ev_method = "grep_fallback_retrieval_gap"
+        evidence  = (f"LLM rerank top-{K} returned no IP/multilateral candidate, "
+                     f"but exhaustive grep across {', '.join(section_types)} found "
+                     f"keyword hits in {len(grep_hits)} section(s) — likely a "
+                     f"retrieval coverage gap. First match: "
+                     f"{grep_hits[0]['snippet'][:160] if grep_hits else 'n/a'}")
+        print(f"  → UNVERIFIED finding (grep fallback) — retrieval missed "
+              f"{len(grep_hits)} section(s) carrying IP keywords")
     elif is_unverified:
         print(f"  → UNVERIFIED finding — LLM identified instrument but quote "
               f"failed L24 verification (score={ev_score}, method={ev_method})")
     # is_absence_multilateral keeps the verified ADB-quote ev_* values
     # as-is (L24 ran and passed against the ADB framework).
+
+    # L36 grep-fallback audit (None when fallback didn't fire)
+    grep_audit = None
+    if grep_promoted_to_unverified:
+        grep_audit = {
+            "scanned_section_types":  section_types,
+            "keywords":               GREP_FALLBACK_KEYWORDS,
+            "hits_count":             len(grep_hits),
+            "hits": [
+                {"section_node_id":  h["section_node_id"],
+                 "heading":          h["heading"],
+                 "section_type":     h["section_type"],
+                 "source_file":      h["source_file"],
+                 "line_start_local": h["line_start_local"],
+                 "line_end_local":   h["line_end_local"],
+                 "keyword_matches":  h["keyword_matches"],
+                 "snippet":          h["snippet"][:300]}
+                for h in grep_hits[:10]
+            ],
+        }
 
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
@@ -866,6 +952,11 @@ def main() -> int:
         "status":                     "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":      bool(is_unverified),
         "human_review_reason": (
+            f"L36 grep fallback fired: LLM rerank top-{K} did not surface a "
+            f"CVC IP / multilateral instrument, but exhaustive grep across "
+            f"{section_types} found keyword hits in {len(grep_hits)} section(s). "
+            f"Reviewer should open the listed sections in grep_audit.hits."
+            if grep_promoted_to_unverified else
             "LLM found Integrity Pact / multilateral instrument but evidence "
             f"quote failed L24 verification (score={ev_score}, method={ev_method}). "
             f"Reviewer should open the section above (line_start={line_start_local}, "
@@ -873,6 +964,8 @@ def main() -> int:
             f"present in the source text."
             if is_unverified else None
         ),
+        # L36 grep-fallback audit
+        "grep_fallback_audit":         grep_audit,
         "defeated":            False,
     }
 

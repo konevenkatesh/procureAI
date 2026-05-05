@@ -68,6 +68,7 @@ from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
 from modules.validation.llm_client       import call_llm, parse_llm_json
+from modules.validation.grep_fallback    import grep_source_for_keywords
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -520,61 +521,8 @@ def select_bg_validity_rule(tender_facts: dict) -> dict | None:
     return chosen
 
 
-# ── L36 source-grep fallback ──────────────────────────────────────────
-
-def grep_source_for_keywords(doc_id: str, section_types: list[str],
-                              keywords: list[str]) -> tuple[bool, list[dict]]:
-    """L36 source-grep fallback. Lifted from tier1_blacklist_check.py
-    pattern. Pulls every Section node for the doc whose section_type
-    matches the typology's filter, slices each from disk, and case-
-    insensitively searches across the section_filter coverage (NOT
-    just the retrieved top-10). Returns (any_hit, hits_list)."""
-    sections = rest_get("kg_nodes", {
-        "select":    "node_id,properties",
-        "doc_id":    f"eq.{doc_id}",
-        "node_type": "eq.Section",
-    })
-    filtered = [
-        s for s in sections
-        if (s.get("properties") or {}).get("section_type") in section_types
-    ]
-
-    hits: list[dict] = []
-    keyword_lc = [kw.lower() for kw in keywords]
-
-    for s in filtered:
-        p = s.get("properties") or {}
-        source_file = p.get("source_file")
-        ls          = p.get("line_start_local") or p.get("line_start")
-        le          = p.get("line_end_local")   or p.get("line_end")
-        if not (source_file and ls and le):
-            continue
-        try:
-            full_text = _slice_source_file(source_file, ls, le)
-        except FileNotFoundError:
-            continue
-        text_lc = full_text.lower()
-        matched_kws = [keywords[i] for i, kw_lc in enumerate(keyword_lc)
-                        if kw_lc in text_lc]
-        if not matched_kws:
-            continue
-        first_kw_lc = matched_kws[0].lower()
-        idx = text_lc.find(first_kw_lc)
-        snippet_start = max(0, idx - 80)
-        snippet_end   = min(len(full_text), idx + 160)
-        snippet = full_text[snippet_start:snippet_end].replace("\n", " ").strip()
-        hits.append({
-            "section_node_id":   s["node_id"],
-            "heading":           p.get("heading"),
-            "source_file":       source_file,
-            "line_start_local":  ls,
-            "line_end_local":    le,
-            "section_type":      p.get("section_type"),
-            "keyword_matches":   matched_kws,
-            "snippet":           snippet,
-        })
-
-    return (len(hits) > 0, hits)
+# grep_source_for_keywords lifted to modules/validation/grep_fallback.py
+# per the refactor — same semantics, single source of truth.
 
 
 # ── Idempotent re-run cleanup ─────────────────────────────────────────
