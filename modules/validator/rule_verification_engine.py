@@ -77,6 +77,12 @@ class RuleFinding(BaseModel):
     defeated_by: list[str] = Field(default_factory=list)
     triggered_rule_ids: list[str] = Field(default_factory=list)
     rules_fired: int = 1                         # how many rules contributed to this finding
+    # Line number in the source document where the violating evidence was
+    # detected. None for "missing X" violations (the doc *lacks* something
+    # — there is no specific violating line). kg_builder uses this to
+    # attach VIOLATES_RULE to the Section node containing this line, or
+    # to the TenderDocument node when None.
+    line_no: int | None = None
 
 
 class ValidationReport(BaseModel):
@@ -123,125 +129,159 @@ _DAYS_NEAR = lambda kw: re.compile(
 )
 
 
-def _find_percentages_near(text: str, keyword_re: str) -> list[float]:
-    """Return ALL percentage values found within 80 chars of any keyword match,
-    in document order. Multi-volume tenders often have several percentage
-    references (e.g. 'performance security can be increased to 20%' in one
-    volume vs. '2.5% performance security' in another) — callers need to see
-    all of them to decide what's the operative one."""
+def _char_offset_to_line(text: str, offset: int) -> int:
+    """Convert a 0-indexed char offset into a 1-indexed line number."""
+    if offset is None or offset < 0:
+        return 1
+    return text.count("\n", 0, offset) + 1
+
+
+def _find_percentages_near(text: str, keyword_re: str) -> list[tuple[float, int]]:
+    """Return [(value, char_offset), ...] for every percentage within 80
+    chars of any keyword match, in document order. Caller can convert
+    char_offset → line_no via _char_offset_to_line() to attribute the
+    match to a Section node."""
     pat = _PCT_NEAR(keyword_re)
-    out: list[float] = []
+    out: list[tuple[float, int]] = []
     for m in pat.finditer(text):
         for grp in m.groups():
             if grp:
                 try:
-                    out.append(float(grp))
+                    out.append((float(grp), m.start()))
                     break
                 except ValueError:
                     continue
     return out
 
 
-def _find_percentage_near(text: str, keyword_re: str) -> float | None:
-    """Backwards-compat: return the LOWEST percentage near keyword, since
-    the most-protective clause is usually the operative one for shortfall checks."""
+def _find_percentage_near(text: str, keyword_re: str) -> tuple[float, int] | None:
+    """Return the (value, char_offset) of the LOWEST percentage near
+    keyword. Lowest is the most-protective shortfall reading — if the
+    doc says '5%' in one place and '2.5%' in another, the binding value
+    is 2.5%. Returns None when no match."""
     vals = _find_percentages_near(text, keyword_re)
-    return min(vals) if vals else None
+    if not vals:
+        return None
+    # Pick the (value, offset) with the smallest value
+    return min(vals, key=lambda v: v[0])
 
 
-def _find_days_near(text: str, keyword_re: str) -> int | None:
+def _find_days_near(text: str, keyword_re: str) -> tuple[int, int] | None:
+    """Return (days, char_offset) of the first day-count near keyword."""
     pat = _DAYS_NEAR(keyword_re)
     for m in pat.finditer(text):
         try:
-            return int(m.group(1))
+            return (int(m.group(1)), m.start())
         except (ValueError, IndexError):
             continue
     return None
 
 
+def _first_match_line(text: str, pattern: str) -> int | None:
+    """Return 1-indexed line number of the first match for `pattern`
+    (case-insensitive). None if no match."""
+    m = re.search(pattern, text, re.IGNORECASE)
+    if m is None:
+        return None
+    return _char_offset_to_line(text, m.start())
+
+
+# Each matcher returns: (violated: bool, evidence_text: str, line_no: int | None)
+# line_no is the 1-indexed document line where the violating evidence sits.
+# For "missing X" violations (the doc *lacks* something), line_no is None
+# — the violation is doc-level, not section-level. kg_builder attaches
+# those to the TenderDocument node instead of a Section node.
+
 def _check_emd_shortfall(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     found = _find_percentage_near(text, r"emd|earnest\s+money|bid\s+security")
     if found is None:
-        return False, ""
-    if found < params.emd_percentage:
+        return False, "", None
+    value, offset = found
+    if value < params.emd_percentage:
         return (
             True,
-            f"Document states EMD = {found}% (expected ≥ {params.emd_percentage}%)",
+            f"Document states EMD = {value}% (expected ≥ {params.emd_percentage}%)",
+            _char_offset_to_line(text, offset),
         )
-    return False, ""
+    return False, "", None
 
 
 def _check_pbg_shortfall(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     found = _find_percentage_near(
         text, r"performance\s+(?:guarantee|security)|pbg"
     )
     if found is None:
-        return False, ""
-    if found < params.pbg_percentage:
+        return False, "", None
+    value, offset = found
+    if value < params.pbg_percentage:
         return (
             True,
-            f"Document states PBG = {found}% (expected ≥ {params.pbg_percentage}%)",
+            f"Document states PBG = {value}% (expected ≥ {params.pbg_percentage}%)",
+            _char_offset_to_line(text, offset),
         )
-    return False, ""
+    return False, "", None
 
 
 def _check_bid_validity_short(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     found = _find_days_near(text, r"bid\s+valid|validity\s+of\s+bid|tender\s+valid")
     if found is None:
-        return False, ""
-    if found < params.bid_validity_days:
+        return False, "", None
+    value, offset = found
+    if value < params.bid_validity_days:
         return (
             True,
-            f"Document states bid validity = {found} days (expected ≥ {params.bid_validity_days})",
+            f"Document states bid validity = {value} days (expected ≥ {params.bid_validity_days})",
+            _char_offset_to_line(text, offset),
         )
-    return False, ""
+    return False, "", None
 
 
 def _check_missing_integrity_pact(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     if not params.integrity_pact_required:
-        return False, ""
+        return False, "", None
     if re.search(r"integrity\s+pact|integrity-pact|\bIP\s+clause", text, re.IGNORECASE):
-        return False, ""
-    return True, "No 'integrity pact' clause found in document"
+        return False, "", None
+    # Missing-X violation — no specific line; doc-level
+    return True, "No 'integrity pact' clause found in document", None
 
 
 def _check_missing_anti_collusion(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     if re.search(
         r"anti[-\s]?collusion|form\s+3N|no[-\s]?collusion\s+(?:declaration|certificate)",
         text,
         re.IGNORECASE,
     ):
-        return False, ""
-    return True, "No 'anti-collusion' / Form 3N declaration found"
+        return False, "", None
+    return True, "No 'anti-collusion' / Form 3N declaration found", None
 
 
 def _check_missing_pvc(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     if not params.price_adjustment_applicable:
-        return False, ""
+        return False, "", None
     if re.search(
         r"price\s+(?:adjustment|variation)|pvc|escalation\s+formula",
         text,
         re.IGNORECASE,
     ):
-        return False, ""
-    return True, "Price-adjustment clause missing despite value/duration triggering it"
+        return False, "", None
+    return True, "Price-adjustment clause missing despite value/duration triggering it", None
 
 
 def _check_criteria_restriction_narrow(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     """Detect tender-instance JV / foreign-bidder bans without recorded justification.
 
     Sentence-level heuristic: within one sentence, an 'entity-being-banned'
@@ -262,46 +302,52 @@ def _check_criteria_restriction_narrow(
         "no jv", "no consortium", "no spv", "no foreign",
     )
     bans: list[str] = []
-    sentences = re.split(r"[.\n]+", text.lower())
+    first_offset: int | None = None
+    text_lower = text.lower()
 
-    if any(any(j in s for j in JV_TOKENS) and any(b in s for b in BAN_TOKENS)
-           for s in sentences):
-        bans.append("JV / Consortium / SPV ban")
-
-    if any(any(f in s for f in FOREIGN_TOKENS) and any(b in s for b in BAN_TOKENS)
-           for s in sentences):
-        bans.append("Foreign-bidder ban")
+    # Find first sentence offset that triggers a ban — used as line_no anchor
+    for m in re.finditer(r"[^.\n]+", text_lower):
+        s = m.group(0)
+        if (any(j in s for j in JV_TOKENS) and any(b in s for b in BAN_TOKENS)) or \
+           (any(f in s for f in FOREIGN_TOKENS) and any(b in s for b in BAN_TOKENS)):
+            if first_offset is None:
+                first_offset = m.start()
+            if any(j in s for j in JV_TOKENS) and "JV / Consortium / SPV ban" not in bans:
+                bans.append("JV / Consortium / SPV ban")
+            if any(f in s for f in FOREIGN_TOKENS) and "Foreign-bidder ban" not in bans:
+                bans.append("Foreign-bidder ban")
 
     if not bans:
-        return False, ""
-    if re.search(r"justification|recorded\s+rationale|special\s+order|GO\s+Ms",
-                 text, re.IGNORECASE):
-        return False, ""
-    return True, " + ".join(bans) + " without recorded justification"
+        return False, "", None
+    # NOTE: previous code suppressed when "GO Ms" appeared anywhere in the
+    # doc — that fired on every AP-State tender (which all reference GO Ms
+    # orders) and effectively neutered the check. Suppression removed.
+    line_no = _char_offset_to_line(text, first_offset) if first_offset is not None else None
+    return True, " + ".join(bans) + " without recorded justification", line_no
 
 
 def _check_e_procurement_bypass(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     if not params.e_procurement_mandatory:
-        return False, ""
+        return False, "", None
     if re.search(
         r"e[-\s]?procurement|apeprocurement\.gov\.in|gepnic|nicgov|cppp",
         text,
         re.IGNORECASE,
     ):
-        return False, ""
-    return True, "E-procurement is mandatory at this value but no e-portal reference found"
+        return False, "", None
+    return True, "E-procurement is mandatory at this value but no e-portal reference found", None
 
 
 def _check_judicial_preview_bypass(
     text: str, params: TenderParameters
-) -> tuple[bool, str]:
+) -> tuple[bool, str, int | None]:
     if not params.judicial_preview_required:
-        return False, ""
+        return False, "", None
     if re.search(r"judicial\s+preview|hon'?ble\s+judge|preview\s+committee", text, re.IGNORECASE):
-        return False, ""
-    return True, "Project value triggers AP Judicial Preview (≥ Rs.100 cr) but no preview reference found"
+        return False, "", None
+    return True, "Project value triggers AP Judicial Preview (≥ Rs.100 cr) but no preview reference found", None
 
 
 # Map typology → matcher
@@ -368,21 +414,78 @@ class RuleVerificationEngine:
     # ── Stage 2: rule selection ──
 
     def _select_rules(
-        self, rules: list[dict], cls: TenderClassification, params: TenderParameters
-    ) -> list[dict]:
-        """Filter rules to those applicable to this tender."""
-        primary = cls.primary_type
+        self,
+        rules: list[dict],
+        cls: TenderClassification,
+        params: TenderParameters,
+        tender_facts: dict | None = None,
+    ) -> tuple[list[dict], dict[str, str]]:
+        """Filter rules to those applicable to this tender.
+
+        Returns:
+            applicable: list of rules to pattern-match
+            verdicts:   {rule_id → "FIRE"|"UNKNOWN"} — for rules that pass
+                        the condition_when gate. UNKNOWN means findings
+                        from this rule should be downgraded to ADVISORY.
+                        SKIP rules are dropped entirely (not in dict).
+
+        Rule selection:
+          1. Layer filter — drop AP-State rules on non-AP tenders.
+          2. Typology filter — drop rules whose typology has no matcher
+             (the 33 silent typologies; can't be checked at all).
+          3. condition_when gate — evaluate the rule's condition against
+             tender_facts. SKIP → drop. FIRE → keep as actionable.
+             UNKNOWN → keep but mark for downgrade-to-ADVISORY downstream.
+        """
+        from modules.validator.condition_evaluator import evaluate, Verdict
+
         is_ap = cls.is_ap_tender
+        # Build the fact dict once. Caller may supply tender_facts (the
+        # reliable v0.3 path); otherwise we synthesise from classifier
+        # output (the unreliable fallback). Reliability is the caller's
+        # responsibility to indicate by what it puts in the dict.
+        facts: dict = dict(tender_facts or {})
+        facts.setdefault("is_ap_tender", bool(is_ap))
+        # Don't insert classifier-derived tender_type unless caller already
+        # supplied it — classifier output is documented unreliable.
+
         applicable: list[dict] = []
+        verdicts:   dict[str, str] = {}
+        skipped_by_layer = skipped_by_typology = skipped_by_condition = 0
+        unknown_count = 0
         for r in rules:
             layer = r.get("layer") or ""
-            # If AP tender, allow Central + CVC + AP-State; else exclude AP-State
             if not is_ap and layer == "AP-State":
+                skipped_by_layer += 1
                 continue
-            # If a matcher exists for this typology, the rule is checkable
-            if r.get("typology_code") in _PATTERN_MATCHERS:
+            if r.get("typology_code") not in _PATTERN_MATCHERS:
+                skipped_by_typology += 1
+                continue
+
+            cond = (r.get("condition_when") or "").strip()
+            if not cond:
+                # No condition → vacuously applies (back-compat)
                 applicable.append(r)
-        return applicable
+                verdicts[r["rule_id"]] = Verdict.FIRE.value
+                continue
+            res = evaluate(cond, facts)
+            if res.verdict == Verdict.SKIP:
+                skipped_by_condition += 1
+                continue
+            applicable.append(r)
+            verdicts[r["rule_id"]] = res.verdict.value
+            if res.verdict == Verdict.UNKNOWN:
+                unknown_count += 1
+
+        # Stash counters for the verify() summary log
+        self._last_selection_stats = {
+            "skipped_by_layer":     skipped_by_layer,
+            "skipped_by_typology":  skipped_by_typology,
+            "skipped_by_condition": skipped_by_condition,
+            "applicable":           len(applicable),
+            "applicable_unknown":   unknown_count,
+        }
+        return applicable, verdicts
 
     # ── Stage 3: pattern matching ──
 
@@ -392,7 +495,13 @@ class RuleVerificationEngine:
         matcher = _PATTERN_MATCHERS.get(rule["typology_code"])
         if matcher is None:
             return None
-        violated, evidence = matcher(text, params)
+        result = matcher(text, params)
+        # Backwards-compat: matchers may still return 2-tuples; new ones return 3-tuples
+        if len(result) == 2:
+            violated, evidence = result
+            line_no = None
+        else:
+            violated, evidence, line_no = result
         if not violated:
             return None
         return RuleFinding(
@@ -404,6 +513,7 @@ class RuleVerificationEngine:
             source_clause=rule.get("source_clause") or "",
             layer=rule.get("layer") or "",
             defeated_by=[],
+            line_no=line_no,
         )
 
     # ── Stage 4: defeasibility resolution ──
@@ -499,6 +609,12 @@ class RuleVerificationEngine:
                 )
             merged_evidence = " ".join(evidence_parts)
 
+            # Propagate line_no — pick the smallest non-None across the group
+            # (deterministic; the earliest-line evidence is typically the
+            # operative one for shortfall checks).
+            line_nos = [f.line_no for f in group if f.line_no is not None]
+            merged_line_no = min(line_nos) if line_nos else None
+
             merged.append(RuleFinding(
                 rule_id=primary.rule_id,
                 rule_text=primary.rule_text,
@@ -510,6 +626,7 @@ class RuleVerificationEngine:
                 defeated_by=all_defeats,
                 triggered_rule_ids=triggered_ids,
                 rules_fired=count,
+                line_no=merged_line_no,
             ))
 
         # Sort merged findings: severity desc, then typology
@@ -599,8 +716,22 @@ class RuleVerificationEngine:
         return self.verify(combined, document_name=bundle_name)
 
     def verify(
-        self, document_text: str, *, document_name: str = "<inline>"
+        self,
+        document_text: str,
+        *,
+        document_name: str = "<inline>",
+        tender_facts: dict | None = None,
     ) -> ValidationReport:
+        """Validate `document_text` and return a ValidationReport.
+
+        `tender_facts`: optional dict of reliable facts for the
+        condition_when gate. The v0.3-clean caller (kg_builder /
+        validator_graph) loads this from the TenderDocument kg_node so
+        only RELIABLE facts go in (e.g. tender_type from the OpenRouter
+        extractor, is_ap_tender from the classifier). Keys missing from
+        this dict resolve to UNKNOWN at the condition_evaluator stage,
+        and findings whose rules failed to fully resolve get downgraded
+        from HARD_BLOCK/WARNING to ADVISORY."""
         t0 = time.perf_counter()
 
         # Strip pymupdf4llm-style markdown escapes ('2\.5%' → '2.5%') so the
@@ -624,16 +755,31 @@ class RuleVerificationEngine:
         )
         params = self.cascade.compute(inputs)
 
-        # Stage 2: select applicable rules
+        # Stage 2: select applicable rules — filter by layer + typology
+        # AND condition_when. tender_facts overrides classifier-derived
+        # values when provided.
         all_rules = self._fetch_rules()
-        applicable = self._select_rules(all_rules, classification, params)
+        applicable, condition_verdicts = self._select_rules(
+            all_rules, classification, params, tender_facts=tender_facts,
+        )
 
-        # Stage 3: pattern-match each applicable rule
+        # Stage 3: pattern-match each applicable rule.
+        # Findings from UNKNOWN-verdict rules are downgraded to ADVISORY:
+        # the rule pattern fired, but we couldn't fully verify the
+        # context the rule's condition_when expects, so we surface it
+        # as advisory rather than confirmed.
         findings: list[RuleFinding] = []
         for rule in applicable:
             f = self._match_rule(rule, document_text, params)
-            if f is not None:
-                findings.append(f)
+            if f is None:
+                continue
+            if condition_verdicts.get(rule["rule_id"]) == "UNKNOWN":
+                f.severity = "ADVISORY"
+                f.evidence_text = (
+                    f"{f.evidence_text} — Rule fires but a fact required by "
+                    f"condition_when is unavailable; surfaced as ADVISORY."
+                )
+            findings.append(f)
 
         # Stage 4a: defeasibility resolution
         findings = self._resolve_defeats(findings, all_rules, classification.is_ap_tender)

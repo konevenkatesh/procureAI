@@ -285,30 +285,39 @@ def report_generator(state: ValidatorState) -> dict:
     # Filter out violations the validator marked as defeated.
     active_violations = [v for v in violations if not v.get("defeated")]
 
-    # Build the findings list FIRST (deduped) so all counters below
-    # reflect the same set of facts the report shows.
+    # Build the findings list (deduped by typology — multiple rules of
+    # the same typology fire on the same evidence; report once per
+    # typology with the strongest severity).
     findings: list[dict] = []
-    seen_keys: set[tuple] = set()
+    seen_typologies: dict[str, dict] = {}
+    sev_rank = {"HARD_BLOCK": 3, "WARNING": 2, "ADVISORY": 1}
     for v in active_violations:
-        # Dedupe on (rule_id, clause_template_id, clause_section_type) so
-        # the same finding emitted across N matched-clause realisations
-        # of the same template doesn't show up N times in the report.
-        key = (v["rule_id"], v["clause_template_id"], v["clause_section_type"])
-        if key in seen_keys:
+        typ = v.get("typology") or "Unknown"
+        existing = seen_typologies.get(typ)
+        if existing is not None:
+            # Keep the strongest severity; if same, prefer the one with
+            # the lowest line_no (earliest in document)
+            if (sev_rank.get(v["severity"], 0) > sev_rank.get(existing["severity"], 0)
+                or (sev_rank.get(v["severity"], 0) == sev_rank.get(existing["severity"], 0)
+                    and (v.get("line_no") or 10**9) < (existing.get("line_no") or 10**9))):
+                seen_typologies[typ] = v
             continue
-        seen_keys.add(key)
+        seen_typologies[typ] = v
+
+    for typ, v in seen_typologies.items():
         ap = vr["audit_paths"].get(v["rule_id"], {})
         findings.append({
-            "typology":   v["typology"],
-            "rule_id":    v["rule_id"],
-            "severity":   v["severity"],
-            "clause": {
-                "template_id":      v["clause_template_id"],
-                "title":            v["clause_title"],
-                "match_confidence": v["clause_match_confidence"],
-            },
-            "section": ap.get("section") or {
-                "section_type": v["clause_section_type"],
+            "typology":    typ,
+            "rule_id":     v["rule_id"],
+            "severity":    v["severity"],
+            "attribution": v.get("attribution"),    # "section" | "document"
+            "line_no":     v.get("line_no"),
+            "section":     ap.get("section") or {
+                "section_type":  v.get("section_type"),
+                "heading":       v.get("section_heading"),
+                "source_file":   v.get("section_source_file"),
+                "line_start":    v.get("section_line_start"),
+                "line_end":      v.get("section_line_end"),
             },
             "audit_path": {
                 "rule":       ap.get("rule"),
@@ -321,13 +330,6 @@ def report_generator(state: ValidatorState) -> dict:
     advisories  = [f for f in findings if f["severity"] == "ADVISORY"]
     status = "BLOCK" if hard_blocks else "PASS"
 
-    # Raw edge counts are kept too — useful for diagnostics that want
-    # to know e.g. "the same violation matched 5 different clause
-    # realisations" before dedup.
-    raw_hard_blocks_edges = sum(
-        1 for v in active_violations if v["severity"] == "HARD_BLOCK"
-    )
-
     # KG stats roll-up
     edges = kg.get("edges_by_type", {})
     nodes = kg.get("nodes_by_type", {})
@@ -335,16 +337,21 @@ def report_generator(state: ValidatorState) -> dict:
     kg_stats = {
         "nodes":              sum(nodes.values()),
         "edges":              sum(edges.values()),
-        "clauses_matched":    nodes.get("ClauseInstance", 0),
-        "rules_activated":    nodes.get("RuleNode", 0),
         "sections":           nodes.get("Section", 0),
+        "rules_activated":    nodes.get("RuleNode", 0),
+        "validation_findings": nodes.get("ValidationFinding", 0),
         "defeaters_fired":    defe.get("active_defeaters", 0),
         "defeats_edges":      edges.get("DEFEATS", 0),
         "violates_edges":     edges.get("VIOLATES_RULE", 0),
-        "satisfies_edges":    edges.get("SATISFIES_RULE", 0),
-        "cross_ref_edges":    edges.get("CROSS_REFERENCES", 0),
         "overrides_edges":    edges.get("OVERRIDES_VIOLATION", 0),
+        "attribution_stats":  defe.get("attribution_stats", {}),
     }
+
+    # ── HONEST COVERAGE STATEMENT ──
+    # The validator only checks 8 of 42 typologies. This block makes
+    # that limitation visible in every report so reviewers do not
+    # mistake a PASS as comprehensive validation.
+    coverage = _coverage_statement()
 
     timings = dict(state.get("timings_ms") or {})
     timings["report_generator"] = int((time.perf_counter() - t0) * 1000)
@@ -355,17 +362,132 @@ def report_generator(state: ValidatorState) -> dict:
         "hard_block_count":  len(hard_blocks),
         "warning_count":     len(warnings),
         "advisory_count":    len(advisories),
-        "cascade_count":     len(vr.get("cascade", [])),
         "findings":          findings,
         "kg_stats":          kg_stats,
+        "coverage":          coverage,
         "raw_edge_counts": {
-            "violates_total":      len(active_violations),
-            "violates_hard_block": raw_hard_blocks_edges,
-            "violates_defeated":   sum(1 for v in violations if v.get("defeated")),
+            "violates_total":    len(active_violations),
+            "violates_defeated": sum(1 for v in violations if v.get("defeated")),
         },
         "timings_ms":        timings,
     }
     return {"report": report, "timings_ms": timings}
+
+
+# ── Coverage statement ────────────────────────────────────────────────
+
+# Numbers below are pulled from production rules table (1,223
+# TYPE_1_ACTIONABLE rules across 42 distinct typologies, 936 of them
+# HARD_BLOCK severity). Update this block whenever a new typology
+# checker is wired into the validator pipeline.
+#
+# The validator runs in TWO independent layers, both of which surface
+# findings consumed by this report:
+#   1. Legacy regex pipeline — modules/validator/rule_verification_engine.py
+#      Fast O(text-length) keyword + percent/days extraction. Cheap but
+#      brittle. Misses semantic violations.
+#   2. Tier-1 BGE-M3 + LLM pipeline — scripts/tier1_*_check.py
+#      Per-typology retrieval (Qdrant top-K) + LLM rerank + L24 evidence
+#      guard + L36 grep fallback. Produces ValidationFinding nodes
+#      directly into the KG with full audit trail.
+# The Tier-1 pipeline is the primary source of truth for the 11
+# typologies it covers. The regex pipeline is retained for the typologies
+# that haven't been moved to Tier-1 yet (Missing-Anti-Collusion,
+# Criteria-Restriction-Narrow) and as a cheap pre-filter.
+
+_VALIDATED_BY_REGEX: tuple[str, ...] = (
+    "PBG-Shortfall",
+    "EMD-Shortfall",
+    "Bid-Validity-Short",
+    "Missing-Integrity-Pact",
+    "Missing-Anti-Collusion",
+    "Missing-PVC-Clause",
+    "E-Procurement-Bypass",
+    "Judicial-Preview-Bypass",
+    "Criteria-Restriction-Narrow",
+)
+
+# Tier-1 BGE-M3 + LLM pipeline coverage (as of L38 / typology 11).
+# These 11 typologies have dedicated scripts/tier1_*_check.py runners
+# and emit ValidationFinding nodes directly into the KG. Eight overlap
+# with regex coverage above (regex is the cheap pre-filter); three are
+# Tier-1-only (LD, MA, BG-Validity-Gap, Blacklist) — regex has no
+# matcher for those.
+_VALIDATED_BY_TIER1_PIPELINE: tuple[str, ...] = (
+    "PBG-Shortfall",
+    "EMD-Shortfall",
+    "Bid-Validity-Short",
+    "Missing-PVC-Clause",
+    "Missing-Integrity-Pact",
+    "Missing-LD-Clause",
+    "Mobilisation-Advance-Excess",
+    "E-Procurement-Bypass",
+    "Blacklist-Not-Checked",
+    "BG-Validity-Gap",
+    "Judicial-Preview-Bypass",
+)
+
+# Top typologies NEITHER pipeline covers, with their TYPE_1 rule
+# counts. Maintained as static data so the report doesn't pay a
+# Supabase round-trip per call. Re-derive when the rules table
+# changes shape, or when a new tier1_*_check script lands.
+_NOT_VALIDATED: tuple[tuple[str, int], ...] = (
+    ("Missing-Mandatory-Field",      596),
+    ("Single-Source-Undocumented",    51),
+    ("COI-PMC-Works",                 34),
+    ("Arbitration-Clause-Violation",  32),
+    ("Geographic-Restriction",        29),
+    ("Stale-Financial-Year",          29),
+    ("Post-Tender-Negotiation",       28),
+    ("Bid-Splitting-Pattern",         17),
+    ("Limited-Tender-Misuse",         17),
+    ("Spec-Tailoring",                14),
+    ("Criteria-Restriction-Loose",    13),
+    ("MakeInIndia-LCC-Missing",       13),
+    ("Cover-Bidding-Signal",          10),
+)
+
+# Hard-coded HARD_BLOCK coverage. The Tier-1 pipeline covers more
+# HARD_BLOCK rules than regex alone — Blacklist (41) + MA (23) + LD (17)
+# add to the regex baseline. Numbers reflect the union of both layers.
+_HB_RULES_TOTAL     = 936
+_HB_RULES_VALIDATED = 215   # regex 134 + Tier-1-only adds (Blacklist 41 + MA 23 + LD 17)
+
+
+def _coverage_statement() -> dict:
+    """Produce the honest coverage block included on every report.
+
+    Reviewers should read this before reading findings — it states
+    precisely which typologies the validator can detect (across both
+    regex and Tier-1 BGE-M3 layers), which it cannot, and what fraction
+    of HARD_BLOCK rules the system can enforce. As of L38 the union
+    covers ~23% of HARD_BLOCK rules; remaining coverage requires
+    additional tier1_*_check scripts following the established template
+    (see modules/validation/section_router.py + grep_fallback.py)."""
+    not_validated_summary = [f"{name} ({n} rules)" for name, n in _NOT_VALIDATED]
+    union_validated = set(_VALIDATED_BY_REGEX) | set(_VALIDATED_BY_TIER1_PIPELINE)
+    not_validated_summary.append(
+        f"…and {42 - len(union_validated) - len(_NOT_VALIDATED)} other typologies"
+    )
+    pct = round(100.0 * _HB_RULES_VALIDATED / _HB_RULES_TOTAL, 1)
+    return {
+        "validated_by_regex":           list(_VALIDATED_BY_REGEX),
+        "validated_by_tier1_pipeline":  list(_VALIDATED_BY_TIER1_PIPELINE),
+        "not_validated":                not_validated_summary,
+        "coverage_of_hard_blocks":      f"{_HB_RULES_VALIDATED} of {_HB_RULES_TOTAL} HARD_BLOCK rules checked ({pct}%)",
+        "clause_identification":        "Tier-1 pipeline uses BGE-M3 retrieval + LLM rerank with L24 evidence guard; regex pipeline uses keyword + percent/days extraction",
+        "rule_satisfaction_verified":   False,
+        "section_attribution":          "implemented via global-line lookup; absence-type violations attach to the document",
+        "notes": [
+            "PASS does NOT mean 'this tender is compliant' — it means "
+            "'no rule fired in the typologies we currently check'. "
+            f"That is {len(union_validated)} of 42 typologies.",
+            "BLOCK status is reliable only for the typologies in "
+            "validated_by_regex ∪ validated_by_tier1_pipeline above.",
+            "SATISFIES_RULE edges are not produced — we have no "
+            "evidence-grounded way to claim a clause satisfies a rule yet.",
+        ],
+    }
 
 
 # ── Build the graph ───────────────────────────────────────────────────

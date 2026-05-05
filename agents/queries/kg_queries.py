@@ -48,13 +48,25 @@ def _rest(table: str, *, params: dict | None = None,
 
 def get_violations(doc_id: str) -> list[dict]:
     """Every VIOLATES_RULE edge for this doc_id, joined to its source
-    ClauseInstance (so the caller knows WHICH clause holds the violation)
-    and target RuleNode (so the caller knows WHICH rule fired).
+    node (Section or TenderDocument depending on attribution) and to
+    the target RuleNode.
+
+    Per the v0.3-clean redesign, violations attach directly to the
+    Section that contains the violating evidence (line_no inside its
+    line range), or to the TenderDocument when the violation is
+    absence-type (no specific line — e.g. "no integrity pact clause
+    anywhere"). This replaces the earlier ClauseInstance-attribution
+    scheme, which produced 0.40-confidence template-title matches that
+    landed violations on unrelated sections.
 
     Returns list of dicts with keys:
         rule_id, typology, severity, defeated,
-        clause_node_id, clause_template_id, clause_title,
-        clause_section_type, clause_match_confidence,
+        attribution                 # "section" | "document"
+        line_no                     # int | None — None for doc-level
+        source_node_id, source_node_type
+        section_type, section_heading, section_source_file
+        section_line_start, section_line_end             # global coords
+        section_line_start_local, section_line_end_local # per-file coords
         rule_node_id, rule_layer, rule_pattern_type
     """
     edges = _rest("kg_edges", params={
@@ -65,31 +77,38 @@ def get_violations(doc_id: str) -> list[dict]:
     if not edges:
         return []
 
-    clause_ids = {e["from_node_id"] for e in edges}
-    rule_ids   = {e["to_node_id"]   for e in edges}
+    src_ids  = {e["from_node_id"] for e in edges}
+    rule_ids = {e["to_node_id"]   for e in edges}
 
-    clause_nodes = _fetch_nodes(clause_ids)
-    rule_nodes   = _fetch_nodes(rule_ids)
+    src_nodes  = _fetch_nodes(src_ids)
+    rule_nodes = _fetch_nodes(rule_ids)
 
     out: list[dict] = []
     for e in edges:
-        cl = clause_nodes.get(e["from_node_id"], {})
-        ru = rule_nodes.get(e["to_node_id"],   {})
-        cp = cl.get("properties", {}) or {}
-        rp = ru.get("properties", {}) or {}
+        src = src_nodes.get(e["from_node_id"], {})
+        ru  = rule_nodes.get(e["to_node_id"], {})
+        sp  = src.get("properties", {}) or {}
+        rp  = ru.get("properties", {}) or {}
+        ep  = e["properties"] or {}
         out.append({
-            "rule_id":                   e["properties"].get("rule_id"),
-            "typology":                  e["properties"].get("typology"),
-            "severity":                  e["properties"].get("severity"),
-            "defeated":                  bool(e["properties"].get("defeated")),
-            "clause_node_id":            e["from_node_id"],
-            "clause_template_id":        cp.get("template_id"),
-            "clause_title":              cl.get("label"),
-            "clause_section_type":       cp.get("section_type"),
-            "clause_match_confidence":   cp.get("match_confidence"),
-            "rule_node_id":              e["to_node_id"],
-            "rule_layer":                rp.get("layer"),
-            "rule_pattern_type":         rp.get("pattern_type"),
+            "rule_id":                ep.get("rule_id"),
+            "typology":               ep.get("typology"),
+            "severity":               ep.get("severity"),
+            "defeated":               bool(ep.get("defeated")),
+            "attribution":            ep.get("attribution"),    # "section" | "document"
+            "line_no":                ep.get("line_no"),
+            "source_node_id":         e["from_node_id"],
+            "source_node_type":       src.get("node_type"),
+            "section_type":           sp.get("section_type"),
+            "section_heading":        sp.get("heading"),
+            "section_source_file":    sp.get("source_file"),
+            "section_line_start":     sp.get("line_start"),
+            "section_line_end":       sp.get("line_end"),
+            "section_line_start_local": sp.get("line_start_local"),
+            "section_line_end_local":   sp.get("line_end_local"),
+            "rule_node_id":           e["to_node_id"],
+            "rule_layer":             rp.get("layer"),
+            "rule_pattern_type":      rp.get("pattern_type"),
         })
     return out
 
@@ -97,99 +116,55 @@ def get_violations(doc_id: str) -> list[dict]:
 # ── 2. Cascade violations: violator → cross-referenced clauses ───────
 
 def get_cascade_violations(doc_id: str) -> list[dict]:
-    """For every VIOLATES_RULE edge, find clauses that the violating
-    clause cross-references. These are the "fixing this forces fixing
-    these too" relationships — the cascade.
+    """Cascade-violation query.
 
-    Returns list of dicts with keys:
-        violator_clause_node_id, violator_template_id, violator_rule_id,
-        related_clause_node_id, related_template_id, related_clause_title
-    """
-    vio = _rest("kg_edges", params={
-        "select":    "from_node_id,properties",
-        "doc_id":    f"eq.{doc_id}",
-        "edge_type": "eq.VIOLATES_RULE",
-    })
-    if not vio:
-        return []
-    violator_ids = {e["from_node_id"] for e in vio}
+    NOTE — v0.3: this query historically traversed ClauseInstance
+    cross-references from violator clauses. Since the v0.3-clean
+    redesign no longer creates ClauseInstance / HAS_CLAUSE / per-doc
+    CROSS_REFERENCES edges (clause-template matching at 0.40
+    SequenceMatcher confidence was producing false attribution), the
+    cascade view is currently empty. It will be reintroduced in v0.4
+    when BGE-M3 cross-encoder lands and we have trustworthy clause-level
+    relationships.
 
-    xref = _rest("kg_edges", params={
-        "select":    "from_node_id,to_node_id",
-        "doc_id":    f"eq.{doc_id}",
-        "edge_type": "eq.CROSS_REFERENCES",
-    })
-    xref_by_violator: dict[str, list[str]] = defaultdict(list)
-    for e in xref:
-        if e["from_node_id"] in violator_ids:
-            xref_by_violator[e["from_node_id"]].append(e["to_node_id"])
-    if not xref_by_violator:
-        return []
-
-    all_clause_ids = violator_ids | {tid for tids in xref_by_violator.values() for tid in tids}
-    clause_nodes = _fetch_nodes(all_clause_ids)
-
-    # Collapse: for each (violator, rule, related), one row.
-    out: list[dict] = []
-    for v_edge in vio:
-        v_id   = v_edge["from_node_id"]
-        v_node = clause_nodes.get(v_id, {})
-        v_tpl  = (v_node.get("properties") or {}).get("template_id")
-        v_rule = v_edge["properties"].get("rule_id")
-        for r_id in xref_by_violator.get(v_id, []):
-            r_node = clause_nodes.get(r_id, {})
-            r_tpl  = (r_node.get("properties") or {}).get("template_id")
-            out.append({
-                "violator_clause_node_id":  v_id,
-                "violator_template_id":     v_tpl,
-                "violator_rule_id":         v_rule,
-                "related_clause_node_id":   r_id,
-                "related_template_id":      r_tpl,
-                "related_clause_title":     r_node.get("label"),
-            })
-    return out
+    Returns []. The function is retained for API stability so callers
+    don't need to special-case its absence."""
+    return []
 
 
 # ── 3. Audit path for a single rule violation ────────────────────────
 
 def get_full_audit_path(doc_id: str, rule_id: str) -> dict:
-    """Trace the chain that links a rule violation back to its evidence:
+    """Trace the chain linking a rule violation back to its evidence:
 
         TenderDocument
-            └── HAS_SECTION → Section (section_type, heading, line_start..line_end)
-                    └── HAS_CLAUSE → ClauseInstance (template_id, confidence)
-                            └── VIOLATES_RULE → RuleNode (rule_id, severity, typology)
-                                    │
-                                    └── (DEFEATS …) ← if any active defeater overrides
+          └── HAS_SECTION → Section (section_type, heading, line_start, line_end, source_file)
+                                            │
+                                            └── VIOLATES_RULE → RuleNode
+                                                  │
+                                                  └── (DEFEATS …) ← active defeaters
 
-    Returns a single dict per (doc_id, rule_id). When the rule has
-    multiple violating clauses, the FIRST is reported here (most
-    severe-confidence first); call `get_violations` to see all.
+    For absence-type violations (line_no=None) the source is the
+    TenderDocument itself; the section block carries None values and
+    the audit_path callout describes the violation as doc-level.
+
+    Returns a single dict per (doc_id, rule_id). When multiple
+    violation edges exist for the same rule_id (one per matched
+    pattern), we pick the most-severe one with the lowest line_no.
     """
     vios = [v for v in get_violations(doc_id) if v["rule_id"] == rule_id]
     if not vios:
         return {"doc_id": doc_id, "rule_id": rule_id, "found": False}
 
-    # Pick the highest-severity, highest-confidence violator
     sev_rank = {"HARD_BLOCK": 3, "WARNING": 2, "ADVISORY": 1}
+    # Strongest first: severity desc, then earliest line (None last)
     vios.sort(key=lambda v: (
         -sev_rank.get(v["severity"] or "", 0),
-        -(float(v["clause_match_confidence"] or 0)),
+        v["line_no"] if v["line_no"] is not None else 10**9,
     ))
     v = vios[0]
 
-    # Find the section that contains this clause via HAS_CLAUSE edge
-    has_clause = _rest("kg_edges", params={
-        "select":    "from_node_id,to_node_id",
-        "doc_id":    f"eq.{doc_id}",
-        "edge_type": "eq.HAS_CLAUSE",
-        "to_node_id": f"eq.{v['clause_node_id']}",
-    })
-    section_node_id = has_clause[0]["from_node_id"] if has_clause else None
-    section = _fetch_nodes({section_node_id}).get(section_node_id) if section_node_id else None
-    sp = (section or {}).get("properties", {}) or {}
-
-    # Find any defeating rules for this rule_id (DEFEATS edges into it)
+    # Defeating rules (DEFEATS edges incoming to this rule_node)
     defeats = _rest("kg_edges", params={
         "select":    "from_node_id,properties",
         "doc_id":    f"eq.{doc_id}",
@@ -209,26 +184,23 @@ def get_full_audit_path(doc_id: str, rule_id: str) -> dict:
             })
 
     return {
-        "doc_id":           doc_id,
-        "rule_id":          rule_id,
-        "found":            True,
-        "severity":         v["severity"],
-        "typology":         v["typology"],
-        "defeated":         v["defeated"],
+        "doc_id":      doc_id,
+        "rule_id":     rule_id,
+        "found":       True,
+        "severity":    v["severity"],
+        "typology":    v["typology"],
+        "defeated":    v["defeated"],
+        "attribution": v["attribution"],   # "section" | "document"
+        "line_no":     v["line_no"],
         "section": {
-            "node_id":      section_node_id,
-            "section_type": sp.get("section_type"),
-            "heading":      sp.get("heading"),
-            "line_start":   sp.get("line_start"),
-            "line_end":     sp.get("line_end"),
-            "word_count":   sp.get("word_count"),
-            "source_file":  sp.get("source_file"),
-        },
-        "clause": {
-            "node_id":          v["clause_node_id"],
-            "template_id":      v["clause_template_id"],
-            "title":            v["clause_title"],
-            "match_confidence": v["clause_match_confidence"],
+            "node_id":          v["source_node_id"] if v["attribution"] == "section" else None,
+            "section_type":     v["section_type"],
+            "heading":          v["section_heading"],
+            "source_file":      v["section_source_file"],
+            "line_start":       v["section_line_start"],
+            "line_end":         v["section_line_end"],
+            "line_start_local": v["section_line_start_local"],
+            "line_end_local":   v["section_line_end_local"],
         },
         "rule": {
             "node_id":      v["rule_node_id"],
