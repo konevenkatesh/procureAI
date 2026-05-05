@@ -356,6 +356,14 @@ def build_eproc_rerank_prompt(candidates: list[dict]) -> str:
         "  \"found\":                     bool,\n"
         "  \"reasoning\":                 \"one short sentence explaining the choice\"\n"
         "}\n\n"
+        "QUOTE FORMAT — STRICT (per L35):\n"
+        "- Return a SINGLE CONTIGUOUS quote from ONE sentence or ONE clause only.\n"
+        "- Do NOT stitch multiple paragraphs into one quote.\n"
+        "- Do NOT add ellipsis ('...') between lines.\n"
+        "- Do NOT paraphrase, summarise, or condense — quote EXACTLY as it appears in the supplied text.\n"
+        "- Do NOT introduce or remove markdown formatting (asterisks, underscores, italics) — preserve the source formatting verbatim.\n"
+        "- Pick the SHORTEST contiguous span that proves the mandate; one sentence is usually enough.\n"
+        "\n"
         "Selection rules — IGNORE the following content (NOT an e-procurement mandate):\n"
         "- TWO-COVER SEALED BID SYSTEM (legacy AP language describing physical "
         "  envelopes labelled Cover-A / Cover-B / Cover-C). On AP docs this "
@@ -399,6 +407,21 @@ def build_eproc_rerank_prompt(candidates: list[dict]) -> str:
 
 
 def parse_llm_response(raw: str) -> dict:
+    """Parse the LLM's JSON response, robust to common malformed-JSON
+    patterns when the LLM faithfully reproduces source markdown
+    formatting (per the L35 strict-quote prompt directive).
+
+    Specifically: AP source markdown often contains `\\.` (a markdown-
+    escaped period), which is valid markdown but invalid JSON
+    (`\\.` is not a recognised JSON escape sequence — JSON only
+    accepts `\\\\`, `\\/`, `\\b`, `\\f`, `\\n`, `\\r`, `\\t`, `\\"`,
+    `\\uXXXX`). When the LLM quotes the source verbatim per the
+    L35 prompt, those escapes leak into its output and break
+    `json.loads`. We rewrite invalid `\\X` sequences to `\\\\X`
+    BEFORE parsing so the original character is preserved as a
+    literal backslash + X. Same rationale for the other
+    occasionally-leaked markdown escapes.
+    """
     text = raw.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```\s*$", "", text)
@@ -406,7 +429,15 @@ def parse_llm_response(raw: str) -> dict:
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if m:
             text = m.group(0)
-    return json.loads(text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Replace any backslash NOT followed by a valid JSON escape
+        # character with a doubled backslash. Valid escapes per
+        # RFC-8259: \" \\ \/ \b \f \n \r \t \uXXXX.
+        sanitized = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', text)
+        return json.loads(sanitized)
 
 
 # ── Rule selection via condition_evaluator ────────────────────────────
@@ -661,7 +692,17 @@ def main() -> int:
     ev_score = 0
     ev_method = "skipped"
 
-    if chosen is not None and isinstance(chosen, int) and 0 <= chosen < len(candidates):
+    # L35 contract: track the LLM's pre-verification verdict separately
+    # from the post-verification eproc_present. The LLM's `found` /
+    # `e_procurement_present` may report TRUE even when the L24
+    # evidence guard fails — that is NOT the same as "clause absent".
+    # It's "LLM identified a clause but the quote it returned cannot
+    # be verified against the source." That third state needs an
+    # UNVERIFIED finding, not an absence finding.
+    llm_found_clause   = bool(parsed.get("e_procurement_present")) and (chosen is not None)
+    llm_chose_candidate = chosen is not None and isinstance(chosen, int) and 0 <= chosen < len(candidates)
+
+    if llm_chose_candidate:
         section = candidates[chosen]
         similarity = section["similarity"]
         print(f"  → using candidate [{chosen}]: {section['heading'][:60]} "
@@ -671,38 +712,65 @@ def main() -> int:
                 evidence, section["full_text"]
             )
             print(f"  evidence_verified : {ev_passed}  (score={ev_score}, method={ev_method})")
-            if not ev_passed:
-                print(f"  HALLUCINATION_DETECTED — discarding extraction.")
+            if ev_passed:
+                # L24 PASS — LLM verdict is verified end-to-end.
+                pass
+            else:
+                # L24 FAIL — LLM said clause is present but the quote
+                # it returned doesn't match the picked section. Keep
+                # `eproc_present` as the LLM said (True) but also
+                # mark `evidence_unverified=True` so the materialise
+                # branch below can route to the UNVERIFIED path.
+                print(f"  L24_FAILED — LLM found clause but quote is unverifiable. "
+                      f"Routing to UNVERIFIED finding (NOT absence).")
                 print(f"    LLM evidence  : {evidence[:200]!r}")
-                section = None
-                eproc_present = False
         else:
-            print(f"  ⚠ no evidence quote provided — treating as not-verified")
+            print(f"  ⚠ no evidence quote provided — treating as L24-failed (empty)")
             ev_passed = False; ev_score = 0; ev_method = "empty"
-            eproc_present = False
-            section = None
     else:
         print(f"  → no candidate chosen by LLM")
         if eproc_present:
             print(f"  ⚠ eproc_present=True but chosen_index=null — treating as False")
             eproc_present = False
+            llm_found_clause = False
 
-    # 8. Apply rule check (presence shape)
-    is_violation = (rule["shape"] == "presence" and not eproc_present)
-    reason_label = ("compliant_e_procurement_present" if eproc_present
-                    else "e_procurement_bypass_violation")
+    # 8. Apply rule check — three-way branch (per L35):
+    #    (a) llm_found_clause AND ev_passed     → compliant, no finding
+    #    (b) llm_found_clause AND NOT ev_passed → UNVERIFIED finding (no edge)
+    #    (c) NOT llm_found_clause               → absence finding (with edge)
+    is_compliant   = llm_found_clause and ev_passed
+    is_unverified  = llm_found_clause and not ev_passed
+    is_absence     = not llm_found_clause
+
+    if is_compliant:
+        reason_label = "compliant_e_procurement_present"
+    elif is_unverified:
+        reason_label = "e_procurement_unverified_llm_found_quote_failed_l24"
+    else:
+        reason_label = "e_procurement_bypass_violation"
+
     print(f"\n── Decision ──")
-    print(f"  rule           : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
-    print(f"  eproc_present  : {eproc_present}")
-    print(f"  reason_label   : {reason_label}")
-    print(f"  is_violation   : {is_violation}")
+    print(f"  rule              : {rule['rule_id']} ({rule['severity']}, shape={rule['shape']})")
+    print(f"  llm_found_clause  : {llm_found_clause}")
+    print(f"  ev_passed         : {ev_passed}  (score={ev_score}, method={ev_method})")
+    print(f"  is_compliant      : {is_compliant}")
+    print(f"  is_unverified     : {is_unverified}")
+    print(f"  is_absence        : {is_absence}")
+    print(f"  reason_label      : {reason_label}")
 
-    if not is_violation:
+    if is_compliant:
+        # No finding emitted (compliant docs are implicit "no row").
         return 0
 
-    # 9. Materialise finding + edge
+    # 9. Materialise finding (UNVERIFIED or ABSENCE).
+    # The VIOLATES_RULE edge is emitted ONLY for ABSENCE findings —
+    # UNVERIFIED findings are NOT violations until a human reviewer
+    # confirms (per L35 contract).
     t0 = time.perf_counter()
-    if section is not None:
+    if section is not None and is_unverified:
+        # Keep the section attribution on the UNVERIFIED finding —
+        # the LLM identified WHERE the clause should be; the human
+        # reviewer can start there.
         section_node_id = section["section_node_id"]
         section_heading = section["heading"]
         source_file     = section["source_file"]
@@ -722,9 +790,9 @@ def main() -> int:
         line_end_local   = None
         qdrant_similarity = None
 
-    # L29: ABSENCE findings skip evidence_guard semantics.
-    is_absence_finding = (not eproc_present and section is None)
-    if is_absence_finding:
+    # L29: ABSENCE findings skip evidence_guard semantics; keep the
+    # search-trace description as evidence.
+    if is_absence:
         ev_passed = None
         ev_score  = None
         ev_method = "absence_finding_no_evidence"
@@ -732,14 +800,29 @@ def main() -> int:
                      f"after searching {', '.join(section_types)} section types")
         print(f"  → ABSENCE finding — skipping evidence_guard "
               f"(no quote to verify)")
+    elif is_unverified:
+        # L35 UNVERIFIED — the LLM found the clause and quoted text
+        # but L24 partial_ratio < 85. Keep the LLM's evidence quote
+        # in the finding so a human reviewer can compare against the
+        # picked section's text. ev_score / ev_method already record
+        # the L24 outcome.
+        print(f"  → UNVERIFIED finding — LLM identified clause but quote "
+              f"failed L24 verification (score={ev_score}, method={ev_method})")
 
     rule_node_id = get_or_create_rule_node(DOC_ID, rule["rule_id"])
 
-    label = (
-        f"{TYPOLOGY}: e-procurement mandate absent — {rule['rule_id']} "
-        f"({rule['severity']}) requires bids to be submitted via "
-        f"e-procurement portal for this tender"
-    )
+    if is_unverified:
+        label = (
+            f"{TYPOLOGY}: UNVERIFIED — LLM found e-procurement mandate "
+            f"but quote failed L24 (score={ev_score}, method={ev_method}); "
+            f"requires human review against {(section['heading'][:60] if section else 'TenderDocument')!r}"
+        )
+    else:
+        label = (
+            f"{TYPOLOGY}: e-procurement mandate absent — {rule['rule_id']} "
+            f"({rule['severity']}) requires bids to be submitted via "
+            f"e-procurement portal for this tender"
+        )
 
     finding_props = {
         "rule_id":               rule["rule_id"],
@@ -747,7 +830,8 @@ def main() -> int:
         "severity":              rule["severity"],
         "evidence":              evidence,
         "extraction_path":       "presence",
-        "e_procurement_present": eproc_present,
+        "llm_found_clause":      llm_found_clause,
+        "e_procurement_present": llm_found_clause,    # mirrors LLM verdict (pre-L24)
         "platform":              platform,
         "digital_signature_required":  dsc_required,
         "offline_alternative_present": offline_alt,
@@ -780,7 +864,17 @@ def main() -> int:
         # L27 audit
         "verdict_origin":              rule.get("verdict_origin"),
         "severity_origin":             rule.get("severity_origin"),
-        "status":              "OPEN",
+        # L35 status / human-review markers
+        "status":                      "UNVERIFIED" if is_unverified else "OPEN",
+        "requires_human_review":       bool(is_unverified),
+        "human_review_reason": (
+            "LLM found clause but evidence quote failed L24 verification "
+            f"(score={ev_score}, method={ev_method}). Reviewer should "
+            f"open the section above (line_start={line_start_local}, "
+            f"line_end={line_end_local}) and confirm the e-procurement "
+            f"mandate is present in the source text."
+            if is_unverified else None
+        ),
         "defeated":            False,
     }
 
@@ -792,34 +886,46 @@ def main() -> int:
         "source_ref": f"tier1:eproc_check:{rule['rule_id']}",
     }])[0]
 
-    edge = rest_post("kg_edges", [{
-        "doc_id":       DOC_ID,
-        "from_node_id": section_node_id,
-        "to_node_id":   rule_node_id,
-        "edge_type":    "VIOLATES_RULE",
-        "weight":       1.0,
-        "properties": {
-            "rule_id":              rule["rule_id"],
-            "typology":             TYPOLOGY,
-            "severity":             rule["severity"],
-            "defeated":             False,
-            "tier":                 1,
-            "extraction_path":      "presence",
-            "e_procurement_present": eproc_present,
-            "platform":             platform,
-            "evidence":             evidence,
-            "qdrant_similarity":    qdrant_similarity,
-            "violation_reason":     reason_label,
-            "doc_family":           family,
-            "evidence_match_score":  ev_score,
-            "evidence_match_method": ev_method,
-            "finding_node_id":      finding["node_id"],
-        },
-    }])[0]
+    # VIOLATES_RULE edge ONLY for ABSENCE findings (per L35 contract).
+    # UNVERIFIED findings are NOT violations until a human reviewer
+    # confirms — they live as ValidationFinding nodes only, with
+    # status=UNVERIFIED and requires_human_review=true.
+    edge = None
+    if is_absence:
+        edge = rest_post("kg_edges", [{
+            "doc_id":       DOC_ID,
+            "from_node_id": section_node_id,
+            "to_node_id":   rule_node_id,
+            "edge_type":    "VIOLATES_RULE",
+            "weight":       1.0,
+            "properties": {
+                "rule_id":              rule["rule_id"],
+                "typology":             TYPOLOGY,
+                "severity":             rule["severity"],
+                "defeated":             False,
+                "tier":                 1,
+                "extraction_path":      "presence",
+                "e_procurement_present": False,
+                "platform":             platform,
+                "evidence":             evidence,
+                "qdrant_similarity":    qdrant_similarity,
+                "violation_reason":     reason_label,
+                "doc_family":           family,
+                "evidence_match_score":  ev_score,
+                "evidence_match_method": ev_method,
+                "finding_node_id":      finding["node_id"],
+            },
+        }])[0]
+
     timings["materialise"] = time.perf_counter() - t0
-    print(f"  → ValidationFinding {finding['node_id']}")
-    print(f"  → VIOLATES_RULE     {edge['edge_id']}  "
-          f"{'Section' if section else 'TenderDocument'}→Rule")
+    print(f"  → ValidationFinding {finding['node_id']}  "
+          f"(status={'UNVERIFIED' if is_unverified else 'OPEN'})")
+    if edge is not None:
+        print(f"  → VIOLATES_RULE     {edge['edge_id']}  "
+              f"{'Section' if section else 'TenderDocument'}→Rule")
+    else:
+        print(f"  → no VIOLATES_RULE edge "
+              f"(UNVERIFIED finding — awaiting human review)")
 
     # Summary
     timings["total_wall"] = time.perf_counter() - t_start
