@@ -700,6 +700,51 @@ The four-state shape (COMPLIANT / GAP_VIOLATION / UNVERIFIED / ABSENCE) is now t
 
 ---
 
+## L38 — Judicial-Preview-Bypass: First Wholly-AP-State Typology + Universal Corpus Bypass
+
+**Date:** May 2026
+**What we did:** Built the eleventh Tier-1 typology — Judicial-Preview-Bypass — verifying that AP infrastructure projects ≥ Rs.100 crore cite the AP Judicial Preview framework (AP Judicial Preview Act 2019, predecessor GO Ms No. 38/2018) in the tender document. AP-GO-001 (HARD_BLOCK, AP Works/EPC + 100cr) is the canonical primary; AP-GO-004 (HARD_BLOCK, any AP tender + 100cr) is the catch-all that fires on PPP docs where AP-GO-001 SKIPs (TenderType=PPP not in [Works, EPC]). All 7 rules in the typology are AP-State; this is the **first wholly-AP-State typology** in the shipped set — no Central or CVC layer to disambiguate.
+
+**Critical corpus distinction surfaced**: The Judicial Academy (JA) doc is a tender FOR the construction of the AP Judicial Academy building. The string "Judicial Academy" appears 6 times in JA's source (procuring entity / project name), but that's NOT the Judicial Preview framework. The LLM prompt and grep keyword vocabulary were built phrase-precise to handle this:
+- `"Judicial Preview"` (phrase) — counts as framework citation
+- `"APJPA"` / `"Judicial Preview Authority"` / `"Judicial Preview Act"` / `"GO Ms No 38"` — count
+- `"Judicial Academy"` — does NOT count (procuring entity)
+- Bare `"judicial"` — would have polluted grep with JA's procuring-entity hits
+
+The LLM's reasoning on Tirupathi explicitly confirmed the distinction: *"The 'Judicial Academy' references are not considered as they are not part of the Judicial Preview framework."* Same prompt logic prevented the JA-doc false-positive scenario.
+
+**What happened:** 6-doc run produced **6 universal ABSENCE findings** — 5 HARD_BLOCK + 1 ADVISORY (Vizag, EV=null → L27 downgrade). Both the LLM rerank AND the L36 source-grep fallback returned empty across [NIT, ITB] (and Evaluation for Kakinada SBD). To rule out a section-router blind spot, full-source grep was run across **all 12 corpus markdown files** (5 Vizag volumes + JA + HC + Kakinada SBD + Tirupathi RFP + Tirupathi DCA + Vijayawada RFP + Vijayawada DCA) for every JP framework keyword: zero hits anywhere.
+
+**This is a systemic gap in the AP corpus.** Every AP infrastructure project ≥ 100 cr in the dataset is non-compliant with AP-GO-001 / AP-GO-004 — the JP framework mandate has been in force since GO Ms No 38/2018 (later codified in the AP Judicial Preview Act 2019), but the tender documents do not cite it. Two interpretations:
+1. **Real bypass** — these tenders skipped the mandatory pre-publication review by APJPA. The compliance officer's response would be to (a) confirm via APJPA records whether the preview actually happened, and (b) require the tender doc to cite the preview certificate.
+2. **Documentation gap** — JP review may have happened but the citation was omitted from the published tender doc. Either way, the documentary record is non-compliant; remediation requires the citation to be inserted.
+
+The corpus supports interpretation (1) being more likely: APJPA citations are typically prominent NIT-page mandates (per CLAUSE-AP-JUDICIAL-PREVIEW-MANDATE-001) — drafters wouldn't accidentally omit them. APCRDA Amaravati works (JA, HC) and Smart City SBDs (Kakinada) and NREDCAP DBFOTs (Tirupathi, Vijayawada) all skipping the citation is suggestive of pre-Act-2019 templates that haven't been updated.
+
+**What we changed:**
+- `scripts/tier1_jp_check.py` (new) — presence-shape script with the post-L36 three-state contract + L36 grep fallback. Phrase-precise GREP_FALLBACK_KEYWORDS list explicitly excludes bare "judicial" to avoid the JA-doc false-positive. LLM prompt has a CRITICAL distinction block at the top stating the procuring-entity-vs-framework difference. RULE_CANDIDATES = [AP-GO-001, AP-GO-004, AP-GO-009, AP-GO-006, AP-GO-003] in priority order.
+- `modules/validation/section_router.py` — `JP_SECTION_ROUTER` added: APCRDA_Works/NREDCAP_PPP/default → [NIT, ITB]; SBD_Format → [NIT, ITB, Evaluation]. JP citations live exclusively in NIT per the read-first scan; ITB included as backup.
+
+**Result:** All 6 corpus docs flagged with JP-bypass findings:
+
+| doc | rule | severity | reason |
+|---|---|---|---|
+| JA | AP-GO-001 | HARD_BLOCK | Works 125.5cr ≥ 100cr, no JP citation |
+| HC | AP-GO-001 | HARD_BLOCK | Works 365cr, no JP citation |
+| Kakinada | AP-GO-001 | HARD_BLOCK | Works 152.78cr, no JP citation |
+| Vizag | AP-GO-001 | ADVISORY | Works EV=null → L27 downgrade; no JP citation |
+| Tirupathi | AP-GO-004 | HARD_BLOCK | PPP 257.51cr, no JP citation (AP-GO-001 SKIPs on PPP, AP-GO-004 fires on universal-100cr) |
+| Vijayawada | AP-GO-004 | HARD_BLOCK | PPP 324.7cr, same |
+
+Total corpus state: **32 ValidationFindings (27 OPEN + 5 UNVERIFIED), 27 VIOLATES_RULE edges**.
+
+**Forward applicability:**
+1. **First wholly-AP-State typology** — proves the AP-routing infrastructure works without a Central/CVC fallback. Future AP-only typologies (Solvency-Stale, Certification-Exclusionary, AP-specific contractor-management rules) can be ported without the multi-layer disambiguation that PVC/IP/etc. needed.
+2. **Procuring-entity vs framework name collision** is a typology-design concern that will recur. When the framework name overlaps with common procurement vocabulary (e.g. "Tender Authority" / "Bid Authority" / "Vigilance"), the prompt and grep keywords must be phrase-precise. JP's clean separation came from APJPA being a uniquely-named acronym + the Act 2019 reference; future typologies without unique anchors may need narrower section_filters.
+3. **Systemic-bypass observation worth surfacing in the audit dashboard**: 6/6 docs failing the same typology with similar evidence (universal absence) is a different shape than single-doc bypass. The frontend should aggregate "all docs missing X" findings as a portfolio-level concern rather than per-doc warnings — the response is policy/template-level, not doc-level.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -726,15 +771,15 @@ The four-state shape (COMPLIANT / GAP_VIOLATION / UNVERIFIED / ABSENCE) is now t
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across ten typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across eleven typologies
 
-| doc_id | PBG | EMD | BV | PVC | IP | LD | MA | E-Proc | BL | BG-Val |
-|--------|-----|-----|----|-----|----|----|----|--------|----|--------|
-| vizag | HARD 2.5% | silence | ✓ 180d | ✓ | ADV none | ✓ 5%/mo | ✓ 10% | ✓ 100% | UNV grep (L36) | ✓ 60d-post-DLP |
-| judicial_academy | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ WB/ADB | UNV grep (23 hits) |
-| high_court | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ bidder+WB | ✓ 60d-post-DLP |
-| kakinada | silence | ADV 1% | ✓ 90d | ADV absent | ADV none | ✓ §48.3 | ✓ no-MA | UNV (L35) | ✓ AP self-decl | ✓ 28d-post-DLP |
-| tirupathi | HARD 4.998% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** |
-| vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** |
+| doc_id | PBG | EMD | BV | PVC | IP | LD | MA | E-Proc | BL | BG-Val | JP |
+|--------|-----|-----|----|-----|----|----|----|--------|----|--------|----|
+| vizag | HARD 2.5% | silence | ✓ 180d | ✓ | ADV none | ✓ 5%/mo | ✓ 10% | ✓ 100% | UNV grep (L36) | ✓ 60d-post-DLP | ADV bypass (EV=null, L27) |
+| judicial_academy | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ WB/ADB | UNV grep (23 hits) | HARD bypass (zero JP) |
+| high_court | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ bidder+WB | ✓ 60d-post-DLP | HARD bypass (zero JP) |
+| kakinada | silence | ADV 1% | ✓ 90d | ADV absent | ADV none | ✓ §48.3 | ✓ no-MA | UNV (L35) | ✓ AP self-decl | ✓ 28d-post-DLP | HARD bypass (zero JP) |
+| tirupathi | HARD 4.998% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) |
+| vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) |
 
-**Total: 26 ValidationFindings (21 OPEN + 5 UNVERIFIED), 21 VIOLATES_RULE edges.** Ten typologies × six documents = sixty possible finding slots: 21 OPEN violations, 5 UNVERIFIED-pending-review, 34 correctly silent. The 5 UNVERIFIED breakdown: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist (1 grep-fallback Vizag, 2 list-item-stitching Tirupathi/Vijayawada per L36) + 1 BG-Validity-Gap (L36 grep-fallback JA). The 2 BG-Validity-Gap GAP_VIOLATION findings on Tirupathi/Vijayawada are technically correct under the rule cited but reflect a PPP-shape knowledge-layer gap (L37) — the typology's rules don't model the DCA's separate Performance Security + O&M Security structure where 30-days-post-COD on PS is bounded by O&M Security taking over.
+**Total: 32 ValidationFindings (27 OPEN + 5 UNVERIFIED), 27 VIOLATES_RULE edges.** Eleven typologies × six documents = sixty-six possible finding slots: 27 OPEN violations, 5 UNVERIFIED-pending-review, 34 correctly silent. The 5 UNVERIFIED breakdown: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist (1 grep-fallback Vizag, 2 list-item-stitching Tirupathi/Vijayawada per L36) + 1 BG-Validity-Gap (L36 grep-fallback JA). The 2 BG-Validity-Gap GAP_VIOLATION findings on Tirupathi/Vijayawada are technically correct under the rule cited but reflect a PPP-shape knowledge-layer gap (L37) — the typology's rules don't model the DCA's separate Performance Security + O&M Security structure where 30-days-post-COD on PS is bounded by O&M Security taking over. The Judicial-Preview-Bypass row is unique in the corpus: 6/6 documents trigger the violation — no document in the AP-State corpus cites the APJPA framework anywhere in its 12 source markdown files (L38).

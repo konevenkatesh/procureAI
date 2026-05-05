@@ -279,6 +279,33 @@ BG_VALIDITY_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Judicial-Preview-Bypass — JP mandate citations live exclusively
+# in NIT per the read-first scan of clause_templates:
+#   NIT : CLAUSE-AP-JUDICIAL-PREVIEW-MANDATE-001  (the mandate clause)
+#         CLAUSE-AP-JUDICIAL-PREVIEW-PROCESS-001  (7+8+15 day windows)
+#         CLAUSE-AP-JUDICIAL-PREVIEW-SECTORS-001  (25-sector list)
+#
+# The cited regulatory anchor is "AP Judicial Preview Act 2019" (with
+# prior framework GO Ms No 38/2018). The Judicial Preview Authority
+# (APJPA) is a sitting/former High Court Judge's office.
+#
+# IMPORTANT corpus distinction: "Judicial Academy" (the procuring
+# entity for the JA doc) is NOT the same as "Judicial Preview"
+# (the regulatory framework). The LLM and grep keywords must be
+# phrase-precise — "Judicial Preview" / "APJPA" / "Preview Authority",
+# never bare "judicial".
+#
+# ITB is included as backup for non-canonical docs (e.g. SBD with
+# JP citations in tendering instructions). SBD_Format adds
+# Evaluation per the L28 SBD pattern.
+JP_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation"],
+    "NREDCAP_PPP":   ["NIT", "ITB"],
+    "default":       ["NIT", "ITB"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -289,6 +316,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "E-Procurement-Bypass":        EPROC_SECTION_ROUTER,
     "Blacklist-Not-Checked":       BLACKLIST_SECTION_ROUTER,
     "BG-Validity-Gap":             BG_VALIDITY_SECTION_ROUTER,
+    "Judicial-Preview-Bypass":     JP_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
