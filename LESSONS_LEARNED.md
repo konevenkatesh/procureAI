@@ -429,6 +429,41 @@ The single-bool design conflates (3) and (4), which is exactly what L24 honesty 
 
 ---
 
+## L36 — Blacklist-Not-Checked + Retrieval-Coverage Limitation Surfaced
+
+**Date:** May 2026
+**What we did:** Built the ninth Tier-1 typology — Blacklist-Not-Checked — verifying that the doc requires bidders to declare past debarments / blacklistings / sanctions (bidder-side self-declaration) OR commits the procuring entity to verifying against debarment lists (buyer-side verification) OR explicitly bars debarred bidders from participation (eligibility bar). Any one of (a)/(b)/(c) is sufficient for compliance. MPS-021 (Central, HARD_BLOCK, `TenderType=ANY`) is the canonical primary; AP-GO-095 / GFR-G-037 / MPW-158 / MPS-186 are the backup rules. Same machinery as the post-L35 presence-shape scripts: BGE-M3 retrieval into [ITB, Forms] (or [ITB, Forms, Evaluation] for SBD) → top-K → LLM rerank with three-state extraction → L24 evidence guard → L29 absence marker on chosen_index=null.
+**What happened:** 6-doc run produced 6 outcomes — 3 compliant (JA / HC / Kakinada), 1 absence (Vizag — flagged below as suspicious), 2 UNVERIFIED (Tirupathi / Vijayawada — LLM stitched the NREDCAP RFP "We certify..." clause across multiple list items, L24 score=67, no_match). The compliant outcomes verified at score 100 (HC bidder_self_declaration with multilateral check; Kakinada AP-flavoured bidder declaration; JA WB/ADB eligibility bar from L35).
+
+The Vizag ABSENCE finding is **suspicious** and worth a follow-on retrieval-coverage investigation. Source-grep confirms Vizag DOES carry multiple debarment-related clauses:
+- L173 — "The Authority requires compliance with the Authority's Anti-Corruption Guidelines and its prevailing sanctions policies and procedures..." (multilateral framework anchor)
+- L420 — "the Authority may, if provided for in the BDS, declare the Bidder ineligible..." (debarment-power clause)
+- L1131 — "Not having been declared ineligible by the Authority, as described in ITB 4.5." (eligibility criterion)
+- L1567 — "Bid-Securing Declaration: We have not been suspended nor declared ineligible by the Authority..." (the strongest candidate — explicit bidder self-declaration)
+
+The LLM's top-10 candidate set didn't include the L1567 section (BSD declaration), which is the cleanest match for the typology. The LLM correctly reported "None of the candidates explicitly state a requirement..." for the candidates it WAS shown. This is a **retrieval-coverage limitation** — the BGE-M3 + Qdrant top-K filter pulled 10 candidates out of Vizag's ~80+ ITB/Forms sections, and the most relevant one didn't make the cut.
+
+**Why we didn't relax the contract:** The Vizag absence finding is **technically correct** under the L35 contract (LLM didn't find the clause in the candidates it was shown), but the underlying cause is "retrieval missed the right section" not "doc lacks the clause". Two paths to fix:
+1. **Increase top-K from 10 to 20–25** for this typology — cheap, captures more long-tail sections at the cost of larger LLM prompts.
+2. **Multi-pass retrieval** — re-rank with a second query if the first pass returns no compliant outcome, using a different keyword vocabulary (e.g. "Bid-Securing Declaration", "ineligible by Authority").
+3. **Lift the L36 retrieval-coverage observation as a known limitation** and accept the Vizag finding as "needs human review" via a future UNVERIFIED-on-absence-with-grep-fallback path.
+
+Tonight we ship the typology with the Vizag false positive recorded honestly and a follow-on for retrieval coverage. The 2 UNVERIFIED findings (Tirupathi / Vijayawada) are working-as-designed under L35 — the LLM stitched a long list-item quote across "circumstances:" + "v." which is exactly what the strict-quote prompt + L24 guard are meant to flag for human review.
+
+**What we changed:**
+- `scripts/tier1_blacklist_check.py` — new presence-shape script. RULE_CANDIDATES = [MPS-021, MPW-158, MPS-186, GFR-G-037, AP-GO-095] in priority order. LLM extracts `blacklist_check_required, check_form ('bidder_self_declaration'|'buyer_verification_commitment'|'eligibility_bar'|'multiple'), includes_multilateral_lender_check, go_reference, evidence`. L35 three-state contract; L24 guard; L29 absence marker; UNVERIFIED finding has no VIOLATES_RULE edge.
+- `modules/validation/section_router.py` — `BLACKLIST_SECTION_ROUTER` added: `[ITB, Forms]` for APCRDA_Works / NREDCAP_PPP / default; `[ITB, Forms, Evaluation]` for SBD_Format. GCC excluded (AP-contractor-management clauses are operational, not bid-stage eligibility).
+
+**Result:** 6-doc run produced 3 compliant (JA / HC / Kakinada), 1 OPEN absence (Vizag — flagged as suspect retrieval-coverage), 2 UNVERIFIED (Tirupathi / Vijayawada — list-item stitching). Total corpus state: **23 ValidationFindings (20 OPEN + 3 UNVERIFIED), 20 VIOLATES_RULE edges**. The 3 UNVERIFIED findings are now: 1 E-Proc (L35) + 2 Blacklist (L36).
+
+**Forward applicability:** Two follow-ons:
+1. **Retrieval coverage**: when an ABSENCE finding fires after the L35 path, do a cheap source-grep fallback for the typology's keyword vocabulary on the doc's relevant sections. If the grep finds matches, downgrade ABSENCE to UNVERIFIED-FOR-REVIEW (LLM didn't find it but text is in the doc). This would catch the Vizag-style false positive automatically.
+2. **List-item quote handling**: NREDCAP RFPs use enumerated lists ("circumstances: i. ... ii. ... iii. ...") that the LLM stitches across. The strict-quote prompt didn't fully prevent this on Tirupathi/Vijayawada. Consider extending the prompt with "if the source uses an enumerated list, quote ONE list item only; do not include the parent stem ('circumstances:') with the item."
+
+Both follow-ons are typology-agnostic and lift candidates for `modules/validation/`. Tonight's L36 surfaces them; the fixes are their own follow-on commits.
+
+---
+
 ## L31 — Missing-LD-Clause + Corpus-Gap Distinction
 
 **Date:** May 2026
@@ -593,15 +628,15 @@ The fundamental insight is that **L24 is a confidence layer, not a verdict layer
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across eight typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across nine typologies
 
-| doc_id | PBG | EMD | Bid-Validity | PVC | Integrity-Pact | LD | MA | E-Proc |
-|--------|-----|-----|-------------|-----|---------------|----|----|----|
-| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% (5+5 split, ADVISORY-rule on EV-UNKNOWN) | compliant (apeprocurement.gov.in, score 100 substring; markdown `\.` escape handled by JSON-sanitise fallback) |
-| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% | compliant (apeprocurement.gov.in, score 100 substring) |
-| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral framework only) | compliant (PCC by-ref) | compliant 10% | compliant (apeprocurement.gov.in, score 100 substring) |
-| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant (cond §48.3 by-ref, in Evaluation block) | compliant (no MA clause — absent = compliant) | **UNVERIFIED** (LLM found clause, score=45 fail; status=UNVERIFIED, requires_human_review=true, no VIOLATES_RULE edge) |
-| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (multilateral framework only) | compliant 0.1%/day of PS | silence (PPP rule-layer SKIP) | compliant (e-Procurement Portal, score 100 substring) |
-| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | silence (PPP) | ADVISORY absent (none) | compliant 0.1%/day of PS *(DCA ingested via L22 closure)* | silence (PPP rule-layer SKIP) | compliant (e-Procurement Portal, score 100 substring) |
+| doc_id | PBG | EMD | Bid-Validity | PVC | IP | LD | MA | E-Proc | Blacklist |
+|--------|-----|-----|-------------|-----|----|----|----|----|----|
+| vizag | HARD_BLOCK 2.5% | silence | compliant 180d | compliant | ADVISORY absent (none) | compliant 5%/month | compliant 10% | compliant 100% sub | **OPEN absence — flagged as suspect retrieval (L36); source has bidder declaration L1567** |
+| judicial_academy | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral) | compliant (PCC) | compliant 10% | compliant 100% sub | compliant (WB/ADB eligibility bar, score 100 partial) |
+| high_court | HARD_BLOCK 2.5% | ADVISORY 1% | compliant 90d | compliant | ADVISORY absent (multilateral) | compliant (PCC) | compliant 10% | compliant 100% sub | compliant (bidder self-decl + WB/ADB cross-check, score 100 sub) |
+| kakinada | silence | ADVISORY 1% | compliant 90d | ADVISORY absent | ADVISORY absent (none) | compliant Eval-block | compliant (no MA — absent OK) | UNVERIFIED (L35) | compliant (AP-flavoured bidder self-decl, score 100 sub) |
+| tirupathi | HARD_BLOCK 4.998% | HARD_BLOCK 0.998% | compliant 180d | ADVISORY absent (PPP+UNKNOWN-duration) | ADVISORY absent (multilateral) | compliant 0.1%/day | silence (PPP) | compliant 100% sub | **UNVERIFIED — L35 list-item stitching across "circumstances: i. ... v. ..."** |
+| vijayawada | HARD_BLOCK 5.001% | HARD_BLOCK 0.998% | compliant 180d | ADVISORY absent (PPP+UNKNOWN-duration) | ADVISORY absent (multilateral) | compliant 0.1%/day | silence (PPP) | compliant 100% sub | **UNVERIFIED — same NREDCAP list-item stitching as Tirupathi** |
 
-**Total: 18 ValidationFindings (17 OPEN + 1 UNVERIFIED), 17 VIOLATES_RULE edges.** Eight typologies × six documents = forty-eight possible finding slots: 17 OPEN violations, 1 UNVERIFIED-pending-review, 30 correctly silent. E-Procurement-Bypass produced 5 verified-compliant outcomes and 1 UNVERIFIED finding (Kakinada — LLM found clause but the picked section doesn't contain the quoted text; human reviewer needed). All OPEN presence findings have `evidence_match_score >= 90`; UNVERIFIED findings carry `status='UNVERIFIED'` + `requires_human_review=true` + `human_review_reason` + a section-attribution pointer for the reviewer; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30.
+**Total: 23 ValidationFindings (20 OPEN + 3 UNVERIFIED), 20 VIOLATES_RULE edges.** Nine typologies × six documents = fifty-four possible finding slots: 20 OPEN violations, 3 UNVERIFIED-pending-review, 31 correctly silent. Blacklist-Not-Checked produced 3 compliant + 1 OPEN absence (Vizag — flagged as L36 retrieval-coverage suspect) + 2 UNVERIFIED (Tirupathi / Vijayawada — NREDCAP list-item stitching). All OPEN presence findings have `evidence_match_score >= 90` (where verified); UNVERIFIED findings carry `status='UNVERIFIED'` + `requires_human_review=true` + `human_review_reason` + a section-attribution pointer for the reviewer; absence findings carry `evidence_match_method='absence_finding_no_evidence'` per L29; multilateral-framework-only IP findings carry verified ADB/WB framework evidence + `pact_type='multilateral_framework_only'` + an explanatory `note` per L30. The Vizag Blacklist OPEN absence is the first known false-positive in the OPEN tier — to be auto-resolved by the L36 retrieval-coverage follow-on.

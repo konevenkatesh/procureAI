@@ -215,6 +215,36 @@ EPROC_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Blacklist-Not-Checked — bidder declaration + buyer verification
+# anchors live in ITB (eligibility, debarment, sanctions clauses)
+# and Forms (bidder self-declaration / disclosure forms).
+#
+# Per the read-first scan of clause_templates:
+#   ITB   : CLAUSE-DEBARMENT-GFR-RULE-151-001 (Rule 151 conviction-based)
+#           CLAUSE-DEBARMENT-ALLIED-001 (allied-firm coverage)
+#           CLAUSE-AP-OTHER-REQUIREMENTS-001 (AP blacklist self-cert)
+#           CLAUSE-WB-ADB-DEBARMENT-001 (multilateral lender sanctions)
+#           CLAUSE-DEBARMENT-GRADES-001 (holiday listing / banning)
+#           CLAUSE-HOLIDAY-LISTING-001 (temporary debarment)
+#   Forms : CLAUSE-BLACKLIST-DISCLOSURE-FORM-001 (bidder self-decl)
+#   GCC   : CLAUSE-AP-CONTRACTOR-BLACKLIST-001 (AP contractor mgmt)
+#
+# GCC is intentionally NOT in the filter — the AP contractor
+# blacklisting clause is operational (post-execution) management,
+# not a bid-stage eligibility check. The Tier-1 question is whether
+# the doc requires bidders to declare past debarments or commits
+# the buyer to checking, which lives in ITB + Forms.
+#
+# SBD_Format includes Evaluation because Kakinada's SBD body lives
+# in Evaluation blocks (per L28 SBD pattern).
+BLACKLIST_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["ITB", "Forms"],
+    "SBD_Format":    ["ITB", "Forms", "Evaluation"],
+    "NREDCAP_PPP":   ["ITB", "Forms"],
+    "default":       ["ITB", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -223,6 +253,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Missing-LD-Clause":           LD_SECTION_ROUTER,
     "Mobilisation-Advance-Excess": MA_SECTION_ROUTER,
     "E-Procurement-Bypass":        EPROC_SECTION_ROUTER,
+    "Blacklist-Not-Checked":       BLACKLIST_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
