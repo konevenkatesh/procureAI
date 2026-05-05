@@ -6,6 +6,19 @@
 
 ---
 
+## Systemic Findings Across AP Corpus
+
+After eleven Tier-1 typologies × six documents = sixty-six finding slots, four institutional patterns recur across the corpus, not as isolated document defects but as systemic procurement-practice tendencies. These are surfaced here so any future contributor reading the codebase understands what the corpus is *really* showing — the violations are not random distribution noise; they cluster.
+
+- **PBG consistently 2.5% vs required 10%** (all 5 Works/PPP documents with a PBG clause). Vizag, JA, HC: AP-State Works at 2.5% per AP-GO-019 baseline; Tirupathi/Vijayawada: PPP DCAs with implied 4.998–5.001% via amount→percentage compute (L25). Kakinada is the only doc whose source genuinely lacks a PBG percentage clause — silent, not a violation.
+- **EMD consistently 1% vs required 2–2.5%** (all 5 documents that state an EMD clause). JA, HC, Kakinada at 1% (ADVISORY vs AP-GO-050 target 2.5%); Tirupathi, Vijayawada at 0.998% via amount→percentage (HARD_BLOCK vs GFR-G-049 floor 2%). Vizag genuinely silent.
+- **Judicial Preview consistently absent** (all 6 documents, mandatory under APJPA 2019 / GO Ms No 38/2018). Five documents trigger HARD_BLOCK; Vizag is ADVISORY only because EV=null forces L27 UNKNOWN→ADVISORY downgrade. Zero APJPA citations across all 12 source markdown files (L38).
+- **Integrity Pact consistently absent** in the regulated form (all 6 documents, CVC-086 / MPS-022 mandated). JA / HC / Tirupathi / Vijayawada: ADVISORY because the multilateral lender's anticorruption framework IS present (ADB / WB) but the regulated CVC Pre-bid Integrity Pact is NOT — parallel-compliance shape per L30. Vizag and Kakinada: ADVISORY for "no IP framework at all".
+
+These are systemic institutional patterns, not individual document errors. A reviewer dashboard that surfaces the four counts as a corpus-level signal would tell a procurement reform story that no single document review can: AP State procurement is consistently under-collateralised on PBG/EMD by a factor of 2–4× and consistently bypasses the post-2018 judicial-preview and pre-bid integrity layers. Per-doc findings are necessary but not sufficient — these are the patterns the system is uniquely positioned to surface.
+
+---
+
 ## Architecture Patterns Established
 
 A reading guide for new contributors. Every Tier-1 typology check is built on this stack of layers — newer typologies inherit them automatically by following the established script template.
