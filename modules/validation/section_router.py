@@ -412,6 +412,30 @@ GEOGRAPHIC_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# MakeInIndia-LCC-Missing — PPP-MII Order 2017 anchor clauses are
+# spread across 5 section types per the read-first scan of clause
+# templates:
+#   - NIT       : CLAUSE-MAKE-IN-INDIA-PPP2017-001 (Order citation)
+#                 CLAUSE-PURCHASE-PREFERENCE-001
+#                 CLAUSE-MII-EXISTING-POLICY-PRECEDENCE-001
+#   - ITB       : CLAUSE-MAKE-IN-INDIA-001 (Class-I/II definitions)
+#                 CLAUSE-MAKE-IN-INDIA-MULTIPLE-001
+#                 CLAUSE-MAKE-IN-INDIA-SPEC-001 (anti-restrictive)
+#   - Datasheet : CLAUSE-PQ-MAKE-IN-INDIA-001 (PQ relaxation for MII)
+#   - Evaluation: CLAUSE-MII-PURCHASE-PREFERENCE-001
+#                 CLAUSE-MII-MULTIPLE-AWARD-001
+#   - Forms     : CLAUSE-MAKE-IN-INDIA-VERIF-001 (LC self-certification)
+# Compliance requires multiple cross-references (NIT+ITB+Forms at
+# minimum). Default-include every section type to maximise retrieval
+# coverage.
+MII_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Datasheet", "Evaluation", "Forms"],
+    "SBD_Format":    ["NIT", "ITB", "Datasheet", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Datasheet", "Evaluation", "Forms"],
+    "default":       ["NIT", "ITB", "Datasheet", "Evaluation", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -427,6 +451,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Eligibility-Class-Mismatch":  ELIGIBILITY_CLASS_SECTION_ROUTER,
     "Arbitration-Clause-Violation": ARBITRATION_SECTION_ROUTER,
     "Geographic-Restriction":      GEOGRAPHIC_SECTION_ROUTER,
+    "MakeInIndia-LCC-Missing":     MII_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
