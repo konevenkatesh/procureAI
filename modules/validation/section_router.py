@@ -366,6 +366,24 @@ ELIGIBILITY_CLASS_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Arbitration-Clause-Violation — arbitration / dispute-resolution
+# clauses live primarily in Vol-II GCC (per the read-first scan of
+# clause_templates: CLAUSE-DISPUTE-RESOLUTION-001, CLAUSE-ARBITRATION-
+# 001, CLAUSE-ARBITRATION-AGREEMENT-001, CLAUSE-FOREIGN-ARBITRATION-
+# 001, CLAUSE-DRB-WORKS-001, CLAUSE-AP-CIVIL-COURT-50K-001, CLAUSE-AP-
+# 3-ARBITRATOR-ICA-001 — all in Volume-II/Section-1/GCC). SCC may
+# carry AP-State overrides (e.g. the civil-court ladder per APSS
+# Clause 61). SBD_Format adds Evaluation per the L28 SBD pattern;
+# default adds Forms because L41 gap-fills frequently land there
+# (e.g. Annexure-17 arbitrator-declaration formats).
+ARBITRATION_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "SCC"],
+    "SBD_Format":    ["GCC", "SCC", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC", "SCC"],
+    "default":       ["GCC", "SCC", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -379,6 +397,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Judicial-Preview-Bypass":     JP_SECTION_ROUTER,
     "Turnover-Threshold-Excess":   TURNOVER_SECTION_ROUTER,
     "Eligibility-Class-Mismatch":  ELIGIBILITY_CLASS_SECTION_ROUTER,
+    "Arbitration-Clause-Violation": ARBITRATION_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
