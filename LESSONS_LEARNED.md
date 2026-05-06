@@ -1067,6 +1067,60 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## Module Classification — Remaining Typologies
+
+After 17 Tier-1 typology builds covering ~5.3% of HARD_BLOCK rules in the production catalog, the remaining typology candidates split cleanly into four modules by procurement-lifecycle stage. This classification governs which typologies belong in the **Pre-RFP Validator** (the current Tier-1 module — checks the bidding document BEFORE publication) versus future modules.
+
+### Pre-RFP Validator (build here)
+
+These are document-side checks that fit the existing Tier-1 BGE-M3 + LLM rerank pipeline. Each is a presence-shape or threshold-shape check on the bidding doc's content.
+
+- **Criteria-Restriction-Narrow** (37 HB) — JV / Consortium / SPV / Foreign-bidder ban anti-pattern. Note the rules-table classification mismatch (typology 13 read-first review): the actual JV-ban rules don't perfectly populate this bucket. Build with the same anti-pattern detection shape as L44 Geographic-Restriction's foreign-ban sub-check.
+- **Single-Source-Undocumented** (36 HB) — proprietary article / single-source justification clauses. Doc-side: does the doc record the recorded-justification artifact (committee minutes, OEM certificate, etc.)?
+- **Limited-Tender-Misuse** (17 HB) — limited-tender invocation justification. Doc-side: does the doc explain why open-tender wasn't used?
+- **Spec-Tailoring** (7 HB) — brand-specific specifications, model-number-only specs without "or equivalent". Doc-side anti-pattern.
+- **Criteria-Restriction-Loose** (8 HB) — overly-permissive criteria (the inverse of Criteria-Restriction-Narrow). Doc-side check.
+- **MSE-Reservation-Missing** (4 HB) — Micro & Small Enterprise reservation per Public Procurement Policy 2012. Doc-side presence check; predicted absent across our corpus.
+- **Missing-Force-Majeure** (3 HB) — Force Majeure clause presence in GCC. Doc-side.
+- **Solvency-Stale** (3 HB) — solvency certificate currency requirement.
+- **DLP-Period-Short** (2 HB) — Defect Liability Period < 12 months threshold.
+- **Pre-Bid-Process-Unclear** (2 HB) — pre-bid meeting + clarification protocol presence.
+- **Available-Bid-Capacity-Error** (3 HB) — bid capacity formula calibration. Adjacent to L39 Turnover-Threshold-Excess.
+- **Sub-Consultant-Cap-Exceed** (1 HB) — sub-contracting/sub-consultant limits.
+
+### Post-RFP Evaluator (Module 2 — build later)
+
+These need cross-tender analysis or bid-evaluation-stage data. NOT in scope for the bidding-document-side Tier-1 pipeline.
+
+- **Cover-Bidding-Signal** (10 HB) — collusion detection (multiple bids with similar pricing, same address blocks, etc.). Requires bid-data ingestion.
+- **Bid-Splitting-Pattern** (11 HB) — cross-tender analysis (one project split across multiple sub-threshold tenders to evade approval gates). Requires multi-tender corpus.
+- **Post-Tender-Negotiation** (27 HB) — post-bid-opening negotiation records. Execution-stage.
+- **Multiple-CVs-Same-Position** (5 HB) — bid-evaluation-stage cross-bidder check.
+
+### Communication Management (Module 3 — build later)
+
+Corrigendum / addendum management is its own lifecycle stage with its own document type.
+
+- **Corrigendum-Header-Missing** (4 HB) — corrigendum doc must declare which clauses it modifies.
+- **Corrigendum-Eligibility-Change** (3 HB) — eligibility-criteria changes via corrigendum trigger bid-period extension.
+
+### Skip — out of scope for bidding-document Tier-1
+
+These don't fit the bidding-document-side pattern, are Goods-only, are bidder-side, or have low value for our AP Works/PPP corpus.
+
+- **Stale-Financial-Year** (8 HB) — rules-table label vs content mismatch (typology-18 read-first review confirmed); 8 HB rules are time-bound-validity grab-bag (registration / sanction / contract / CRAC / bid-period); actual stale-FY-reference semantics aren't rules in this bucket; corpus uses current FY refs (6/6 COMPLIANT predicted). Skip.
+- **Technical-In-Financial** (4 HB) — bid-envelope-mixing detection. Bid-evaluation-stage.
+- **GeM-Bypass** (6 HB) — Goods-only (GeM portal applies to goods procurement).
+- **Reverse-Tender-Evasion** (5 HB) — procurement-mode-selection check. Pre-bid-strategy stage, not bidding-document.
+- **Startup-Experience-Required** (2 HB) — bidder-side eligibility (does the bidder have the required experience?). Not doc-side.
+- **Certification-Exclusionary** (0 HB) — no HARD_BLOCK rules; low audit value.
+
+### Implication for the Pre-RFP Validator module
+
+12 typologies remain in the Pre-RFP Validator's natural scope (~ 122 HB rules). At ~1-2 hours per typology, that's another 12-24 hours of build work to fully cover this module. After typology 18 (MSE-Reservation-Missing), the remaining 11 are diminishing-marginal-value — most are presence-shape checks with predicted ABSENCE outcomes (similar to MII / JP / IP shape). Worth deciding after typology 18 whether to continue with the rest of Pre-RFP or pivot to portal polish / Tier-2 design / Module 2 design.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
