@@ -38,6 +38,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -382,11 +383,60 @@ def extract_tender_type(
 
     Does NOT write to the database. Call `commit_to_kg(doc_id, result)`
     afterwards if you want the result persisted on the TenderDocument
-    kg_node."""
-    nit_text, descriptors = fetch_nit_text(doc_id, n_sections=n_sections, max_chars=max_chars)
-    user = build_user_prompt(nit_text)
-    raw = _call_llm(SYSTEM_PROMPT, user, llm_fn=llm_fn)
-    parsed = _parse_response(raw)
+    kg_node.
+
+    Failure handling: every step that can raise (NIT fetch, LLM call,
+    JSON parsing) is wrapped. On failure the function returns a
+    graceful "extraction failed" shape with `tender_type=None`,
+    `confidence=0`, `reliable=False`, and an `error` field carrying
+    the exception class + message. The caller (kg_builder Phase 6c
+    or the CLI) decides what to do — typically: do NOT overwrite an
+    existing tender_type with null. The historical behaviour was to
+    raise, which during a kg_builder rebuild silently wiped the
+    field via summary.defeasibility['llm_extraction_errors'] without
+    a defensive check on the post-extractor state. See L42 for the
+    rebuild-safety regression that motivated this hardening."""
+    error: str | None = None
+    raw = ""
+    nit_text = ""
+    descriptors: list[dict] = []
+    parsed: dict = {}
+
+    try:
+        nit_text, descriptors = fetch_nit_text(
+            doc_id, n_sections=n_sections, max_chars=max_chars,
+        )
+    except Exception as exc:    # noqa: BLE001 — graceful return
+        error = f"fetch_nit_text:{type(exc).__name__}:{exc}"
+
+    if error is None:
+        try:
+            user = build_user_prompt(nit_text)
+            raw  = _call_llm(SYSTEM_PROMPT, user, llm_fn=llm_fn)
+        except Exception as exc:    # noqa: BLE001
+            error = f"llm_call:{type(exc).__name__}:{exc}"
+
+    if error is None:
+        try:
+            parsed = _parse_response(raw)
+        except Exception as exc:    # noqa: BLE001 — covers ValueError, TypeError, KeyError
+            error = f"parse_response:{type(exc).__name__}:{exc}"
+
+    if error is not None:
+        # Graceful failure shape — caller decides whether to overwrite
+        # the existing tender_type or preserve it.
+        return {
+            "tender_type":    None,
+            "confidence":     0.0,
+            "evidence":       "",
+            "reasoning":      "",
+            "source_section": " | ".join(d.get("heading") or "(unknown)" for d in descriptors),
+            "reliable":       False,
+            "error":          error,
+            "raw_response":   raw,
+            "nit_text_chars": len(nit_text),
+        }
+
     confidence = parsed["confidence"]
     return {
         "tender_type":    parsed["tender_type"],
@@ -402,7 +452,14 @@ def extract_tender_type(
 
 def commit_to_kg(doc_id: str, result: dict) -> dict:
     """Patch the TenderDocument kg_node properties with the extractor's
-    output. Returns the updated node row."""
+    output. Returns the updated node row.
+
+    If the extractor returned a failure shape (`result["tender_type"]
+    is None` and `result["error"]` set), the prior tender_type field
+    on the node is PRESERVED — only the error/audit fields are
+    written. This prevents a flaky LLM response from silently wiping
+    a previously-extracted tender_type. The caller (kg_builder
+    Phase 6c) further enforces this with a snapshot/restore pass."""
     nodes = _rest_get("kg_nodes", {
         "select":    "node_id,properties",
         "doc_id":    f"eq.{doc_id}",
@@ -412,19 +469,37 @@ def commit_to_kg(doc_id: str, result: dict) -> dict:
         raise ValueError(f"No TenderDocument node for doc_id={doc_id}")
     node = nodes[0]
     new_props = dict(node["properties"] or {})
-    # Authoritative tender_type fields. The legacy regex-classifier
-    # fields (`tender_type_classified` / `tender_type_reliable=false`)
-    # have been removed from the schema entirely — LLM extraction is
-    # now the single source of truth.
-    new_props["tender_type"]                 = result["tender_type"]
-    new_props["tender_type_reliable"]        = bool(result["reliable"])
-    new_props["tender_type_confidence"]      = result["confidence"]
-    new_props["tender_type_evidence"]        = (result["evidence"] or "")[:500]
-    new_props["tender_type_source_section"]  = result["source_section"]
-    new_props["tender_type_extracted_by"]    = _attribution_string()
-    # Also record exactly which model/version was used; useful for
-    # invalidating cached results when we upgrade the model.
-    new_props["tender_type_model"]           = os.environ.get("LLM_MODEL", "")
+
+    extraction_failed = result.get("tender_type") is None
+    error_msg = result.get("error")
+
+    if extraction_failed:
+        # PRESERVE the prior tender_type fields. Only stamp the audit
+        # error so future readers can see that the most recent
+        # extraction attempt failed even though the prior value
+        # remains in place.
+        new_props["tender_type_last_error"]       = error_msg or "unknown_failure"
+        new_props["tender_type_last_attempt_at"]  = datetime.now(timezone.utc).isoformat()
+        # Don't write the live fields — the existing values stay.
+    else:
+        # Authoritative tender_type fields. The legacy regex-classifier
+        # fields (`tender_type_classified` / `tender_type_reliable=false`)
+        # have been removed from the schema entirely — LLM extraction
+        # is now the single source of truth.
+        new_props["tender_type"]                 = result["tender_type"]
+        new_props["tender_type_reliable"]        = bool(result["reliable"])
+        new_props["tender_type_confidence"]      = result["confidence"]
+        new_props["tender_type_evidence"]        = (result["evidence"] or "")[:500]
+        new_props["tender_type_source_section"]  = result["source_section"]
+        new_props["tender_type_extracted_by"]    = _attribution_string()
+        # Also record exactly which model/version was used; useful for
+        # invalidating cached results when we upgrade the model.
+        new_props["tender_type_model"]           = os.environ.get("LLM_MODEL", "")
+        # Clear any stale error stamp from a previous failed attempt
+        # now that we have a fresh successful extraction.
+        new_props.pop("tender_type_last_error", None)
+        new_props.pop("tender_type_last_attempt_at", None)
+
     updated = _rest_patch(
         "kg_nodes",
         {"node_id": node["node_id"]},

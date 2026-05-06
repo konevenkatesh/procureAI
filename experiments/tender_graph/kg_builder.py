@@ -50,15 +50,19 @@ import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
+
+import requests
 
 # Repo root on sys.path so absolute imports resolve when run as a script
 REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+from builder.config import settings
 from _common import rest_select, rest_insert, rest_delete_doc
 from step2_sections import (
     classify_heading_override, classify_sections, _filename_default,
@@ -341,6 +345,102 @@ def _snapshot_findings(doc_id: str) -> tuple[list[dict], list[dict]]:
         params={"doc_id": f"eq.{doc_id}", "edge_type": "eq.VIOLATES_RULE"},
     )
     return list(findings or []), list(edges or [])
+
+
+def _snapshot_tender_type(doc_id: str) -> dict | None:
+    """Snapshot the prior TenderDocument tender_type fields before
+    `_clear_kg` wipes the doc's KG (per L42).
+
+    Why: Phase 6c re-runs the LLM tender_type_extractor on every
+    rebuild. The OpenRouter call has been observed to flake out
+    (TypeError on a None-shaped response, Vizag rebuild May 2026),
+    leaving the rebuilt TenderDocument with `tender_type=null`. Even
+    after the L42 hardening returns a graceful error shape and
+    `commit_to_kg` preserves the prior value (when the prior value
+    is on disk), the rebuild's `_clear_kg` wipes the prior
+    TenderDocument node BEFORE the extractor runs — so there's no
+    "prior value" left to preserve. The fix is snapshot-before-
+    clear: capture the prior tender_type fields here, restore them
+    after Phase 6c if the fresh extractor came back null.
+
+    Returns a dict of the prior tender_type fields, or None if no
+    TenderDocument node existed yet (first build for this doc_id)."""
+    rows = rest_select(
+        "kg_nodes",
+        params={"doc_id": f"eq.{doc_id}", "node_type": "eq.TenderDocument"},
+    )
+    if not rows:
+        return None
+    props = (rows[0] or {}).get("properties") or {}
+    keys_to_snapshot = (
+        "tender_type",
+        "tender_type_reliable",
+        "tender_type_confidence",
+        "tender_type_evidence",
+        "tender_type_source_section",
+        "tender_type_extracted_by",
+        "tender_type_model",
+    )
+    snap = {k: props[k] for k in keys_to_snapshot if k in props}
+    # Return None when no tender_type field existed — distinguishes
+    # "first build" from "had a value, snapshotted nothing useful".
+    if not snap.get("tender_type"):
+        return None
+    return snap
+
+
+def _maybe_restore_tender_type_from_snapshot(
+    doc_id: str,
+    new_doc_node_id: str,
+    snapshot: dict | None,
+) -> str | None:
+    """If the post-Phase-6c TenderDocument has tender_type=null but
+    the pre-clear snapshot had a non-null value, write the snapshot's
+    tender_type fields back onto the new node with audit markers
+    (`tender_type_repaired_after_rebuild=true`,
+    `tender_type_repair_note='...'`).
+
+    Returns the restored tender_type string (truthy) when a restore
+    happened, None otherwise."""
+    if not snapshot or not snapshot.get("tender_type"):
+        return None
+
+    rows = rest_select(
+        "kg_nodes",
+        params={"node_id": f"eq.{new_doc_node_id}"},
+    )
+    if not rows:
+        return None
+    cur_props = (rows[0] or {}).get("properties") or {}
+    if cur_props.get("tender_type"):
+        # Fresh extraction succeeded — no restore needed.
+        return None
+
+    # Restore.
+    new_props = dict(cur_props)
+    for k, v in snapshot.items():
+        new_props[k] = v
+    new_props["tender_type_repaired_after_rebuild"] = True
+    new_props["tender_type_repair_note"] = (
+        "L42 auto-restore: fresh tender_type extraction returned null "
+        "during rebuild (LLM call or parse failure). Restored from the "
+        "pre-clear snapshot's tender_type fields. Investigate the LLM "
+        "extractor's last_error stamp on this node for the failure "
+        "mode."
+    )
+    new_props["tender_type_repaired_at"] = datetime.now(timezone.utc).isoformat()
+
+    requests.patch(
+        f"{settings.supabase_rest_url}/rest/v1/kg_nodes",
+        params={"node_id": f"eq.{new_doc_node_id}"},
+        json={"properties": new_props},
+        headers={"apikey":        settings.supabase_anon_key,
+                 "Authorization": f"Bearer {settings.supabase_anon_key}",
+                 "Content-Type":  "application/json",
+                 "Prefer":        "return=minimal"},
+        timeout=30,
+    ).raise_for_status()
+    return snapshot["tender_type"]
 
 
 def _restore_findings(
@@ -845,16 +945,29 @@ def build_kg(
     # creates the new TenderDocument. Typology scripts own the
     # lifecycle of those rows; kg_builder must not silently delete
     # findings on rebuild.
-    findings_snapshot: list[dict] = []
-    edges_snapshot:    list[dict] = []
+    #
+    # L42: ALSO snapshot the prior TenderDocument tender_type fields.
+    # Phase 6c re-runs the LLM tender_type_extractor and the network
+    # call has been observed to fail (TypeError on a None-shaped
+    # OpenRouter response, May 2026 Vizag rebuild). The pre-clear
+    # snapshot lets Phase 6c restore the previously-extracted
+    # tender_type if the fresh extraction returned null — preventing
+    # a flaky LLM response from wiping a known-good field.
+    findings_snapshot:    list[dict] = []
+    edges_snapshot:       list[dict] = []
+    tender_type_snapshot: dict | None = None
     if clear_existing:
         findings_snapshot, edges_snapshot = _snapshot_findings(doc_id)
+        tender_type_snapshot = _snapshot_tender_type(doc_id)
         n_n, n_e = _clear_kg(doc_id)
         summary.timing_ms["clear_prior_rows"] = 0  # delete returns count, not ms
         summary.defeasibility.setdefault("cleared_nodes", n_n)
         summary.defeasibility.setdefault("cleared_edges", n_e)
         summary.defeasibility["preserved_findings_pending_restore"] = len(findings_snapshot)
         summary.defeasibility["preserved_edges_pending_restore"]    = len(edges_snapshot)
+        summary.defeasibility["preserved_tender_type_pending_restore"] = (
+            tender_type_snapshot.get("tender_type") if tender_type_snapshot else None
+        )
 
     # ── 3. Detect AP-tender context (only field still derived from
     #       the raw text without an LLM). The other regex classifier
@@ -979,8 +1092,35 @@ def build_kg(
     try:
         from modules.extraction.tender_type_extractor import run as run_tender_type
         extraction_results["tender_type"] = run_tender_type(doc_id, commit=True)
+        # L42 — extractor now returns gracefully on failure (no raise).
+        # Inspect the result: if tender_type is null, log the error
+        # path so summary.defeasibility surfaces it explicitly rather
+        # than burying it in the silent-success bucket.
+        _tt_result = extraction_results.get("tender_type") or {}
+        if _tt_result.get("tender_type") is None and _tt_result.get("error"):
+            extraction_errors["tender_type"] = (
+                f"extractor_returned_null: {_tt_result['error']}"
+            )
     except Exception as exc:    # noqa: BLE001 — surface every error path
         extraction_errors["tender_type"] = repr(exc)
+
+    # L42 — defensive restore. If the fresh extractor came back with
+    # tender_type=null AND we have a pre-clear snapshot, write the
+    # snapshot's tender_type fields back onto the rebuilt
+    # TenderDocument node with audit markers. Prevents a flaky LLM
+    # response from silently wiping a known-good tender_type.
+    try:
+        _restored = _maybe_restore_tender_type_from_snapshot(
+            doc_id, doc_node_id, tender_type_snapshot,
+        )
+        if _restored:
+            summary.defeasibility["tender_type_restored_from_snapshot"] = True
+            summary.defeasibility["tender_type_restored_value"] = _restored
+            print(f"  [L42] tender_type restored from snapshot: {_restored!r} "
+                  f"(fresh extraction returned null on rebuild)")
+    except Exception as exc:    # noqa: BLE001 — restore is best-effort
+        extraction_errors["tender_type_restore"] = repr(exc)
+
     try:
         from modules.extraction.tender_facts_extractor import run as run_tender_facts
         # L33: wider NIT window. The narrow tender_type-extractor

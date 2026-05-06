@@ -840,6 +840,47 @@ Net corpus change: 36 → 36 findings, 29 → 31 OPEN, 7 → 5 UNVERIFIED, 29 �
 
 ---
 
+## L42 — tender_type Extractor Hardening + Snapshot/Restore Defense
+
+**What we did:** Hardened the kg_builder rebuild path against silent `tender_type=null` regressions. During the L41 Vizag rebuild, Phase 6c's `tender_type_extractor.run(...)` raised an unhandled `TypeError("'NoneType' object is not subscriptable")` from inside the OpenRouter response parser (likely a transient None-shaped response from the provider). The exception was caught and stamped into `summary.defeasibility['llm_extraction_errors']` but the rebuild proceeded with `tender_type=null` on the new TenderDocument node, which would have caused AP-GO-092's condition_evaluator to resolve UNKNOWN (instead of FIRE) and downgrade the Class-Mismatch finding from HARD_BLOCK to ADVISORY — even though Vizag's tender_type had been reliably extracted as `Works` on every prior rebuild. The audit trail flagged the failure but no automatic restore happened. Three defensive layers added.
+
+**Layer 1 — graceful failure shape in `extract_tender_type`** (`modules/extraction/tender_type_extractor.py`). Each step that can raise (NIT fetch, LLM call, JSON parse) is now wrapped. On any failure, the function returns:
+
+```python
+{
+    "tender_type":    None,
+    "confidence":     0.0,
+    "evidence":       "",
+    "reasoning":      "",
+    "source_section": "<best-effort heading list>",
+    "reliable":       False,
+    "error":          "<step>:<ExceptionClass>:<msg>",
+    "raw_response":   "<whatever was captured before failure>",
+    "nit_text_chars": <int>,
+}
+```
+
+The caller decides whether to overwrite the existing tender_type or preserve it. The historical behaviour was to raise; that bubbled up to kg_builder's `try/except` block which captured the error message but left the new TenderDocument node with no tender_type set.
+
+**Layer 2 — `commit_to_kg` preserves prior tender_type when extraction failed.** When `result["tender_type"] is None`, the live fields (`tender_type`, `tender_type_reliable`, `tender_type_confidence`, etc.) are NOT overwritten. Only an audit stamp is written: `tender_type_last_error` (the error string) and `tender_type_last_attempt_at` (UTC timestamp). When a future extraction succeeds, the stale error fields are removed. This handles the within-doc case: the prior tender_type stays in place even if the LLM flakes on a single call.
+
+**Layer 3 — Phase 6c snapshot/restore in `kg_builder.build_kg`.** Layer 2 alone wouldn't have helped Vizag's L41 rebuild because `_clear_kg(...)` runs BEFORE Phase 6c, wiping the prior TenderDocument node entirely — there's no "prior value" left for `commit_to_kg` to preserve. The fix mirrors the L32 ValidationFinding snapshot pattern. New helpers in `experiments/tender_graph/kg_builder.py`:
+
+  - `_snapshot_tender_type(doc_id) → dict | None` — captures the tender_type fields from the existing TenderDocument node BEFORE `_clear_kg`. Returns None when no prior value exists (first build).
+  - `_maybe_restore_tender_type_from_snapshot(doc_id, new_doc_node_id, snapshot)` — runs AFTER Phase 6c. If the freshly-built TenderDocument has `tender_type=null` AND the snapshot has a non-null tender_type, the snapshot's fields are written onto the new node with audit markers `tender_type_repaired_after_rebuild=true`, `tender_type_repair_note='L42 auto-restore: ...'`, and `tender_type_repaired_at=<UTC>`. When a rebuild calls this, the summary records `tender_type_restored_from_snapshot=true` and `tender_type_restored_value=<value>`.
+
+The snapshot is captured next to the L32 finding-snapshot pass (line 851 of `kg_builder.py`); the restore is invoked next to the L32 finding-restore (after Phase 6c at line 1000). Both are gated on `clear_existing=True` because that's the only path that wipes the prior TenderDocument.
+
+**Why we changed:** The Vizag L41 rebuild made the regression visible — without the manual SQL repair I performed, the typology-13 re-run would have fired ADVISORY instead of HARD_BLOCK because of an unrelated transient LLM failure. That's exactly the wrong shape: a downstream typology's severity should depend on the doc's procurement properties, NOT on whether the tender_type extractor's network call happened to flake on this rebuild. The three layers convert the failure mode from "silent regression visible only via audit trail review" to "audit trail records the LLM error AND the restore step AND the value carries forward unchanged".
+
+**Forward applicability:**
+1. **The same pattern generalises to `tender_facts_extractor`.** It also runs as Phase 6c, also uses an LLM, and also has fields (`estimated_value_cr`, `tenure_years`, etc.) that downstream typologies depend on. The same three-layer defense — graceful-failure shape, preserve-on-null in `commit_to_kg`, snapshot/restore in Phase 6c — applies. Recommended follow-on: lift the snapshot/restore logic into a generic helper that captures any user-specified set of TenderDocument fields, then wire `tender_facts_extractor` to use it. Not done tonight; out of scope for L42.
+2. **The audit fields are queryable.** `properties->>'tender_type_repaired_after_rebuild'='true'` filters to nodes that hit the restore path; `properties->>'tender_type_last_error'` surfaces in-flight extraction errors that didn't blow away the prior value. A future ops dashboard can show "X of N TenderDocuments have last_error set" as a freshness indicator.
+3. **The graceful-failure shape is reusable for any future LLM-extractor module.** Three failure points — fetch, call, parse — each wrapped, each emitting a typed error string; the result dict always has the same shape so callers don't need to know which step failed. This is the right shape for any LLM extractor that runs as part of a deterministic pipeline (kg_builder, validators, tier1 scripts).
+4. **The TypeError root cause is still open.** The OpenRouter response parser path inside `_call_llm` returned a None-shaped value that subscripting `.choices[0]` could not handle. Logged here for the next investigation cycle: when does OpenRouter return a Choice-list of length 0 or None, and should `_call_llm` handle that case explicitly? Out of scope for L42 hardening (the graceful-failure shape catches it generically), but worth a follow-on.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
