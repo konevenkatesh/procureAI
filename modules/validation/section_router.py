@@ -436,6 +436,29 @@ MII_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Works-Universal-Mandatory-Fields (sub-typology of Missing-Mandatory-
+# Field) — bundles 4 atomic mandatory-field sub-checks per the L43
+# multi-rule pattern:
+#   • MPG-148: representation officer named + contact + window — NIT
+#              "Contact Person" / "Point of Contact" tables, ITB
+#              clarification address
+#   • MPG-150: post-LoA acknowledgement window 14d/28d — ITB / Forms
+#   • MPG-293: Contract Effective Date / PPP Appointed Date — NIT
+#              definitions, GCC effective-date clauses, Forms LoA
+#   • MPG-124: figures-vs-words discrepancy resolution — ITB
+#              correction-of-arithmetical-errors clause, Forms BoQ
+#              instructions
+# NREDCAP_PPP gets GCC because Tirupathi/Vijayawada PPP DCAs put
+# "Appointed Date" in their concession-agreement glossary which the
+# kg_builder classifies as GCC. SBD_Format adds Evaluation per L28.
+WORKS_MANDATORY_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Forms"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "GCC", "Forms"],
+    "default":       ["NIT", "ITB", "Evaluation", "Forms", "GCC"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -452,6 +475,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Arbitration-Clause-Violation": ARBITRATION_SECTION_ROUTER,
     "Geographic-Restriction":      GEOGRAPHIC_SECTION_ROUTER,
     "MakeInIndia-LCC-Missing":     MII_SECTION_ROUTER,
+    "Works-Universal-Mandatory-Fields": WORKS_MANDATORY_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
