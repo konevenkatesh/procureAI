@@ -1038,6 +1038,35 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L47 — Review Portal
+
+**What we did:** Built a single-file HTML review portal (`frontend/portal.html`, ~700 LOC) so the 65 ValidationFindings sitting in Supabase actually become reviewer-actionable. After 17 typologies of accumulating audit-trail JSONB rows, the portal turns "data in a database" into "decisions a reviewer can make today".
+
+**Five views, hash-routed:**
+1. **Dashboard** — stats bar (total / OPEN / UNVERIFIED / HARD_BLOCK / ADVISORY counts) plus 6 systemic-pattern cards (PBG 5/5 at 2.5%, EMD 5/5 at 1%, JP 6/6 absent, MII 6/6 absent, IP 6/6 in regulated form, Turnover 2/2 NREDCAP at 2.500×) plus 3 quick-access tiles
+2. **Per-doc** — doc dropdown → grouped findings by status×severity (OPEN HARD_BLOCK / OPEN ADVISORY / Informational markers / UNVERIFIED), each card showing typology + rule_id + section + verbatim evidence + reason
+3. **Per-typology** — typology dropdown → 6-doc matrix with per-doc status chips (OPEN / UNVERIFIED / COMPLIANT). Banner fires when 6/6 fail or ≥4/6 fail (corpus-pattern signal vs per-tender error)
+4. **UNVERIFIED queue** — all 16 UNVERIFIEDs with `grep_fallback_audit.hits[]` rendered as section pointer + line range + matched keywords + 200-char snippet, plus two action buttons per finding: **[Mark Verified → OPEN]** and **[Mark Dismissed]**, both PATCHing the JSONB `properties.status` field directly via Supabase REST
+5. **Source viewer** — finding metadata + path hint (portal does not bundle markdown; reviewer opens the file at the cited line range)
+
+**Architecture decisions:**
+- Single HTML file, no build step, no `node_modules`. Tailwind via CDN, no framework. Vanilla ES module `<script>`.
+- Hash routing via `window.addEventListener("hashchange", route)` — no router library.
+- Single fetch on boot (`loadAllFindings()` paginated for future growth) → all views render from one in-memory `ALL_FINDINGS` array; no per-view round-trips.
+- PATCH actions call Supabase REST directly with `Prefer: return=representation`. After a successful PATCH, the local cache mutates and views re-render — no full reload, no flicker.
+- Defensive boot — top-level `try/catch` renders a styled error panel if Supabase is unreachable, so the page never silently shows nothing.
+- Anon-role PATCH writes are gated by Supabase RLS — for production, the RLS policy can be tightened to "only authenticated reviewers can update properties.status", but for the demo/internal portal the anon-role write capability is what makes the action buttons work.
+
+**Why we changed:** UNVERIFIED is a deferred-forever bucket without a reviewer interface. The L37 four-state contract specifically reserves UNVERIFIED for "human verifies this manually" — and the L36/L40/L44/L46 audit chain accumulates rich per-finding evidence (grep hits, kg_coverage_gap flags, sub-check booleans, verification-method labels) that's designed for human consumption. Without a UI, all that audit-trail engineering produces JSONB rows that nobody sees.
+
+**Forward applicability:**
+1. **Every future typology emits findings the portal already knows how to display.** No per-typology UI work — typology authors just keep populating the standard `properties` schema (`severity`, `status`, `evidence`, `evidence_match_method`, `grep_fallback_audit`, `human_review_reason`, etc.) and the portal renders them automatically.
+2. **Tier-2 (BGE-M3 + LLM checklist) is now feasible.** A Tier-2 run that produces 10× the finding volume needs UI infrastructure to be useful; the portal scales because it's just rendering arrays of standard rows.
+3. **The systemic-pattern cards on the Dashboard are the audit reform story.** A procurement reform deck or board-of-auditors hand-off can link to the portal at `#dashboard` and the institutional patterns are visible immediately — not buried in CSV exports.
+4. **Reviewer actions feed the data forward.** When a reviewer clicks "Mark Verified" on an UNVERIFIED finding, the next typology re-run on that doc preserves the verified status (because `_delete_prior_*` only deletes findings emitted by THAT typology check; reviewer-curated audit fields persist). This makes the portal both a viewer and a state-transition tool.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works

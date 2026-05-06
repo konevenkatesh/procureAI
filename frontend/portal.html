@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>procureAI · review portal</title>
+
+  <!-- Tailwind via CDN — no build step -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    [hidden] { display: none !important; }
+
+    /* Severity colour tokens */
+    .sev-HARD_BLOCK { background: #fee2e2; color: #991b1b; }
+    .sev-WARNING    { background: #fef3c7; color: #92400e; }
+    .sev-ADVISORY   { background: #dbeafe; color: #1e40af; }
+
+    /* Status colour tokens */
+    .st-OPEN        { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .st-UNVERIFIED  { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .st-COMPLIANT   { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .st-DISMISSED   { background: #e2e8f0; color: #475569; border-color: #cbd5e1; }
+
+    .marker-info {
+      background: linear-gradient(135deg, #ddd6fe 0%, #c7d2fe 100%);
+      color: #4338ca;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <a href="#dashboard" class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600
+                    flex items-center justify-center text-white font-bold">p</div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight">procureAI · review portal</h1>
+          <p class="text-xs text-slate-500 leading-tight mono">17 typologies · 6 docs · L24-L46 audit chain</p>
+        </div>
+      </a>
+      <nav class="flex items-center gap-1 text-sm">
+        <a href="#dashboard"  class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">Dashboard</a>
+        <a href="#docs"       class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">Documents</a>
+        <a href="#typologies" class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">Typologies</a>
+        <a href="#unverified" class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">UNVERIFIED queue</a>
+        <span id="status-pill"
+              class="ml-3 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 mono">loading…</span>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- ═══ VIEW 1 — Dashboard ════════════════════════════════════════ -->
+    <section id="view-dashboard" class="space-y-8">
+      <div>
+        <h2 class="text-2xl font-bold mb-2">Corpus audit dashboard</h2>
+        <p class="text-sm text-slate-600">
+          17 Tier-1 typologies executed against 6 AP procurement documents.
+          Findings emitted via BGE-M3 + LLM rerank with L24-L46 evidence verification chain.
+        </p>
+      </div>
+
+      <!-- Stats bar -->
+      <div id="stats-bar" class="grid grid-cols-2 md:grid-cols-5 gap-4"></div>
+
+      <!-- Systemic pattern cards -->
+      <div>
+        <h3 class="text-lg font-semibold mb-3">Systemic findings across the corpus</h3>
+        <p class="text-sm text-slate-500 mb-4">
+          Patterns where multiple documents fail the same typology — these are policy/template-level
+          procurement-reform signals, not per-tender errors.
+        </p>
+        <div id="systemic-cards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+
+      <!-- Quick access -->
+      <div>
+        <h3 class="text-lg font-semibold mb-3">Quick access</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <a href="#unverified" class="block p-4 bg-white rounded-lg border border-slate-200 hover:border-amber-400 hover:shadow-sm transition">
+            <div class="text-xs text-amber-700 font-semibold uppercase tracking-wide">Action required</div>
+            <div class="mt-1 text-xl font-bold" id="quick-unverified-count">—</div>
+            <div class="text-xs text-slate-500">UNVERIFIED findings pending human review</div>
+          </a>
+          <a href="#docs" class="block p-4 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 hover:shadow-sm transition">
+            <div class="text-xs text-indigo-700 font-semibold uppercase tracking-wide">Browse docs</div>
+            <div class="mt-1 text-xl font-bold">6 documents</div>
+            <div class="text-xs text-slate-500">vizag · JA · HC · kakinada · tirupathi · vijayawada</div>
+          </a>
+          <a href="#typologies" class="block p-4 bg-white rounded-lg border border-slate-200 hover:border-violet-400 hover:shadow-sm transition">
+            <div class="text-xs text-violet-700 font-semibold uppercase tracking-wide">Typology coverage</div>
+            <div class="mt-1 text-xl font-bold">17 typologies</div>
+            <div class="text-xs text-slate-500">~5.3% of HARD_BLOCK rules in production catalog</div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══ VIEW 2 — Per-document findings ═══════════════════════════ -->
+    <section id="view-docs" hidden class="space-y-6">
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-bold mb-2">Per-document findings</h2>
+          <p class="text-sm text-slate-600">All Tier-1 findings for the selected document, grouped by severity.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-slate-600 mono">doc_id:</label>
+          <select id="doc-select" class="text-sm bg-white border border-slate-300 rounded-md px-3 py-1.5 mono"></select>
+        </div>
+      </div>
+      <div id="doc-summary" class="text-sm text-slate-600"></div>
+      <div id="doc-findings" class="space-y-3"></div>
+    </section>
+
+
+    <!-- ═══ VIEW 3 — Per-typology view ═══════════════════════════════ -->
+    <section id="view-typologies" hidden class="space-y-6">
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-bold mb-2">Per-typology corpus matrix</h2>
+          <p class="text-sm text-slate-600">For the selected typology, how each of the 6 documents is classified.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-slate-600 mono">typology:</label>
+          <select id="typ-select" class="text-sm bg-white border border-slate-300 rounded-md px-3 py-1.5 mono"></select>
+        </div>
+      </div>
+      <div id="typ-systemic-banner" class="hidden p-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-sm"></div>
+      <div id="typ-matrix" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    </section>
+
+
+    <!-- ═══ VIEW 4 — UNVERIFIED queue ═══════════════════════════════ -->
+    <section id="view-unverified" hidden class="space-y-6">
+      <div>
+        <h2 class="text-2xl font-bold mb-2">UNVERIFIED queue</h2>
+        <p class="text-sm text-slate-600">
+          Findings where the LLM extraction failed L24 evidence verification, or grep-fallback found
+          keywords the LLM missed. Each requires a human reviewer to confirm or dismiss.
+        </p>
+      </div>
+      <div id="unv-summary" class="text-sm text-slate-600 mono"></div>
+      <div id="unv-list" class="space-y-4"></div>
+    </section>
+
+
+    <!-- ═══ VIEW 5 — Source viewer (slide-over) ══════════════════════ -->
+    <section id="view-source" hidden class="space-y-4">
+      <a href="#" id="src-back" class="inline-flex items-center text-sm text-slate-600 hover:text-slate-900">
+        ← back
+      </a>
+      <div class="bg-white rounded-lg border border-slate-200 p-6">
+        <div id="src-meta" class="space-y-2 text-sm"></div>
+        <pre id="src-text" class="mt-4 mono text-xs bg-slate-50 p-4 rounded border border-slate-200 max-h-[70vh] overflow-auto whitespace-pre-wrap"></pre>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ── App logic ─────────────────────────────────────────────────── -->
+  <script type="module">
+    const SUPABASE_URL = "https://hjhxcmfuivpsbhlagunr.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaHhjbWZ1aXZwc2JobGFndW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjIwOTksImV4cCI6MjA5MjgzODA5OX0.iLazMpShscsF7NUwfus9U23R1guQhMGKl8S_UwXUPYA";
+
+    const REST_URL = `${SUPABASE_URL}/rest/v1`;
+    const HEADERS = {
+      "apikey":        SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type":  "application/json",
+    };
+
+    // Six known corpus documents — used for the per-typology matrix
+    const CORPUS_DOCS = [
+      "vizag_ugss_exp_001",
+      "judicial_academy_exp_001",
+      "high_court_exp_001",
+      "kakinada_pkg11_exp_001",
+      "tirupathi_wte_exp_001",
+      "vijayawada_wte_exp_001",
+    ];
+
+    // Friendly labels
+    const DOC_LABELS = {
+      "vizag_ugss_exp_001":       "Vizag UGSS",
+      "judicial_academy_exp_001": "Judicial Academy",
+      "high_court_exp_001":       "High Court",
+      "kakinada_pkg11_exp_001":   "Kakinada Package-11",
+      "tirupathi_wte_exp_001":    "Tirupathi WtE PPP",
+      "vijayawada_wte_exp_001":   "Vijayawada WtE PPP",
+    };
+
+    // Cached findings
+    let ALL_FINDINGS = [];
+
+    // ── REST helpers ───────────────────────────────────────────────
+    async function rest(path, params = {}) {
+      const qs = new URLSearchParams(params).toString();
+      const r = await fetch(`${REST_URL}/${path}?${qs}`, { headers: HEADERS });
+      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      return r.json();
+    }
+
+    async function patchNode(node_id, properties) {
+      const r = await fetch(
+        `${REST_URL}/kg_nodes?node_id=eq.${encodeURIComponent(node_id)}`,
+        {
+          method: "PATCH",
+          headers: { ...HEADERS, "Prefer": "return=representation" },
+          body:    JSON.stringify({ properties }),
+        }
+      );
+      if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+      return r.json();
+    }
+
+    // ── Initial data fetch ─────────────────────────────────────────
+    async function loadAllFindings() {
+      setStatus("loading…");
+      // Paginate just in case (Supabase default cap = 1000 rows; we
+      // have ~65 today but write defensively for future growth).
+      const out = [];
+      let offset = 0;
+      const PAGE = 1000;
+      while (true) {
+        const batch = await fetch(
+          `${REST_URL}/kg_nodes?select=node_id,doc_id,label,properties&node_type=eq.ValidationFinding&properties->>tier=eq.1&order=doc_id.asc`,
+          { headers: { ...HEADERS, "Range-Unit": "items", "Range": `${offset}-${offset + PAGE - 1}` } }
+        ).then(r => r.json());
+        out.push(...batch);
+        if (batch.length < PAGE) break;
+        offset += PAGE;
+      }
+      ALL_FINDINGS = out;
+      setStatus(`${ALL_FINDINGS.length} findings loaded`);
+    }
+
+    function setStatus(text) {
+      document.getElementById("status-pill").textContent = text;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function severityChip(sev, marker_kind) {
+      if (marker_kind === "informational") {
+        return `<span class="text-[10px] px-1.5 py-0.5 rounded marker-info uppercase tracking-wide font-semibold">ADV-INFO</span>`;
+      }
+      const cls = `sev-${sev || "ADVISORY"}`;
+      return `<span class="text-[10px] px-1.5 py-0.5 rounded ${cls} uppercase tracking-wide font-semibold">${escapeHtml(sev || "—")}</span>`;
+    }
+
+    function statusChip(status) {
+      const cls = `st-${status || "OPEN"}`;
+      return `<span class="text-[10px] px-1.5 py-0.5 rounded border ${cls} uppercase tracking-wide font-semibold">${escapeHtml(status || "OPEN")}</span>`;
+    }
+
+    // ── VIEW 1: Dashboard ─────────────────────────────────────────
+    function renderDashboard() {
+      // Stats bar
+      const total      = ALL_FINDINGS.length;
+      const open       = ALL_FINDINGS.filter(f => (f.properties?.status || "OPEN") === "OPEN").length;
+      const unv        = ALL_FINDINGS.filter(f => f.properties?.status === "UNVERIFIED").length;
+      const hardBlocks = ALL_FINDINGS.filter(f => f.properties?.severity === "HARD_BLOCK"
+                                                 && (f.properties?.status || "OPEN") === "OPEN").length;
+      const advisories = ALL_FINDINGS.filter(f => f.properties?.severity === "ADVISORY"
+                                                 && (f.properties?.status || "OPEN") === "OPEN").length;
+
+      document.getElementById("stats-bar").innerHTML = [
+        statBox("Total findings",    total,        "slate"),
+        statBox("OPEN violations",   open,         "rose"),
+        statBox("UNVERIFIED",        unv,          "amber"),
+        statBox("OPEN HARD_BLOCKs",  hardBlocks,   "red"),
+        statBox("OPEN ADVISORIES",   advisories,   "blue"),
+      ].join("");
+
+      document.getElementById("quick-unverified-count").textContent = `${unv} findings`;
+
+      // Systemic pattern cards
+      const sysPatterns = computeSystemicPatterns();
+      document.getElementById("systemic-cards").innerHTML = sysPatterns.map(systemicCardHtml).join("");
+    }
+
+    function statBox(label, value, color) {
+      const colorMap = {
+        slate: "border-slate-200",
+        rose:  "border-rose-300 bg-rose-50",
+        amber: "border-amber-300 bg-amber-50",
+        red:   "border-red-300 bg-red-50",
+        blue:  "border-blue-300 bg-blue-50",
+      };
+      return `
+        <div class="p-4 bg-white rounded-lg border ${colorMap[color] || colorMap.slate}">
+          <div class="text-xs uppercase tracking-wide text-slate-600 font-semibold">${escapeHtml(label)}</div>
+          <div class="mt-1 text-3xl font-bold mono">${value}</div>
+        </div>`;
+    }
+
+    // Compute the 4 systemic patterns dynamically from the findings
+    function computeSystemicPatterns() {
+      const t = (typology, status, severity) =>
+        ALL_FINDINGS.filter(f => f.properties?.typology_code === typology
+                                && (status === undefined || (f.properties?.status || "OPEN") === status)
+                                && (severity === undefined || f.properties?.severity === severity)).length;
+
+      return [
+        {
+          title: "PBG-Shortfall — 5/5 docs at 2.5% vs 10% required",
+          tone:  "rose",
+          n_docs: t("PBG-Shortfall", "OPEN", "HARD_BLOCK"),
+          tot_docs: 6,
+          summary: "Every Works/PPP doc that has a PBG clause sits at AP-State 2.5% baseline (per AP-GO-019), which falls below MPW-130's Central HARD_BLOCK floor of 10%. Kakinada is silently absent.",
+          link: "#typology/PBG-Shortfall",
+          tag:  "HARD_BLOCK",
+        },
+        {
+          title: "EMD-Shortfall — 5/5 docs at 1% vs 2-2.5% required",
+          tone:  "rose",
+          n_docs: t("EMD-Shortfall", "OPEN"),
+          tot_docs: 6,
+          summary: "Every doc with an EMD clause is calibrated to 1% (AP-State default) which falls below GFR-G-049's 2% floor. Tirupathi/Vijayawada via amount-path: 0.998% HARD_BLOCK. JA/HC/Kakinada at 1% ADVISORY.",
+          link: "#typology/EMD-Shortfall",
+          tag:  "HARD_BLOCK",
+        },
+        {
+          title: "Judicial-Preview-Bypass — 6/6 docs missing APJPA citation",
+          tone:  "amber",
+          n_docs: t("Judicial-Preview-Bypass", "OPEN"),
+          tot_docs: 6,
+          summary: "Zero APJPA / Judicial Preview Authority citations across all 12 source markdown files. Five docs HARD_BLOCK; Vizag ADVISORY (EV=null L27 downgrade). State-level mandate APJPA Act 2019 universally bypassed.",
+          link: "#typology/Judicial-Preview-Bypass",
+          tag:  "HARD_BLOCK",
+        },
+        {
+          title: "MakeInIndia-LCC-Missing — 6/6 docs missing PPP-MII Order",
+          tone:  "amber",
+          n_docs: t("MakeInIndia-LCC-Missing", "OPEN"),
+          tot_docs: 6,
+          summary: "Zero PPP-MII Order 2017 / GFR Rule 153(iii) / DPIIT OM citations. Class-I/II local-supplier classification absent. Bidder LC self-certification template absent. MPW-002 (Works) + MPS-182 (PPP) HARD_BLOCK.",
+          link: "#typology/MakeInIndia-LCC-Missing",
+          tag:  "HARD_BLOCK",
+        },
+        {
+          title: "Missing-Integrity-Pact — 6/6 docs missing regulated CVC IP",
+          tone:  "blue",
+          n_docs: t("Missing-Integrity-Pact", "OPEN"),
+          tot_docs: 6,
+          summary: "Zero docs carry the regulated CVC Pre-bid Integrity Pact (CVC-086 / MPS-022). JA/HC/Tirupathi/Vijayawada have multilateral lender's framework; Vizag/Kakinada have nothing. All ADVISORY per parallel-compliance shape (L30).",
+          link: "#typology/Missing-Integrity-Pact",
+          tag:  "ADVISORY",
+        },
+        {
+          title: "Turnover-Threshold-Excess — NREDCAP PPP DCAs at 2.500× annual",
+          tone:  "blue",
+          n_docs: t("Turnover-Threshold-Excess", "OPEN"),
+          tot_docs: 6,
+          summary: "Tirupathi (₹128.75cr) + Vijayawada (₹162.35cr) both compute to exactly 2.500× annual contract value — just over the CVC-028 ≤2× cap. Identical multiple confirms NREDCAP RFP-template-level calibration (50% of total), not per-tender judgment.",
+          link: "#typology/Turnover-Threshold-Excess",
+          tag:  "ADVISORY",
+        },
+      ];
+    }
+
+    function systemicCardHtml(p) {
+      const toneMap = {
+        rose:  { border: "border-rose-300",  bar: "bg-rose-500" },
+        amber: { border: "border-amber-300", bar: "bg-amber-500" },
+        blue:  { border: "border-blue-300",  bar: "bg-blue-500" },
+      };
+      const t = toneMap[p.tone] || toneMap.blue;
+      return `
+        <a href="${p.link}" class="block p-5 bg-white rounded-lg border ${t.border} hover:shadow-md transition">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <h4 class="font-semibold leading-tight">${escapeHtml(p.title)}</h4>
+            <span class="text-[10px] px-1.5 py-0.5 rounded sev-${p.tag} uppercase tracking-wide font-semibold whitespace-nowrap">${escapeHtml(p.tag)}</span>
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div class="${t.bar} h-full" style="width: ${(p.n_docs / p.tot_docs * 100).toFixed(0)}%"></div>
+            </div>
+            <span class="text-xs mono text-slate-600">${p.n_docs}/${p.tot_docs} docs</span>
+          </div>
+          <p class="text-sm text-slate-700 leading-relaxed">${escapeHtml(p.summary)}</p>
+        </a>`;
+    }
+
+    // ── VIEW 2: Per-document ──────────────────────────────────────
+    function populateDocSelect() {
+      const select = document.getElementById("doc-select");
+      const docs = [...new Set(ALL_FINDINGS.map(f => f.doc_id))];
+      // Add docs from CORPUS_DOCS that may have 0 findings
+      CORPUS_DOCS.forEach(d => { if (!docs.includes(d)) docs.push(d); });
+      docs.sort();
+      select.innerHTML = docs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(DOC_LABELS[d] || d)}</option>`).join("");
+      select.addEventListener("change", () => {
+        location.hash = `#doc/${select.value}`;
+      });
+    }
+
+    function renderDocView(doc_id) {
+      document.getElementById("doc-select").value = doc_id;
+      const findings = ALL_FINDINGS.filter(f => f.doc_id === doc_id);
+      const open       = findings.filter(f => (f.properties?.status || "OPEN") === "OPEN");
+      const unv        = findings.filter(f => f.properties?.status === "UNVERIFIED");
+      const hardBlocks = open.filter(f => f.properties?.severity === "HARD_BLOCK").length;
+      const advisories = open.filter(f => f.properties?.severity === "ADVISORY").length;
+
+      document.getElementById("doc-summary").innerHTML = `
+        <span class="mono">${escapeHtml(doc_id)}</span> ·
+        <strong>${findings.length}</strong> findings ·
+        <span class="text-rose-700">${open.length} OPEN</span> ·
+        <span class="text-amber-700">${unv.length} UNVERIFIED</span> ·
+        ${hardBlocks} HARD_BLOCK · ${advisories} ADVISORY
+      `;
+
+      // Group by status, then severity
+      const groups = [
+        { title: "OPEN — HARD_BLOCK violations",     items: open.filter(f => f.properties?.severity === "HARD_BLOCK"),  emptyMsg: "No open HARD_BLOCK violations." },
+        { title: "OPEN — ADVISORY findings",         items: open.filter(f => f.properties?.severity === "ADVISORY" && f.properties?.marker_kind !== "informational"), emptyMsg: "No open ADVISORY findings." },
+        { title: "OPEN — Informational markers",      items: open.filter(f => f.properties?.marker_kind === "informational"), emptyMsg: null },
+        { title: "UNVERIFIED — pending human review", items: unv, emptyMsg: null },
+      ];
+
+      const html = groups.map(g => {
+        if (!g.items.length && g.emptyMsg === null) return "";
+        return `
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-600 mb-2">${escapeHtml(g.title)} · ${g.items.length}</h3>
+            ${g.items.length
+              ? g.items.map(findingCardHtml).join("")
+              : `<p class="text-sm text-slate-500 italic">${escapeHtml(g.emptyMsg)}</p>`}
+          </div>`;
+      }).join("");
+
+      document.getElementById("doc-findings").innerHTML = html
+        || `<p class="text-sm text-slate-500 italic">No findings recorded for this document.</p>`;
+    }
+
+    function findingCardHtml(f) {
+      const p = f.properties || {};
+      const evidence = (p.evidence || "").trim();
+      const evShort  = evidence.length > 360 ? evidence.slice(0, 360) + "…" : evidence;
+      const heading  = p.section_heading;
+      const lineInfo = (p.line_start_local && p.line_end_local)
+        ? `${p.source_file || ""} L${p.line_start_local}-${p.line_end_local}`
+        : (p.source_file ? p.source_file : "(no source ref)");
+      const ruleId = p.rule_id || "—";
+      const reason = p.violation_reason || "";
+
+      return `
+        <div class="bg-white rounded-lg border border-slate-200 p-4 mb-3">
+          <div class="flex items-start justify-between gap-2 mb-2 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-semibold text-sm">${escapeHtml(p.typology_code || "—")}</span>
+              ${severityChip(p.severity, p.marker_kind)}
+              ${statusChip(p.status || "OPEN")}
+              <span class="text-xs mono text-slate-500">${escapeHtml(ruleId)}</span>
+            </div>
+            <a href="#source/${encodeURIComponent(f.doc_id)}/${encodeURIComponent(p.source_file || '')}/${p.line_start_local || ''}/${p.line_end_local || ''}" class="text-xs text-indigo-600 hover:text-indigo-800">view source ↗</a>
+          </div>
+          ${heading ? `<div class="text-xs text-slate-600 mb-1"><strong>Section:</strong> <span class="mono">${escapeHtml(heading)}</span></div>` : ""}
+          <div class="text-xs text-slate-500 mb-2 mono">${escapeHtml(lineInfo)}</div>
+          ${evidence ? `<blockquote class="text-sm italic text-slate-700 border-l-2 border-slate-300 pl-3 my-2 mono">${escapeHtml(evShort)}</blockquote>` : ""}
+          ${reason ? `<div class="text-xs text-slate-600"><strong>Reason:</strong> <span class="mono">${escapeHtml(reason)}</span></div>` : ""}
+        </div>`;
+    }
+
+    // ── VIEW 3: Per-typology ──────────────────────────────────────
+    const ALL_TYPOLOGIES = [
+      "PBG-Shortfall", "EMD-Shortfall", "Bid-Validity-Short",
+      "Missing-PVC-Clause", "Missing-Integrity-Pact", "Missing-LD-Clause",
+      "Mobilisation-Advance-Excess", "E-Procurement-Bypass",
+      "Blacklist-Not-Checked", "BG-Validity-Gap", "Judicial-Preview-Bypass",
+      "Turnover-Threshold-Excess", "Eligibility-Class-Mismatch",
+      "Arbitration-Clause-Violation", "Geographic-Restriction",
+      "MakeInIndia-LCC-Missing", "Works-Universal-Mandatory-Fields",
+    ];
+
+    function populateTypologySelect() {
+      const select = document.getElementById("typ-select");
+      select.innerHTML = ALL_TYPOLOGIES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+      select.addEventListener("change", () => {
+        location.hash = `#typology/${encodeURIComponent(select.value)}`;
+      });
+    }
+
+    function renderTypologyView(typology) {
+      document.getElementById("typ-select").value = typology;
+
+      // Build per-doc status map for this typology
+      const docStatus = {};
+      CORPUS_DOCS.forEach(d => {
+        const findings = ALL_FINDINGS.filter(f => f.doc_id === d && f.properties?.typology_code === typology);
+        if (findings.length === 0) {
+          docStatus[d] = { status: "COMPLIANT", findings: [] };
+        } else {
+          // Pick the strongest finding for the headline status
+          const open = findings.find(f => (f.properties?.status || "OPEN") === "OPEN");
+          const unv  = findings.find(f => f.properties?.status === "UNVERIFIED");
+          const headline = open || unv || findings[0];
+          docStatus[d] = {
+            status:   headline.properties?.status || "OPEN",
+            severity: headline.properties?.severity,
+            marker:   headline.properties?.marker_kind === "informational",
+            findings: findings,
+          };
+        }
+      });
+
+      // Systemic banner if all 6 are non-COMPLIANT
+      const nonCompliant = Object.values(docStatus).filter(s => s.status !== "COMPLIANT").length;
+      const banner = document.getElementById("typ-systemic-banner");
+      if (nonCompliant === 6) {
+        banner.classList.remove("hidden");
+        banner.innerHTML = `<strong>⚠ Systemic pattern:</strong> all 6 documents fail this typology — this is a corpus-wide procurement-template-level concern, not a per-tender error.`;
+      } else if (nonCompliant >= 4) {
+        banner.classList.remove("hidden");
+        banner.innerHTML = `<strong>Cluster pattern:</strong> ${nonCompliant} of 6 documents fail this typology — worth investigating as a portfolio signal.`;
+      } else {
+        banner.classList.add("hidden");
+      }
+
+      // Matrix cards
+      const html = CORPUS_DOCS.map(d => {
+        const s = docStatus[d];
+        const findings = s.findings;
+        const stCls = `st-${s.status}`;
+        const sevDot = s.severity ? severityChip(s.severity, s.marker ? "informational" : null) : "";
+        return `
+          <a href="#doc/${encodeURIComponent(d)}" class="block p-4 bg-white rounded-lg border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="font-semibold text-sm">${escapeHtml(DOC_LABELS[d] || d)}</div>
+              <span class="text-[10px] px-1.5 py-0.5 rounded border ${stCls} uppercase tracking-wide font-semibold">${escapeHtml(s.status)}</span>
+            </div>
+            <div class="text-xs mono text-slate-500 mb-2">${escapeHtml(d)}</div>
+            <div class="flex items-center gap-2 flex-wrap">
+              ${sevDot}
+              <span class="text-xs text-slate-500">${findings.length} finding(s)</span>
+            </div>
+          </a>`;
+      }).join("");
+
+      document.getElementById("typ-matrix").innerHTML = html;
+    }
+
+    // ── VIEW 4: UNVERIFIED queue ──────────────────────────────────
+    function renderUnverifiedView() {
+      const unv = ALL_FINDINGS.filter(f => f.properties?.status === "UNVERIFIED");
+      document.getElementById("unv-summary").innerHTML = `
+        <strong>${unv.length}</strong> UNVERIFIED finding(s) across the corpus —
+        each requires a human reviewer to confirm or dismiss.
+      `;
+
+      if (!unv.length) {
+        document.getElementById("unv-list").innerHTML =
+          `<p class="text-sm text-slate-500 italic">No UNVERIFIED findings. Queue is clear.</p>`;
+        return;
+      }
+
+      const html = unv.map(unverifiedCardHtml).join("");
+      document.getElementById("unv-list").innerHTML = html;
+
+      // Wire up action buttons
+      document.querySelectorAll("[data-action]").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const action  = e.currentTarget.dataset.action;
+          const node_id = e.currentTarget.dataset.nodeId;
+          await actOnUnverified(node_id, action);
+        });
+      });
+    }
+
+    function unverifiedCardHtml(f) {
+      const p = f.properties || {};
+      const docLabel = DOC_LABELS[f.doc_id] || f.doc_id;
+      const grep = p.grep_fallback_audit;
+      const grepHits = grep?.hits || [];
+      const grepHtml = grepHits.length
+        ? `<div class="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
+            <div class="text-xs font-semibold text-slate-700 mb-2">grep_fallback_audit (${grep.tier} · ${grepHits.length} hit${grepHits.length>1?'s':''}${grep.kg_coverage_gap ? ' · KG-COVERAGE-GAP' : ''})</div>
+            <ul class="space-y-2 text-xs">
+              ${grepHits.slice(0, 5).map(h => `
+                <li class="border-l-2 border-amber-400 pl-3">
+                  <div class="mono text-slate-600">
+                    ${escapeHtml(h.section_type || "")}
+                    ${h.heading ? `· ${escapeHtml(h.heading.slice(0, 60))}` : ""}
+                    · L${h.line_start_local || h.line_no || "?"}-${h.line_end_local || ""}
+                  </div>
+                  <div class="text-slate-700 italic mt-1">${escapeHtml((h.snippet || "").slice(0, 200))}</div>
+                  <div class="text-[10px] text-slate-500 mt-1">matched: ${(h.keyword_matches || []).slice(0, 5).map(escapeHtml).join(", ")}</div>
+                </li>`).join("")}
+            </ul>
+           </div>`
+        : "";
+
+      const reviewReason = p.human_review_reason
+        ? `<div class="mt-2 p-3 bg-amber-50 rounded border border-amber-200 text-sm text-amber-900">
+            <strong>Reviewer note:</strong> ${escapeHtml(p.human_review_reason)}
+          </div>` : "";
+
+      return `
+        <div class="bg-white rounded-lg border border-amber-300 p-5">
+          <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-semibold">${escapeHtml(p.typology_code || "—")}</span>
+              ${severityChip(p.severity, p.marker_kind)}
+              ${statusChip("UNVERIFIED")}
+              <span class="text-xs mono text-slate-500">${escapeHtml(p.rule_id || "—")}</span>
+              <span class="text-xs text-slate-500">·</span>
+              <a href="#doc/${encodeURIComponent(f.doc_id)}" class="text-xs text-indigo-600 hover:text-indigo-800">${escapeHtml(docLabel)} ↗</a>
+            </div>
+            <div class="text-xs mono text-slate-500">match_method: ${escapeHtml(p.evidence_match_method || "?")}</div>
+          </div>
+          <div class="text-sm text-slate-700">
+            <div class="text-xs text-slate-500 mb-1"><strong>Reason:</strong> ${escapeHtml(p.violation_reason || "—")}</div>
+          </div>
+          ${reviewReason}
+          ${grepHtml}
+          <div class="mt-4 flex gap-2">
+            <button data-action="verify"  data-node-id="${escapeHtml(f.node_id)}"
+                    class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700">
+              Mark Verified → OPEN
+            </button>
+            <button data-action="dismiss" data-node-id="${escapeHtml(f.node_id)}"
+                    class="px-3 py-1.5 text-sm bg-slate-600 text-white rounded hover:bg-slate-700">
+              Mark Dismissed
+            </button>
+          </div>
+        </div>`;
+    }
+
+    async function actOnUnverified(node_id, action) {
+      const finding = ALL_FINDINGS.find(f => f.node_id === node_id);
+      if (!finding) return;
+      const newStatus = action === "verify" ? "OPEN" : "DISMISSED";
+      const updated = { ...finding.properties, status: newStatus };
+      updated.reviewed_at = new Date().toISOString();
+      updated.reviewer_action = action;
+      try {
+        setStatus(`updating ${node_id.slice(0, 8)}…`);
+        await patchNode(node_id, updated);
+        // Update local cache
+        finding.properties = updated;
+        setStatus(`${action === "verify" ? "verified" : "dismissed"} ✓`);
+        renderUnverifiedView();
+        renderDashboard();
+      } catch (err) {
+        alert(`Update failed: ${err.message}`);
+        setStatus("update failed");
+      }
+    }
+
+    // ── VIEW 5: Source viewer ────────────────────────────────────
+    async function renderSourceView(doc_id, source_file, ls, le) {
+      const meta = document.getElementById("src-meta");
+      const text = document.getElementById("src-text");
+
+      meta.innerHTML = `
+        <div><strong>doc_id:</strong> <span class="mono">${escapeHtml(doc_id)}</span></div>
+        <div><strong>source_file:</strong> <span class="mono">${escapeHtml(source_file)}</span></div>
+        <div><strong>lines:</strong> <span class="mono">${escapeHtml(ls)}–${escapeHtml(le)}</span></div>
+        <div class="text-xs text-slate-500 mt-2">
+          The portal does not currently bundle the source markdown. Open the file in your editor at the cited line range,
+          or click through to GitHub if the repo is published.
+        </div>`;
+
+      text.textContent = `// Source files live under source_documents/e_procurement/processed_md/
+// in the procureAI repo. The portal does not bundle them — open the file
+// at the cited line range manually.
+
+// Path candidate:
+//   source_documents/e_procurement/processed_md/${source_file || "(unknown)"}
+//   lines ${ls || "?"}-${le || "?"}`;
+    }
+
+    // ── Router ───────────────────────────────────────────────────
+    function showView(name) {
+      document.querySelectorAll("section[id^='view-']").forEach(s => s.hidden = true);
+      const target = document.getElementById(`view-${name}`);
+      if (target) target.hidden = false;
+      document.querySelectorAll(".nav-link").forEach(a => a.classList.remove("bg-slate-100", "font-semibold"));
+      const link = document.querySelector(`.nav-link[href='#${name}']`);
+      if (link) link.classList.add("bg-slate-100", "font-semibold");
+    }
+
+    function route() {
+      const hash  = location.hash.slice(1) || "dashboard";
+      const parts = hash.split("/");
+      const head  = parts[0];
+      try {
+        if (head === "dashboard" || head === "") {
+          showView("dashboard");
+          renderDashboard();
+        } else if (head === "docs") {
+          showView("docs");
+          if (CORPUS_DOCS.length) {
+            const sel = document.getElementById("doc-select");
+            if (!sel.value) sel.value = CORPUS_DOCS[0];
+            renderDocView(sel.value);
+          }
+        } else if (head === "doc") {
+          showView("docs");
+          renderDocView(parts[1]);
+        } else if (head === "typologies") {
+          showView("typologies");
+          const sel = document.getElementById("typ-select");
+          if (!sel.value) sel.value = ALL_TYPOLOGIES[0];
+          renderTypologyView(sel.value);
+        } else if (head === "typology") {
+          showView("typologies");
+          renderTypologyView(decodeURIComponent(parts[1]));
+        } else if (head === "unverified") {
+          showView("unverified");
+          renderUnverifiedView();
+        } else if (head === "source") {
+          showView("source");
+          renderSourceView(
+            decodeURIComponent(parts[1] || ""),
+            decodeURIComponent(parts[2] || ""),
+            decodeURIComponent(parts[3] || ""),
+            decodeURIComponent(parts[4] || ""),
+          );
+        }
+      } catch (err) {
+        console.error("route error:", err);
+        setStatus(`error: ${err.message}`);
+      }
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────
+    (async function boot() {
+      try {
+        await loadAllFindings();
+        populateDocSelect();
+        populateTypologySelect();
+        document.getElementById("src-back").addEventListener("click", (e) => {
+          e.preventDefault();
+          history.back();
+        });
+        window.addEventListener("hashchange", route);
+        route();
+      } catch (err) {
+        console.error("boot error:", err);
+        setStatus(`error: ${err.message}`);
+        document.getElementById("view-dashboard").innerHTML =
+          `<div class="p-6 bg-rose-50 border border-rose-200 rounded-lg text-rose-800">
+            <strong>Failed to load findings.</strong>
+            <p class="text-sm mt-1 mono">${escapeHtml(err.message)}</p>
+            <p class="text-xs mt-3 text-rose-700">
+              Check (1) Supabase URL + anon key in this file, (2) browser network tab for CORS or 401 errors,
+              (3) that the kg_nodes table is readable by the anon role.
+            </p>
+          </div>`;
+      }
+    })();
+  </script>
+</body>
+</html>
