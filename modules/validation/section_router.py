@@ -384,6 +384,34 @@ ARBITRATION_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Geographic-Restriction — anchor clauses live in:
+#   - Volume-I/Section-2/ITB:  Land-border-country eligibility clause
+#                              (CLAUSE-AP-LAND-BORDER-COUNTRY-RESTRICTION-001,
+#                              CLAUSE-ELIGIBILITY-LANDBORDER-001, CLAUSE-
+#                              LANDBORDER-VALIDITY-TIMING-001, CLAUSE-WORKS-
+#                              SUBCONTRACT-LANDBORDER-001), AP-NO-JV-CONSORTIUM-
+#                              001 anti-pattern, ITB 4.4 nationality
+#   - Volume-I/Section-5/Forms: Bidder compliance certificates per MPS-213 /
+#                              MPW-180 (CLAUSE-LAND-BORDER-WORKS-CERT-001,
+#                              CLAUSE-LAND-BORDER-CERT-GEM-001)
+#   - Volume-I/Section-1/NIT:  GTE clauses + MDB-funded GTE-exemption
+#                              (CLAUSE-MDB-FUNDED-EXEMPTION-001, CLAUSE-
+#                              WORKS-GTE-001)
+# Forms is essential everywhere because bidder certificates (the MPS-213 /
+# MPW-180 PRESENCE rules) live there. Evaluation is essential too: JA's
+# "Any contractor from abroad not be permitted" anti-pattern at L878
+# falls in section_type='Evaluation' "General Requirements" L870-899
+# — a recurring corpus pattern where foreign-bidder bans are in BDS-
+# rewrite-style Evaluation regions, not the canonical ITB. Including
+# Evaluation in every family closes the retrieval-coverage gap.
+GEOGRAPHIC_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Evaluation", "Forms"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Evaluation", "Forms"],
+    "default":       ["NIT", "ITB", "Evaluation", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -398,6 +426,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Turnover-Threshold-Excess":   TURNOVER_SECTION_ROUTER,
     "Eligibility-Class-Mismatch":  ELIGIBILITY_CLASS_SECTION_ROUTER,
     "Arbitration-Clause-Violation": ARBITRATION_SECTION_ROUTER,
+    "Geographic-Restriction":      GEOGRAPHIC_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

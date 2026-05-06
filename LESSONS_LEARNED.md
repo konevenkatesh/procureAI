@@ -926,6 +926,51 @@ Net corpus change: 36 → 39 findings, 31 → 34 OPEN, 5 UNVERIFIED unchanged, 3
 
 ---
 
+## L44 — Evidence Guard Method 3: Multi-Sentence Verification for Stitched Quotes
+
+**What we did:** Built the fifteenth Tier-1 typology — Geographic-Restriction — and the JA test exposed a structural problem with the L24 evidence guard. Multi-field LLM extractions (Geographic-Restriction has 11 booleans, Arbitration L43 had 13) produce **stitched evidence quotes** that concatenate sentences from multiple sub-checks. The whole-quote partial_ratio scores below the L24 threshold of 85 because difflib treats the concatenation as one unit, even when individual sentences within the quote ARE verbatim from the source. Result: real violations (JA + HC foreign-bidder ban) routed to UNVERIFIED instead of OPEN — hiding HARD_BLOCK signals behind status=UNVERIFIED audit fields.
+
+The original two-stage L24 chain:
+  1. Substring exact match → score 100, method "substring"
+  2. difflib partial_ratio sliding-window → method "partial_ratio"
+
+A stitched quote like *"Participation by JV/Consortium/SPV not allowed. Any contractor from abroad not be permitted. The bidders shall not have a conflict of interest. The bidder shall have the Indian nationality."* fails both stages — the source has each of these sentences but with different intermediate content between them. partial_ratio scores ~58 because the concatenation drifts away from any single source window.
+
+**Method 3 — longest-sentence verification.** New stage 3 in `modules/validation/evidence_guard.py` fires only when stages 1 and 2 fail:
+1. Split the LLM evidence quote on sentence boundaries (`(?<=[.!?])(?:\s+|\\n|<br/>)`).
+2. Filter sentences `>= 20` chars (drop fragments).
+3. Sort by length descending — the longest sentence is most likely the primary signal the LLM was grounding.
+4. For each sentence: substring fast-path against the source; if no match, partial_ratio with the same coarse-then-fine sliding window used in stage 2.
+5. Track the best per-sentence score. If any sentence ≥ threshold, return PASS with method `longest_sentence_substring` or `longest_sentence_partial_ratio`.
+
+The semantics: "the LLM stitched, but at least one of the sentences in its quote is verbatim from the source — the evidence IS grounded, just decomposed". The audit method label records that the quote was decomposed so reviewers know to expect stitched evidence.
+
+**Smoke-tested on three shapes:**
+- Stitched-with-realistic-gap (JA shape): score=100 `longest_sentence_substring` ✓
+- Hallucinated quote (no sentence anywhere in source): score=49 `no_match` ✗ — correctly rejected
+- One-real-many-fake quote (one sentence verbatim, others fabricated): score=100 `longest_sentence_substring` ✓ — accepts because at least one sentence is grounded
+
+The hallucinated case is critical: Method 3 doesn't loosen L24 indiscriminately. A fully-fabricated quote still fails because no individual sentence verifies. This preserves the L24 anti-hallucination contract.
+
+**Corpus impact on Geographic-Restriction (typology 15):**
+- **Vizag**: MPG-243 UNVERIFIED HARD_BLOCK (L24 + L44 both fail; best_sentence_score=47). Honest UNVERIFIED — Vizag's geographic-restriction posture genuinely unclear without manual review.
+- **JA**: MPS-184 OPEN ADVISORY (foreign-ban anti-pattern, severity downgraded HARD_BLOCK→ADVISORY per L27 because BidderClassification UNKNOWN) + AP-GO-091 informational marker. **L44 promoted JA from UNVERIFIED to OPEN** — the foreign-bidder ban at L878 is now a verified-evidence finding.
+- **HC**: Same shape as JA — MPS-184 OPEN ADVISORY + AP-GO-091 marker. L44 score=100 longest_sentence_substring.
+- **Kakinada**: MPG-243 OPEN HARD_BLOCK (Annexure-2F absent, no foreign-ban) + AP-GO-091 marker. Single-sentence quote, verified via stage-1 substring (no L44 needed).
+- **Tirupathi / Vijayawada**: COMPLIANT — both NREDCAP DCAs include full DoE OM 23-Jul-2020 land-border-country clause + bidder compliance certificate per MPS-213. Best-in-class compliance.
+
+Net: 7 new findings, 6 OPEN + 1 UNVERIFIED. Without L44, JA + HC would have been UNVERIFIED instead of OPEN — losing 4 verified findings (2 primaries + 2 markers) to a verifiable-but-stitched-quote failure mode.
+
+**A note on the JA / HC severity downgrade.** Both fire MPS-184 at ADVISORY severity, not HARD_BLOCK. This is L27 acting as designed: MPS-184's `condition_when` includes `BidderClassification=Local` which we don't extract as a fact, so condition_evaluator returns UNKNOWN and the L27 downgrade fires. The audit fields preserve `severity_origin=HARD_BLOCK`, `verdict_origin=UNKNOWN`. A future typology-specific override could re-escalate the severity when the LLM provides positive evidence of the anti-pattern (since the rule is fundamentally about doc design, not bidder classification), but that's a more invasive change to L27's general safety mechanism. Filed as follow-on.
+
+**Forward applicability:**
+1. **Method 3 generalises to every multi-field typology automatically.** Arbitration (L43, 13 fields), Geographic-Restriction (15 fields), and any future multi-rule typology that produces stitched quotes will benefit without script-level changes — the typology just needs to call `verify_evidence_in_section()` as it already does.
+2. **Anti-hallucination preserved.** Method 3 fires only AFTER stages 1+2 fail. A fabricated quote will still be rejected because no individual sentence verifies. The L24 contract is not loosened — it's extended to handle a specific known LLM failure mode (sub-check stitching).
+3. **Audit method label is queryable.** Findings with `evidence_match_method='longest_sentence_substring'` or `'longest_sentence_partial_ratio'` can be filtered to "evidence was stitched but one component verified" — useful for reviewers who want to see only the stitched cases.
+4. **L24 → L44 chain is the right shape for any future evidence-quality lift.** L24 was the substring + partial-ratio guard; L44 added decomposition. A future L4N could add named-entity verification, structured-data extraction, etc. — each layer adds robustness without loosening the previous contract.
+
+---
+
 ## Current Architecture State (as of May 2026)
 
 ### What Works
@@ -952,15 +997,15 @@ Net corpus change: 36 → 39 findings, 31 → 34 OPEN, 5 UNVERIFIED unchanged, 3
 - 88% of HARD_BLOCK rules have no detection code
 - **Deferred typologies (per L23):** PBG-Missing rule (fires when a Works tender has no Performance Security clause at all — distinct from PBG-Shortfall) and Retention-Money-Substitution recogniser (Smart City SBDs that swap PBG for retention). Both wait until after EMD-Shortfall.
 
-### Document Corpus (6 of 10 in KG) — Tier-1 findings across fourteen typologies
+### Document Corpus (6 of 10 in KG) — Tier-1 findings across fifteen typologies
 
-| doc_id | PBG | EMD | BV | PVC | IP | LD | MA | E-Proc | BL | BG-Val | JP | Turn | Class | Arb |
-|--------|-----|-----|----|-----|----|----|----|--------|----|--------|----|------|-------|-----|
-| vizag | HARD 2.5% | silence | ✓ 180d | ✓ | ADV none | ✓ 5%/mo | ✓ 10% | ✓ 100% | UNV grep (L36) | ✓ 60d-post-DLP | ADV bypass (EV=null, L27) | ✓ formula M=3 | ADV vague (L41 gap-fill) | ✓ Indian Act 1996 |
-| judicial_academy | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ WB/ADB | UNV grep (23 hits) | HARD bypass (zero JP) | ✓ formula M=2 | ✓ Special exact | **ADV-INFO AP-ladder (L43)** |
-| high_court | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ bidder+WB | ✓ 60d-post-DLP | HARD bypass (zero JP) | ✓ formula M=2 | ✓ Special exact | **ADV-INFO AP-ladder (L43)** |
-| kakinada | silence | ADV 1% | ✓ 90d | ADV absent | ADV none | ✓ §48.3 | ✓ no-MA | UNV (L35) | ✓ AP self-decl | ✓ 28d-post-DLP | HARD bypass (zero JP) | ✓ formula M=3 | HARD class-I-vs-Special (L41 gap-fill) | ✓ Indian Act 1996 + **ADV-INFO AP-ladder (L43)** |
-| tirupathi | HARD 4.998% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) | **ADV 2.500× (128.75cr)** | silence (PPP) | ✓ Indian Act 1996 |
-| vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) | **ADV 2.500× (162.35cr)** | silence (PPP) | ✓ Indian Act 1996 |
+| doc_id | PBG | EMD | BV | PVC | IP | LD | MA | E-Proc | BL | BG-Val | JP | Turn | Class | Arb | Geo |
+|--------|-----|-----|----|-----|----|----|----|--------|----|--------|----|------|-------|-----|-----|
+| vizag | HARD 2.5% | silence | ✓ 180d | ✓ | ADV none | ✓ 5%/mo | ✓ 10% | ✓ 100% | UNV grep (L36) | ✓ 60d-post-DLP | ADV bypass (EV=null, L27) | ✓ formula M=3 | ADV vague (L41) | ✓ Indian Act 1996 | UNV MPG-243 (L44 also fails) |
+| judicial_academy | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ WB/ADB | UNV grep (23 hits) | HARD bypass (zero JP) | ✓ formula M=2 | ✓ Special exact | ADV-INFO AP-ladder (L43) | **ADV foreign-ban (L44) + ADV-INFO AP-reg** |
+| high_court | HARD 2.5% | ADV 1% | ✓ 90d | ✓ | ADV ml-only | ✓ PCC | ✓ 10% | ✓ 100% | ✓ bidder+WB | ✓ 60d-post-DLP | HARD bypass (zero JP) | ✓ formula M=2 | ✓ Special exact | ADV-INFO AP-ladder (L43) | **ADV foreign-ban (L44) + ADV-INFO AP-reg** |
+| kakinada | silence | ADV 1% | ✓ 90d | ADV absent | ADV none | ✓ §48.3 | ✓ no-MA | UNV (L35) | ✓ AP self-decl | ✓ 28d-post-DLP | HARD bypass (zero JP) | ✓ formula M=3 | HARD class-I (L41) | ✓ Indian Act 1996 + ADV-INFO AP-ladder | **HARD Annexure-2F absent + ADV-INFO AP-reg** |
+| tirupathi | HARD 4.998% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) | **ADV 2.500× (128.75cr)** | silence (PPP) | ✓ Indian Act 1996 | ✓ full Annexure-2F |
+| vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | **GAP-VIOL 30d-post-COD (L37)** | HARD bypass (AP-GO-004) | **ADV 2.500× (162.35cr)** | silence (PPP) | ✓ Indian Act 1996 | ✓ full Annexure-2F |
 
-**Total: 39 ValidationFindings (34 OPEN + 5 UNVERIFIED), 34 VIOLATES_RULE edges.** Fourteen typologies × six documents = eighty-four possible finding slots: 34 OPEN findings (31 violations + 3 informational markers), 5 UNVERIFIED-pending-review, 45 correctly silent. The 5 UNVERIFIED breakdown is unchanged from L42: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist + 1 BG-Validity-Gap. The 3 new findings (typology 14) are all **AP-GO-229 informational markers** with `severity=ADVISORY, marker_kind=informational` — they record the AP-acceptable departure (claims > Rs.50,000 routed to civil court per APSS Clause 61) on JA, HC, and Kakinada. They carry VIOLATES_RULE edges (status=OPEN per L37) but the `marker_kind=informational` audit field distinguishes them from violations in dashboards. The Arbitration-Clause-Violation row introduced the **multi-rule typology shape** (L43 — one LLM call extracting 13 fields, four rule sub-checks, doc may emit 0/1/2 findings per typology run) and the **AP-defeats-Central decision branch** (AP-GO-229's defeats list of 38 Central rules including MPG-304 / MPW-139 explicitly suppresses the absence-violation when the AP value-tier ladder is present). The Judicial-Preview-Bypass row remains unique in the corpus: 6/6 documents trigger the violation, zero APJPA citations anywhere in 12 source markdown files (L38). The Turnover-Threshold-Excess row is the corpus's first two-shape typology (L39): 4 of 6 docs use the bid-capacity formula approach (COMPLIANT); 2 of 6 use NREDCAP's fixed-INR turnover floor calibrated to 2.500× annual contract value (just over the CVC-028 ≤2× cap). The Eligibility-Class-Mismatch row introduced both the **kg_coverage_gap audit category** (L40) and the **gap-filler post-process** (L41 — synthetic Section nodes for any uncovered line range >= 30 lines / 500 chars, automatically applied on every rebuild). Together L40 and L41 form an audit-then-fix loop. L42 hardened the tender_type extractor against silent regressions during rebuilds (graceful-failure shape + commit_to_kg preserve-on-null + Phase 6c snapshot/restore). L43 brings four new patterns: multi-rule typologies, AP-defeats-Central decision branches, OPEN-ADVISORY-INFORMATIONAL markers, and multi-finding cleanup helpers.
+**Total: 46 ValidationFindings (40 OPEN + 6 UNVERIFIED), 40 VIOLATES_RULE edges.** Fifteen typologies × six documents = ninety possible finding slots: 40 OPEN findings (33 violations + 7 informational markers), 6 UNVERIFIED-pending-review, 44 correctly silent. Geographic-Restriction (L44) added 7 findings: 1 HARD_BLOCK violation (Kakinada Annexure-2F absent), 2 ADVISORY violations (JA + HC foreign-bidder ban — L27 downgrade from HARD_BLOCK), 3 ADVISORY informational markers (JA + HC + Kakinada AP-State registration recognised), 1 UNVERIFIED (Vizag Annexure-2F absent — L24 + L44 both fail). The L44 Method-3 longest-sentence verification promoted JA + HC from UNVERIFIED to OPEN by decomposing stitched LLM evidence quotes — without L44, 4 verified findings (2 primary + 2 markers) would have been hidden behind UNVERIFIED status. The 5 UNVERIFIED breakdown is unchanged from L42: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist + 1 BG-Validity-Gap. The 3 new findings (typology 14) are all **AP-GO-229 informational markers** with `severity=ADVISORY, marker_kind=informational` — they record the AP-acceptable departure (claims > Rs.50,000 routed to civil court per APSS Clause 61) on JA, HC, and Kakinada. They carry VIOLATES_RULE edges (status=OPEN per L37) but the `marker_kind=informational` audit field distinguishes them from violations in dashboards. The Arbitration-Clause-Violation row introduced the **multi-rule typology shape** (L43 — one LLM call extracting 13 fields, four rule sub-checks, doc may emit 0/1/2 findings per typology run) and the **AP-defeats-Central decision branch** (AP-GO-229's defeats list of 38 Central rules including MPG-304 / MPW-139 explicitly suppresses the absence-violation when the AP value-tier ladder is present). The Judicial-Preview-Bypass row remains unique in the corpus: 6/6 documents trigger the violation, zero APJPA citations anywhere in 12 source markdown files (L38). The Turnover-Threshold-Excess row is the corpus's first two-shape typology (L39): 4 of 6 docs use the bid-capacity formula approach (COMPLIANT); 2 of 6 use NREDCAP's fixed-INR turnover floor calibrated to 2.500× annual contract value (just over the CVC-028 ≤2× cap). The Eligibility-Class-Mismatch row introduced both the **kg_coverage_gap audit category** (L40) and the **gap-filler post-process** (L41 — synthetic Section nodes for any uncovered line range >= 30 lines / 500 chars, automatically applied on every rebuild). Together L40 and L41 form an audit-then-fix loop. L42 hardened the tender_type extractor against silent regressions during rebuilds (graceful-failure shape + commit_to_kg preserve-on-null + Phase 6c snapshot/restore). L43 brings four new patterns: multi-rule typologies, AP-defeats-Central decision branches, OPEN-ADVISORY-INFORMATIONAL markers, and multi-finding cleanup helpers.

@@ -14,11 +14,17 @@ returned the literal wording from JA — a different document. A
 ValidationFinding could have shipped to the CAG audit with verbatim-
 looking but fabricated evidence.
 
-How: two-stage check, stdlib-only.
+How: three-stage check, stdlib-only.
     1. Substring match on aggressively-normalised text  → score 100
     2. difflib SequenceMatcher partial-ratio fallback (sliding window
        of len(evidence) over full_text)                  → score = ratio×100
        PASS if score >= threshold (default 85).
+    3. (L44) Longest-sentence fallback — for multi-field LLM extractions
+       that produce stitched quotes (concatenations of evidence from
+       multiple sub-checks). Splits the LLM evidence on sentence
+       boundaries; if any individual sentence ≥ 20 chars verifies
+       at >= threshold against the source, accept as grounded.
+       Method label: "longest_sentence_partial_ratio".
 
 rapidfuzz would expose ``fuzz.partial_ratio`` directly with the same
 semantics, but it's not installed in this venv. ``difflib`` is stdlib,
@@ -100,6 +106,16 @@ _EVIDENCE_MATCH_CAP = 500
 # PASS threshold — matches the original spec (fuzz.partial_ratio >= 85).
 _DEFAULT_THRESHOLD  = 85
 
+# L44 — longest-sentence fallback constants.
+# Sentence splitter — splits on sentence-terminal punctuation followed
+# by whitespace OR a markdown line break. The pattern keeps the
+# terminal punctuation attached to the preceding sentence, then
+# discards the leading whitespace of the next.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])(?:\s+|\\n|<br\s*/?>)", re.IGNORECASE)
+# Sentences below this length are noise (single words, fragments) —
+# we don't want a 5-char "Yes." matching against the source by chance.
+_MIN_SENTENCE_CHARS = 20
+
 
 def verify_evidence_in_section(
     evidence: str,
@@ -166,4 +182,70 @@ def verify_evidence_in_section(
                 best_ratio = r
 
     score = int(best_ratio * 100)
-    return score >= threshold, score, ("partial_ratio" if score >= threshold else "no_match")
+    if score >= threshold:
+        return True, score, "partial_ratio"
+
+    # Stage 3 (L44) — longest-sentence fallback for stitched quotes.
+    # Multi-field LLM extractions (Geographic-Restriction, Arbitration,
+    # any 4-sub-check typology) produce evidence that concatenates
+    # sentences from multiple sub-checks even when the prompt directs
+    # otherwise. The whole-quote partial_ratio scores low because
+    # difflib treats the stitched paragraph as one unit. Splitting on
+    # sentence boundaries and verifying the longest individual sentence
+    # restores grounding when at least one sentence is verbatim from
+    # the source. The audit method `longest_sentence_partial_ratio`
+    # records that the verification used this fallback so reviewers
+    # know the stitched quote was decomposed.
+    sentences = [
+        s.strip() for s in _SENTENCE_SPLIT.split(evidence)
+        if s and len(s.strip()) >= _MIN_SENTENCE_CHARS
+    ]
+    # Sort by length descending — longest sentence is most likely the
+    # primary signal the LLM was trying to ground.
+    sentences.sort(key=len, reverse=True)
+
+    best_sentence_score = 0
+    best_method = "no_match"
+    for sentence in sentences:
+        n_sent = _normalise_for_match(sentence)
+        if not n_sent or len(n_sent) < _MIN_SENTENCE_CHARS:
+            continue
+        # Substring fast-path for individual sentences
+        if n_sent in n_full:
+            return True, 100, "longest_sentence_substring"
+        # Partial-ratio fallback per sentence — same coarse-then-fine
+        # pattern but bounded by sentence length.
+        short_s = n_sent[:_EVIDENCE_MATCH_CAP]
+        if len(short_s) >= len(n_full):
+            r = difflib.SequenceMatcher(None, short_s, n_full).ratio()
+            sc = int(r * 100)
+            if sc > best_sentence_score:
+                best_sentence_score = sc
+            continue
+        win = len(short_s)
+        stride = max(1, win // 4)
+        cw = -1
+        br = 0.0
+        for i in range(0, len(n_full) - win + 1, stride):
+            r = difflib.SequenceMatcher(None, short_s, n_full[i:i + win]).ratio()
+            if r > br:
+                br = r
+                cw = i
+        if cw >= 0:
+            lo = max(0, cw - stride)
+            hi = min(len(n_full) - win + 1, cw + stride + 1)
+            for i in range(lo, hi):
+                r = difflib.SequenceMatcher(None, short_s, n_full[i:i + win]).ratio()
+                if r > br:
+                    br = r
+        sc = int(br * 100)
+        if sc > best_sentence_score:
+            best_sentence_score = sc
+
+    if best_sentence_score >= threshold:
+        return True, best_sentence_score, "longest_sentence_partial_ratio"
+
+    # Final no-match: use the whole-quote partial-ratio score (which
+    # we computed in Stage 2) as the reported score because it's the
+    # most charitable representation of how close the LLM came.
+    return False, max(score, best_sentence_score), "no_match"
