@@ -152,3 +152,136 @@ def grep_source_for_keywords(
         })
 
     return (len(hits) > 0, hits)
+
+
+def grep_full_source_for_keywords(
+    doc_id: str,
+    keywords: list[str],
+) -> tuple[bool, list[dict]]:
+    """Tier-2 whole-file fallback when `grep_source_for_keywords`
+    returns empty. Distinguishes a true absence from a KG-coverage
+    gap.
+
+    `grep_source_for_keywords` is bounded by Section-node coverage —
+    it slices each Section's `[line_start_local, line_end_local]`
+    range from disk and searches inside that slice. If the kg_builder
+    left a gap in its section parse (e.g. Kakinada SBD lines 59–312
+    are not covered by any Section node — `INSTRUCTIONS TO TENDERERS
+    (part 1)` ends at line 58 and the next section starts at line
+    313), text in that gap is invisible to the Section-bounded grep
+    even though it exists in the source markdown.
+
+    This whole-file fallback aggregates the unique `source_file` set
+    referenced by ANY Section node for `doc_id`, scans each entire
+    file for the keyword vocabulary, and returns a hit list with a
+    `kg_coverage_gap` boolean indicating whether each match line falls
+    outside every Section node's range.
+
+    A True `kg_coverage_gap` is meaningful audit signal — it tells
+    the reviewer "the kg_builder missed indexing this region; the
+    finding is genuine but the KG needs a re-build to surface this
+    text via Qdrant retrieval next time".
+
+    Each `hits` entry is:
+        {
+          "source_file":      str,
+          "line_no":          int,           # 1-indexed match line
+          "keyword_matches":  list[str],
+          "snippet":          str,           # ~240 chars
+          "kg_coverage_gap":  bool,          # True = no Section covers this line
+          "covering_section": dict | None,   # Section ref if covered
+        }
+
+    Use after `grep_source_for_keywords` returns empty. If THIS
+    fallback also returns empty, the absence is genuine.
+    """
+    sections = requests.get(
+        f"{_REST}/rest/v1/kg_nodes",
+        params={"select":   "node_id,properties",
+                "doc_id":   f"eq.{doc_id}",
+                "node_type": "eq.Section"},
+        headers=_H, timeout=30,
+    ).json()
+
+    # Build (source_file → list of (ls, le, section_ref)) index for
+    # the kg_coverage_gap check.
+    by_file: dict[str, list[tuple[int, int, dict]]] = {}
+    source_files: set[str] = set()
+    for s in sections:
+        p = s.get("properties") or {}
+        src = p.get("source_file")
+        ls  = p.get("line_start_local") or p.get("line_start")
+        le  = p.get("line_end_local")   or p.get("line_end")
+        if not (src and ls and le):
+            continue
+        try:
+            ls_i, le_i = int(ls), int(le)
+        except (TypeError, ValueError):
+            continue
+        source_files.add(src)
+        by_file.setdefault(src, []).append((ls_i, le_i, {
+            "section_node_id": s["node_id"],
+            "heading":         p.get("heading"),
+            "section_type":    p.get("section_type"),
+            "line_start_local": ls_i,
+            "line_end_local":   le_i,
+        }))
+
+    keyword_lc = [kw.lower() for kw in keywords]
+    hits: list[dict] = []
+
+    for src in sorted(source_files):
+        # Resolve the file across processed_md roots.
+        full_text = None
+        for root in PROCESSED_MD_ROOTS:
+            p = root / src
+            if p.exists():
+                full_text = p.read_text(encoding="utf-8")
+                break
+        if full_text is None:
+            continue
+
+        text_lc = full_text.lower()
+        lines   = full_text.splitlines()
+
+        # Prefix sums of byte offsets per line, for offset → line_no.
+        line_offsets = [0]
+        running = 0
+        for ln in lines:
+            running += len(ln) + 1   # +1 for the newline
+            line_offsets.append(running)
+
+        def offset_to_line_no(off: int) -> int:
+            # Binary search would be faster; linear is fine for the
+            # rare absence-fallback path.
+            for i in range(1, len(line_offsets)):
+                if line_offsets[i] > off:
+                    return i      # 1-indexed
+            return len(lines)
+
+        for kw_idx, kw_lc in enumerate(keyword_lc):
+            idx = text_lc.find(kw_lc)
+            if idx < 0:
+                continue
+            line_no = offset_to_line_no(idx)
+            # Determine kg_coverage_gap by checking all Section ranges
+            # for this file.
+            covering: dict | None = None
+            for ls_i, le_i, ref in by_file.get(src, []):
+                if ls_i <= line_no <= le_i:
+                    covering = ref
+                    break
+
+            snippet_start = max(0, idx - 80)
+            snippet_end   = min(len(full_text), idx + 160)
+            snippet = full_text[snippet_start:snippet_end].replace("\n", " ").strip()
+            hits.append({
+                "source_file":      src,
+                "line_no":          line_no,
+                "keyword_matches":  [keywords[kw_idx]],
+                "snippet":          snippet,
+                "kg_coverage_gap":  covering is None,
+                "covering_section": covering,
+            })
+
+    return (len(hits) > 0, hits)

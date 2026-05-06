@@ -332,6 +332,30 @@ TURNOVER_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Eligibility-Class-Mismatch — AP-GO-092 (HARD_BLOCK) tests whether
+# the doc's "Eligible Class of Bidders" text demands the correct
+# contractor monetary class for its ECV band per GO Ms No 94/2003:
+#   Special >  Rs.10 cr          (int=6)
+#   Class-I  Rs.2 cr  – Rs.10 cr (int=5)
+#   Class-II Rs.1 cr  – Rs.2 cr  (int=4)
+#   Class-III Rs.50 L – Rs.1 cr  (int=3)
+#   Class-IV Rs.10 L  – Rs.50 L  (int=2)
+#   Class-V  ≤ Rs.10 L           (int=1)
+#
+# Eligibility text lives in NIT (eligibility headers — JA line 57, HC
+# line 53, Kakinada line 149, Vizag NIT line 178) and ITB BDS rewrites
+# (JA "ITB 4.1" line 444, HC "ITB 4.1" line 298). SBD_Format adds
+# Evaluation per L28. NREDCAP_PPP gets [] because AP-GO-092 SKIPs on
+# TenderType=PPP — rule selector exits before the router is queried;
+# the empty list is purely defensive.
+ELIGIBILITY_CLASS_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB"],
+    "SBD_Format":    ["NIT", "Evaluation"],
+    "NREDCAP_PPP":   [],
+    "default":       ["NIT", "ITB", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -344,6 +368,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "BG-Validity-Gap":             BG_VALIDITY_SECTION_ROUTER,
     "Judicial-Preview-Bypass":     JP_SECTION_ROUTER,
     "Turnover-Threshold-Excess":   TURNOVER_SECTION_ROUTER,
+    "Eligibility-Class-Mismatch":  ELIGIBILITY_CLASS_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
