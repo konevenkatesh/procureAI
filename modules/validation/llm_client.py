@@ -140,6 +140,60 @@ def call_llm(
 # `json.loads` rejects.
 _JSON_VALID_ESCAPE_RE = re.compile(r'\\(?!["\\/bfnrtu])')
 
+# Run-based detector — matches a run of N consecutive backslashes
+# followed by ONE non-backslash character. Used to repair the more
+# difficult case where the LLM emits an EVEN-count backslash run
+# (e.g. `\\-`, two literal backslashes + dash) intending it as an
+# escape for a markdown-escaped char. JSON parses `\\` as a single
+# literal backslash and then sees `-` as a normal char, which IS
+# valid — but if the LLM was inconsistent and emitted `\\-` for
+# `\-` only sometimes (alongside `\(` for `\(` other times), the
+# single-pass `_JSON_VALID_ESCAPE_RE` substitution doubles the
+# wrong backslash and produces `\\\\\-` (odd-count + invalid char),
+# which still fails. The run-based replacer below sees the full
+# context: if the run length is ODD and the next char is NOT a
+# valid escape char, append one more backslash so the run is even
+# and the trailing char becomes literal. If the run length is EVEN,
+# leave it alone (already parses as N/2 literal backslashes plus a
+# normal char).
+_JSON_BS_RUN_RE = re.compile(r'(\\+)([^\\])')
+
+
+def _fix_invalid_json_escapes(text: str) -> str:
+    """Repair invalid `\\X` JSON escape sequences emitted by LLMs that
+    faithfully copy markdown-escaped punctuation (`\\.`, `\\-`, `\\(`,
+    `\\)`) without first JSON-escaping each backslash.
+
+    Logic per backslash run:
+      • run-length even, next char anything    → already valid (each
+                                                  pair `\\` decodes to
+                                                  `\\`, next char literal)
+      • run-length odd,  next char in valid set → already valid escape
+      • run-length odd,  next char NOT in set   → INVALID; append one
+                                                  more backslash so the
+                                                  run becomes even and
+                                                  the next char is
+                                                  literal (which is what
+                                                  the LLM intended).
+
+    This is run-aware unlike `_JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)`
+    which sees each backslash in isolation and over-escapes consecutive
+    runs.
+    """
+    valid_escape_chars = set('"\\/bfnrtu')
+
+    def _repair(m: re.Match) -> str:
+        bs   = m.group(1)
+        nxt  = m.group(2)
+        n    = len(bs)
+        if n % 2 == 0:
+            return m.group(0)              # already valid
+        if nxt in valid_escape_chars:
+            return m.group(0)              # already valid escape
+        return ('\\' * (n + 1)) + nxt      # add one bs to make run even
+
+    return _JSON_BS_RUN_RE.sub(_repair, text)
+
 
 def parse_llm_json(raw: str) -> dict:
     """Parse an LLM JSON response, robust to common malformed-JSON
@@ -194,14 +248,26 @@ def parse_llm_json(raw: str) -> dict:
     #       values. These appear when the LLM faithfully copies
     #       markdown table cells (which are TAB-delimited in our
     #       processed_md output) into the evidence quote per L35.
-    sanitized = _JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)
+    # Pass 1: run-aware repair (handles mixed `\-` / `\\-` patterns
+    # produced by inconsistent LLM markdown copy-out).
+    sanitized = _fix_invalid_json_escapes(text)
+    try:
+        return json.loads(sanitized, strict=False)
+    except json.JSONDecodeError:
+        pass
+
+    # Pass 2: legacy single-backslash regex (kept as a safety net in
+    # case the run-aware pass doesn't catch everything — e.g. for the
+    # original `\.` / `\-` / `\(` / `\)` patterns where there's no
+    # preceding backslash).
+    sanitized2 = _JSON_VALID_ESCAPE_RE.sub(r'\\\\', text)
     try:
         # strict=False relaxes the JSON spec to allow control chars
         # (chr(0x00)-chr(0x1F)) inside string values. The parsed
         # Python str preserves the literal control character — when
         # round-tripped through L24's normaliser, it matches the
         # source byte-for-byte.
-        return json.loads(sanitized, strict=False)
+        return json.loads(sanitized2, strict=False)
     except json.JSONDecodeError:
         # Final fallback: also try without the escape-sanitisation
         # (in case strict=False is enough on its own).

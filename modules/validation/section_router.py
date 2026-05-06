@@ -459,6 +459,43 @@ WORKS_MANDATORY_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Missing-Force-Majeure — FM clauses live in Vol-II GCC across every
+# corpus shape per the read-first scan of clause_templates and the KG
+# section-type confirmation:
+#   GCC : CLAUSE-FORCE-MAJEURE-001          (generic FM)
+#         CLAUSE-WORKS-FORCE-MAJEURE-001    (Works FM with 30-Day
+#                                            Notice + 120-Day Termination)
+#         CLAUSE-FM-3-TIER-COST-001         (Non-Political / Indirect
+#                                            Political / Political 3-tier
+#                                            cost allocation, used in the
+#                                            APCRDA Works docs JA + HC §62)
+#         CLAUSE-FORCE-MAJEURE-SERVICES-001 (Services FM with 90-Day
+#                                            Termination)
+#
+# KG-confirmed corpus location:
+#   APCRDA_Works → JA §62 (GCC L4583-4720), HC §62 (GCC L4314-4453),
+#                  Vizag Vol-III §FM (GCC L8744-8815)
+#   NREDCAP_PPP  → Tirupathi DCA §26 (GCC L6680-6879),
+#                  Vijayawada DCA §26 (GCC L6710-6907)
+#   SBD_Format   → Kakinada has NO Force Majeure heading (n_gcc=0); the
+#                  only weak signal is a generic "beyond the control of
+#                  the contractor" extension-of-time line at L2131
+#                  classified as section_type='Evaluation'. Filter
+#                  retains GCC + SCC for completeness; Evaluation is
+#                  the actual landing point for the L36/L40 grep
+#                  fallback to surface the weak signal so the LLM can
+#                  judge it adequate or inadequate against MPG-174.
+#
+# Same retrieval region as LD/PVC/MA — Volume-II Section-1 GCC is the
+# canonical home for FM across every template family.
+FORCE_MAJEURE_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["GCC", "SCC"],
+    "SBD_Format":    ["GCC", "SCC", "Evaluation"],
+    "NREDCAP_PPP":   ["GCC", "SCC"],
+    "default":       ["GCC", "SCC", "Specifications"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -476,6 +513,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Geographic-Restriction":      GEOGRAPHIC_SECTION_ROUTER,
     "MakeInIndia-LCC-Missing":     MII_SECTION_ROUTER,
     "Works-Universal-Mandatory-Fields": WORKS_MANDATORY_SECTION_ROUTER,
+    "Missing-Force-Majeure":       FORCE_MAJEURE_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
