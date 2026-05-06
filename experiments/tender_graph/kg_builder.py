@@ -484,6 +484,94 @@ def _clear_kg(doc_id: str) -> tuple[int, int]:
 
 # ── Phase 1: section split + classify ─────────────────────────────────
 
+# ── L41 — gap-filler thresholds ───────────────────────────────────────
+# When the deterministic section_splitter leaves a line range NOT
+# covered by any heading-anchored section (typical SBD-style tabular
+# eNIT content with no `#` markdown anchors), the gap is invisible
+# to Qdrant retrieval and to the L36 Section-bounded grep. The
+# gap-filler creates a synthetic Section row to surface that range
+# as a searchable unit. Small gaps (page-break whitespace) are
+# excluded by the size thresholds.
+_GAP_FILL_MIN_LINES = 30      # at least this many lines of gap
+_GAP_FILL_MIN_CHARS = 500     # at least this many non-whitespace chars
+
+
+def _gap_fill_sections(
+    per_file_rows: list[dict],
+    text: str,
+    source_file: str,
+) -> list[dict]:
+    """Detect line ranges in `text` not covered by any row in
+    `per_file_rows` and emit synthetic Section rows for gaps that
+    meet `_GAP_FILL_MIN_LINES` / `_GAP_FILL_MIN_CHARS` thresholds.
+
+    Synthetic rows carry `gap_fill=True` in the heading suffix and
+    in the row dict; section_type is left as None so the existing
+    classifier pass picks it up alongside the splitter-produced rows.
+
+    Coordinates are in LOCAL (per-file) line numbers — the caller
+    converts to global coordinates using its `global_offset`."""
+    file_lines = text.splitlines()
+    n_lines = len(file_lines)
+    if n_lines == 0:
+        return []
+
+    # Mark lines covered by existing splitter rows.
+    covered = [False] * (n_lines + 1)   # 1-indexed; covered[0] unused
+    for row in per_file_rows:
+        ls = max(1, int(row.get("line_start_local") or 1))
+        le = min(n_lines, int(row.get("line_end_local") or n_lines))
+        for i in range(ls, le + 1):
+            covered[i] = True
+
+    # Walk uncovered ranges.
+    gap_rows: list[dict] = []
+    i = 1
+    while i <= n_lines:
+        if covered[i]:
+            i += 1
+            continue
+        # Start of a gap.
+        gap_start = i
+        while i <= n_lines and not covered[i]:
+            i += 1
+        gap_end = i - 1
+
+        gap_lines = file_lines[gap_start - 1:gap_end]
+        gap_text  = "\n".join(gap_lines).strip()
+
+        # Skip too-small gaps (page boundaries, blank inter-section
+        # whitespace).
+        if (gap_end - gap_start + 1) < _GAP_FILL_MIN_LINES:
+            continue
+        if len(re.sub(r"\s+", "", gap_text)) < _GAP_FILL_MIN_CHARS:
+            continue
+
+        # Heading: first non-trivial line of the gap, truncated.
+        heading_seed = ""
+        for ln in gap_lines:
+            stripped = ln.strip()
+            if stripped and len(stripped) >= 4:
+                heading_seed = stripped[:80]
+                break
+        if not heading_seed:
+            heading_seed = f"Lines {gap_start}-{gap_end}"
+        heading = f"(gap-fill) {heading_seed}"
+
+        gap_rows.append({
+            "section_type":     None,    # classifier fills in
+            "heading":          heading,
+            "line_start_local": gap_start,
+            "line_end_local":   gap_end,
+            "word_count":       len(gap_text.split()),
+            "full_text":        gap_text,
+            "source_file":      source_file,
+            "gap_fill":         True,
+        })
+
+    return gap_rows
+
+
 def _split_and_classify(source_files: list[Path]) -> list[dict]:
     """Split each source file via builder.section_splitter, then classify
     section_type via the heading-content-primary `classify_sections`
@@ -493,6 +581,14 @@ def _split_and_classify(source_files: list[Path]) -> list[dict]:
     full_text) coordinates. The validator runs on full_text and reports
     line numbers in that coordinate system, so section attribution must
     use the same coordinates.
+
+    Post-splitter gap-filler (L41): for SBD-style docs with tabular
+    eNIT content lacking markdown headings, the deterministic splitter
+    leaves multi-hundred-line uncovered ranges. We append synthetic
+    "(gap-fill)" Section rows for any uncovered range >= 30 lines /
+    500 non-whitespace chars so retrieval and grep can reach the
+    content. The `gap_fill=True` marker is propagated to kg_nodes
+    properties for audit.
 
     Concatenation contract — kept in sync with `build_kg`:
         full_text = "\\n\\n".join(file.read_text() for file in source_files)
@@ -514,16 +610,26 @@ def _split_and_classify(source_files: list[Path]) -> list[dict]:
             per_file_rows.append({
                 "section_type":     None,    # filled in by classify_sections below
                 "heading":          heading,
-                # Global coordinates (used by validator-line attribution)
-                "line_start":       global_offset + ls_local,
-                "line_end":         global_offset + le_local,
-                # Local coordinates kept for diagnostics / human reading
+                # Local coordinates (used by gap-filler, then global computed below)
                 "line_start_local": ls_local,
                 "line_end_local":   le_local,
                 "word_count":       len(body.split()),
                 "full_text":        body,
                 "source_file":      path.name,
+                "gap_fill":         False,
             })
+
+        # L41 gap-filler — append synthetic rows for uncovered ranges.
+        gap_rows = _gap_fill_sections(per_file_rows, text, path.name)
+        if gap_rows:
+            per_file_rows.extend(gap_rows)
+
+        # Compute global coordinates AFTER gap-fill so synthetic rows
+        # get globally-consistent line numbers too.
+        for row in per_file_rows:
+            row["line_start"] = global_offset + row["line_start_local"]
+            row["line_end"]   = global_offset + row["line_end_local"]
+
         types = classify_sections(per_file_rows, path.name, file_text=text)
         for row, t in zip(per_file_rows, types):
             row["section_type"] = t
@@ -810,6 +916,12 @@ def build_kg(
             "line_end_local":   s.get("line_end_local"),
             "word_count":       s["word_count"],
             "source_file":      s["source_file"],
+            # L41 gap-fill marker — true for synthetic Section nodes
+            # created to cover line ranges the deterministic splitter
+            # missed (typically tabular eNIT regions in SBD-style docs
+            # with no markdown heading anchors). Lets the reviewer
+            # distinguish authored sections from gap-fillers.
+            "gap_fill":         bool(s.get("gap_fill", False)),
         },
         "source_ref": f"section:{i}",
     } for i, s in enumerate(sections)]

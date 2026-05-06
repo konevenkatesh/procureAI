@@ -348,11 +348,21 @@ TURNOVER_SECTION_ROUTER: dict[str, list[str]] = {
 # Evaluation per L28. NREDCAP_PPP gets [] because AP-GO-092 SKIPs on
 # TenderType=PPP — rule selector exits before the router is queried;
 # the empty list is purely defensive.
+# NOTE — `Forms` added to every family after L41 gap-filler discovery:
+# kg_builder gap-fills (synthetic Section nodes covering line ranges
+# the deterministic splitter misses) frequently get classified as
+# section_type='Forms' by the heading-content classifier because
+# their tabular eNIT content lacks distinctive heading anchors. The
+# Class-of-Bidders text in Kakinada (L149) and Vizag (L178) both
+# land in `Forms` after the L41 fix. Without `Forms` in the router,
+# the gap-fill content is still excluded at Qdrant retrieval even
+# after gap-closure. Forward-applicable: any typology reaching into
+# tabular eNIT content should include `Forms`.
 ELIGIBILITY_CLASS_SECTION_ROUTER: dict[str, list[str]] = {
-    "APCRDA_Works":  ["NIT", "ITB"],
-    "SBD_Format":    ["NIT", "Evaluation"],
+    "APCRDA_Works":  ["NIT", "ITB", "Forms"],
+    "SBD_Format":    ["NIT", "Evaluation", "Forms"],
     "NREDCAP_PPP":   [],
-    "default":       ["NIT", "ITB", "Evaluation"],
+    "default":       ["NIT", "ITB", "Evaluation", "Forms"],
 }
 
 
