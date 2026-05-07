@@ -172,7 +172,10 @@ class DrafterState(TypedDict, total=False):
     # ── Node 1 outputs (project_brief) ────────────────────────────────
     extracted_facts:       dict             # all facts the LLM pulled
     facts_confidence:      dict             # per-field 0.0–1.0
-    facts_source:          dict             # per-field "llm" / "default" / "missing"
+    facts_source:          dict             # per-field "extracted" / "derived" / "default" / "not_found"
+    facts_evidence:        dict             # per-field verbatim quote from brief
+    extractor_summary:     dict             # n_required_filled / missing / ready_for_gate1
+    extractor_model:       str              # LLM model identifier
 
     # ── Node 2 outputs (missing_fields) ───────────────────────────────
     facts_checklist:       list[dict]       # see schema in node body
@@ -263,51 +266,71 @@ OPTIONAL_FIELDS: tuple[tuple[str, str, str], ...] = (
 def project_brief_node(state: DrafterState) -> dict:
     """Extract project facts from uploaded PDF/DPR or free text.
 
-    PLACEHOLDER: returns a JA-shaped facts dict for graph topology
-    testing. Real implementation will:
-      1. If project_brief_path is a PDF → run docling / pdftotext
-         to extract text.
-      2. Build an LLM prompt asking for the 6 REQUIRED + 6 OPTIONAL
-         fields with structured JSON output.
-      3. Call modules/validation/llm_client.call_llm() with the
-         OpenRouter qwen-2.5-72b-instruct model (same as the 24
-         Tier-1 typology checks).
-      4. Parse with parse_llm_json() (handles the L48 escape
-         sanitiser).
-      5. Per field: record value + confidence (LLM self-rated) + source
-         ("llm" / "default" / "missing").
-      6. For OPTIONAL fields the LLM can't extract, leave value=None
-         and source="missing" so missing_fields_node can flag them.
+    Wired to modules.extraction.project_brief_extractor.extract_project_brief
+    which runs an LLM (OpenRouter qwen-2.5-72b-instruct by default) over the
+    project brief text and returns 15 fields (6 REQUIRED + 4 IMPORTANT +
+    5 OPTIONAL) — each with `{value, confidence, source, evidence}`.
+
+    Inputs (state):
+      project_brief_text   : str (free-text brief from the officer)
+      project_brief_path   : str | None  (path to PDF/DPR — converted)
+      project_brief_source : "pdf" | "text" | "form"
+
+    PDF conversion: if project_brief_path is set and project_brief_text
+    is not provided, the file is converted via builder.document_processor
+    .convert_pdf_to_markdown (same converter the validator uses).
     """
     t0 = time.perf_counter()
 
-    # PLACEHOLDER extraction — JA-shaped facts so the graph runs E2E.
-    extracted = {
-        "project_name":          "Construction of Andhra Pradesh Judicial Academy",
-        "tender_type":           "Works",
-        "is_ap_tender":          True,
-        "ecv_cr":                125.5,
-        "duration_months":       24,
-        "department":            "APCRDA",
-        "department_full_name":  "Andhra Pradesh Capital Region Development Authority (APCRDA)",
-        "department_office":     None,        # missing → flagged by Gate 1
-        "contact_officer":       None,        # missing
-        "contact_email":         None,        # missing
-        "scope_description":     None,        # missing
-        "nit_number":            None,        # auto-generated downstream
-    }
-    confidence = {k: (0.95 if v is not None else 0.0) for k, v in extracted.items()}
-    source     = {k: ("llm" if v is not None else "missing") for k, v in extracted.items()}
+    from modules.extraction.project_brief_extractor import extract_project_brief
+
+    brief_text = state.get("project_brief_text") or ""
+    brief_path = state.get("project_brief_path")
+
+    if not brief_text and brief_path:
+        brief_path_p = Path(brief_path)
+        if brief_path_p.suffix.lower() == ".pdf":
+            from builder.document_processor import convert_pdf_to_markdown
+            brief_text = convert_pdf_to_markdown(str(brief_path_p),
+                                                 doc_name=brief_path_p.stem)
+        elif brief_path_p.suffix.lower() in (".md", ".txt"):
+            brief_text = brief_path_p.read_text(encoding="utf-8")
+        elif brief_path_p.suffix.lower() == ".docx":
+            from docx import Document as _Doc
+            doc = _Doc(str(brief_path_p))
+            brief_text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        else:
+            raise ValueError(f"Unsupported project-brief format: {brief_path_p.suffix}")
+
+    if not brief_text.strip():
+        raise ValueError(
+            "project_brief_node: neither project_brief_text nor "
+            "project_brief_path provided (or path resolved to empty content)"
+        )
+
+    result = extract_project_brief(brief_text)
+    fields = result["fields"]
+
+    # Flatten to the state shape downstream nodes expect: extracted_facts
+    # has plain {field: value} so build_tender_facts(...) accepts it.
+    extracted: dict = {f: fields[f]["value"] for f in fields}
+    confidence: dict = {f: fields[f]["confidence"] for f in fields}
+    source: dict     = {f: fields[f]["source"]     for f in fields}
+    # Evidence per field — kept for Gate-1 portal display
+    evidence: dict   = {f: fields[f]["evidence"]   for f in fields}
 
     timings = dict(state.get("timings_ms") or {})
     timings["project_brief"] = int((time.perf_counter() - t0) * 1000)
 
     return {
-        "extracted_facts":  extracted,
-        "facts_confidence": confidence,
-        "facts_source":     source,
-        "workflow_status":  "in_progress",
-        "timings_ms":       timings,
+        "extracted_facts":   extracted,
+        "facts_confidence":  confidence,
+        "facts_source":      source,
+        "facts_evidence":    evidence,
+        "extractor_summary": result["summary"],
+        "extractor_model":   result.get("model"),
+        "workflow_status":   "in_progress",
+        "timings_ms":        timings,
     }
 
 
@@ -913,26 +936,66 @@ def main(argv: list[str]) -> int:
     print("  procureAI Drafter — LangGraph workflow (dry run)")
     print("=" * 76)
 
+    # Demo brief — Kurnool District Hospital, AP-State, Rs.85cr, 18mo
+    DEMO_BRIEF = (
+        "We need to issue a tender for construction of a new District "
+        "Hospital at Kurnool with 3 floors, total built-up area 15,000 "
+        "sqm. Budget is Rs.85 crore. APIIC is the implementing agency. "
+        "The work should complete in 18 months. This is a state "
+        "government funded project."
+    )
+
     # Step 1: start session — pauses at Gate 1
     thread_id, gate1_payload, graph = start_session(
-        project_brief_text="(placeholder text for JA — extracted facts mocked)",
+        project_brief_text=DEMO_BRIEF,
     )
-    print(f"\n  thread_id      : {thread_id}")
+    print(f"\n  brief: {DEMO_BRIEF[:100]}…")
+    print(f"  thread_id      : {thread_id}")
     print(f"  paused at gate : {gate1_payload.get('gate')}")
     print(f"  required missing: {gate1_payload.get('n_required_missing')}")
     print(f"  optional missing: {gate1_payload.get('n_optional_missing')}")
+    print(f"  checklist items: {len(gate1_payload.get('facts_checklist') or [])}")
+    print(f"\n  Extracted facts (top fields):")
+    for c in (gate1_payload.get('facts_checklist') or [])[:10]:
+        v = c.get('current_value')
+        src = c.get('source')
+        conf = c.get('confidence')
+        if v is not None:
+            print(f"    {c['field']:24s} = {str(v)[:40]:40s}  conf={conf:.2f}  src={src}")
+        else:
+            print(f"    {c['field']:24s} = (missing — must_fill={c.get('must_fill')})")
 
-    # Auto-respond to Gate 1
+    # Auto-respond to Gate 1 — fill missing OPTIONAL fields with values
+    # consistent with the extracted department (no hard-coded APCRDA).
     confirmed_facts = {
         c["field"]: c["current_value"]
         for c in gate1_payload.get("facts_checklist", [])
     }
-    # Fill missing optionals with placeholders
-    confirmed_facts["department_full_name"]  = "Andhra Pradesh Capital Region Development Authority (APCRDA)"
-    confirmed_facts["department_office"]     = "APCRDA Project Office, Rayapudi, Amaravati 522237"
-    confirmed_facts["contact_officer"]       = "Chief Engineer (H&B), APCRDA"
-    confirmed_facts["contact_email"]         = "ce.hb@apcrda.org"
-    confirmed_facts["scope_description"]     = "Construction of Andhra Pradesh Judicial Academy (Academic + Hostel + Conference + Library blocks)."
+    # Heuristic fallbacks per the extracted department acronym
+    DEPT_FULL_NAMES = {
+        "APIIC":   "Andhra Pradesh Industrial Infrastructure Corporation (APIIC)",
+        "APCRDA":  "Andhra Pradesh Capital Region Development Authority (APCRDA)",
+        "AGICL":   "Amaravati Growth and Infrastructure Corporation Limited (AGICL)",
+        "NREDCAP": "New and Renewable Energy Development Corporation of Andhra Pradesh (NREDCAP)",
+        "APMSIDC": "AP Medical Services and Infrastructure Development Corporation (APMSIDC)",
+    }
+    dept = confirmed_facts.get("department") or "APCRDA"
+    if not confirmed_facts.get("department_full_name"):
+        confirmed_facts["department_full_name"] = DEPT_FULL_NAMES.get(
+            dept, f"{dept} (Government of Andhra Pradesh)")
+    if not confirmed_facts.get("department_office"):
+        confirmed_facts["department_office"] = (
+            f"{dept} Office (procurement officer to update)")
+    if not confirmed_facts.get("contact_officer"):
+        confirmed_facts["contact_officer"] = (
+            f"Tender Inviting Authority, {dept}")
+    if not confirmed_facts.get("contact_email"):
+        confirmed_facts["contact_email"] = "proc@example.org"
+    if not confirmed_facts.get("scope_description"):
+        confirmed_facts["scope_description"] = (
+            confirmed_facts.get("scope_description")
+            or "[SCOPE OF WORK TO BE SPECIFIED BY PROCUREMENT OFFICER]"
+        )
 
     gate2_payload = resume_session(thread_id, {
         "status":          "confirmed",
