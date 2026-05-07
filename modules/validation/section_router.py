@@ -614,6 +614,39 @@ ABC_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Criteria-Restriction-Narrow — JV/Consortium restriction anti-pattern
+# detection (the operationalisable subset of MPG-279's "REASONABLE
+# eligibility criteria; cannot exclude bidders arbitrarily" rule).
+# Anchors:
+#   ITB §4 Eligible Bidders (full JV-permitted framework, a-h sub-points)
+#   BDS rewrite ITB 4.1(a) (per-doc override — JA L445 "Joint Venture:
+#                            not allowed", HC L299 same)
+#   Forms — JV proposal templates / consortium covenant
+#
+# Per the read-first scan: the corpus has 2 distinct patterns —
+#   APCRDA Works (JA, HC):   GCC ITB §4 allows JV in the standard
+#                            framework BUT BDS override flips to
+#                            "Joint Venture: not allowed" without
+#                            regulatory citation. CLAUSE-AP-NO-JV-
+#                            CONSORTIUM-001 anti-pattern. → GAP_VIOLATION
+#   Vizag UGSS:              Vol-I L835 "JV allowed, max 2 Nos"
+#   Kakinada SBD:            L291 "JV applicable, max 3, lead 51%"
+#   NREDCAP PPP DCAs:        Consortium-based PPP — full DCA framework
+#                            with Lead Member ≥ 26% equity, Definitions
+#                            section L236 "Consortium = up to 3
+#                            Companies", joint-bidding-agreement covenant.
+#
+# All 6 docs have JV/Consortium discussion in NIT/ITB region. Forms
+# carries supporting templates (proposal formats, joint bidding
+# agreement). SBD_Format adds Evaluation per the L28 SBD pattern.
+CRN_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Forms"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Forms"],
+    "default":       ["NIT", "ITB", "Forms", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -636,6 +669,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Solvency-Stale":              SOLVENCY_SECTION_ROUTER,
     "Pre-Bid-Process-Unclear":     PREBID_SECTION_ROUTER,
     "Available-Bid-Capacity-Error": ABC_SECTION_ROUTER,
+    "Criteria-Restriction-Narrow": CRN_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
