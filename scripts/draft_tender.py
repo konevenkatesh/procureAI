@@ -1,44 +1,55 @@
 """
 scripts/draft_tender.py
 
-procureAI Drafter (Module 3) — composes a draft tender document from
-the knowledge layer, gated by the same condition_when machinery the
-24 Tier-1 validators use.
+procureAI Drafter (Module 3) — composes a draft tender document by
+filling the canonical AP Works tender SKELETON with project-specific
+inputs, BDS overrides, and policy-text clause_templates from the
+knowledge layer.
 
-Pipeline:
-    STEP 1  build tender_facts from CLI inputs
-    STEP 2  pull all 499 DRAFTING_CLAUSE templates from knowledge layer
-            for each clause:
-              - filter by applicable_tender_types
-              - for each linked rule_id, run condition_evaluator
-              - status: MANDATORY (any rule FIRES)
-                       ADVISORY  (only UNKNOWN verdicts)
-                       OPTIONAL  (no rules; mandatory=False; emit by default)
-                       MANDATORY-DEFAULT (no rules; mandatory=True)
-                       EXCLUDED  (all rules SKIP)
-    STEP 3  substitute {{placeholder}} tokens in each clause's text_english
-            from a derived parameter map (CLI inputs + AP regulatory
-            defaults + clause-supplied examples for unknown values)
-    STEP 4  sort by position_section + position_order, emit structured
-            markdown grouped by Volume/Section/Type
-    STEP 5  (optional --validate) re-run a subset of tier1_*_check.py
-            scripts on the draft to confirm no HARD_BLOCK violations
+Architecture (v2 — skeleton-driven, replacing the v1 clause-list
+concatenation):
 
-The drafter is rule-driven, not an LLM generator: every clause comes
-verbatim from a human-verified DRAFTING_CLAUSE template in the
-knowledge layer, so the draft inherits the audit trail of the
-clause+rule store (700 clause_templates, 1,223 rules, 200+ SHACL
-shapes — see README "Knowledge Layer" section).
+   templates/ap_works_tender_skeleton.md.tmpl   (canonical structure)
+       │   ├── 5-line GOVERNMENT/Department/NIT/Name/ISSUED-ON header
+       │   ├── 9-section Table of Contents
+       │   ├── NIT body table       <<SLOT:nit_body_table>>
+       │   ├── Section I ITB body   <<SLOT:itb_body>>
+       │   ├── Section II BDS table <<SLOT:bds_table>>     ← override surface
+       │   ├── Section III Eval     <<SLOT:evaluation_criteria>>
+       │   ├── Section IV Forms     <<SLOT:bidding_forms>>
+       │   ├── Section V Fraud      <<SLOT:fraud_corruption>>
+       │   ├── Section VI Works     <<SLOT:works_requirements>>
+       │   ├── Section VII GCC      <<SLOT:gcc_body>>
+       │   ├── Section VIII PCC     <<SLOT:pcc_overrides>>
+       │   └── Section IX Forms     <<SLOT:contract_forms>>
+       │
+       └── 2-pass render:
+              Pass 1: fill <<SLOT:xxx>> with rendered content
+              Pass 2: substitute {{name}} placeholders globally from pmap
+
+Two distinct render targets:
+  STRUCTURED FORM rows (NIT body, BDS) — generated programmatically from
+    CLI inputs + AP regulatory defaults; 100% project-specific.
+  POLICY TEXT rows (ITB, GCC, Evaluation, etc.) — sourced from
+    DRAFTING_CLAUSE templates filtered by position_section, condition-
+    evaluator-gated, parameter-substituted.
+
+The drafter PRODUCES COMPLIANT documents by default — BDS values are
+anchored on the SAME regulatory baselines the 24 validators read:
+  EMD : 1% bid stage / 1.5% additional at agreement (AP-GO-050)
+  PBG : 10% of contract value (AP-GO-175)
+  Bid validity : 90 days (AP-GO-067)
+  DLP : 24 months (AP-GO-084)
+  ABC formula : M = 2 (AP-GO-062)
+  JV : Allowed up to 2 members (MPG-279 anti-arbitrary-exclusion;
+       L53 found JA/HC banning JV — drafter outputs ALLOWED)
+  Class of contractor : derived from ECV (AP-GO-094)
 
 Test:
     python3 scripts/draft_tender.py \\
         --project-name "Construction of Judicial Academy" \\
-        --tender-type Works \\
-        --is-ap-tender true \\
-        --ecv-cr 125.5 \\
-        --duration-months 24 \\
-        --department APCRDA \\
-        --output draft_judicial_academy.md
+        --tender-type Works --is-ap-tender true \\
+        --ecv-cr 125.5 --duration-months 24 --department APCRDA
 """
 from __future__ import annotations
 
@@ -67,11 +78,12 @@ REST = settings.supabase_rest_url
 H = {"apikey":        settings.supabase_anon_key,
      "Authorization": f"Bearer {settings.supabase_anon_key}"}
 
+SKELETON_PATH = REPO / "templates" / "ap_works_tender_skeleton.md.tmpl"
 
-# ── REST helpers ──────────────────────────────────────────────────────
+
+# ── REST helper ───────────────────────────────────────────────────────
 
 def rest_get(path: str, params: dict | None = None) -> list[dict]:
-    """REST GET with paginated fallback for large result sets."""
     p = dict(params or {})
     p.setdefault("limit", 5000)
     r = requests.get(f"{REST}/rest/v1/{path}", params=p, headers=H, timeout=60)
@@ -80,39 +92,76 @@ def rest_get(path: str, params: dict | None = None) -> list[dict]:
     return out if isinstance(out, list) else []
 
 
-# ── STEP 1: Build tender_facts from CLI inputs ────────────────────────
+# ── Indian-style currency formatting ──────────────────────────────────
+
+def format_inr_indian(rupees: float) -> str:
+    """Indian comma grouping: 1,255,000,000 → '1,25,50,00,000.00'."""
+    s = f"{rupees:.2f}"
+    intp, decp = s.split(".")
+    sign = ""
+    if intp.startswith("-"):
+        sign, intp = "-", intp[1:]
+    if len(intp) <= 3:
+        return f"{sign}{intp}.{decp}"
+    last3 = intp[-3:]
+    rest = intp[:-3]
+    chunks: list[str] = []
+    while len(rest) > 2:
+        chunks.insert(0, rest[-2:])
+        rest = rest[:-2]
+    if rest:
+        chunks.insert(0, rest)
+    return f"{sign}{','.join(chunks)},{last3}.{decp}"
+
+
+# ── AP class-of-bidders mapping (per AP-GO-094) ──────────────────────
+
+def _ap_class_for_ecv(ecv_cr: float) -> str:
+    ecv_lakh = ecv_cr * 100
+    if ecv_cr > 10:    return "Special"
+    if ecv_cr >= 2:    return "Class-I"
+    if ecv_cr >= 1:    return "Class-II"
+    if ecv_lakh >= 50: return "Class-III"
+    if ecv_lakh >= 10: return "Class-IV"
+    return "Class-V"
+
+
+# ── NIT-number generator ──────────────────────────────────────────────
+
+def auto_gen_nit_number(args: argparse.Namespace) -> str:
+    """Heuristic NIT-No format mirroring the JA real document:
+        '<seq>/<dept-acronym>/<purpose-code>/<seq2>/<year>'
+    The format is hand-rolled because we don't have a sequence
+    generator; the year is current. Procurement officers can
+    override by passing --nit-number.
+    """
+    if args.nit_number:
+        return args.nit_number
+    today = date.today()
+    seq1 = "100"   # placeholder
+    dept = (args.department or "DEPT").upper()
+    # Strip non-alphanumerics from dept for the slug
+    dept_slug = re.sub(r"[^A-Z0-9]", "", dept) or "DEPT"
+    seq2 = "1"
+    year = today.year
+    return f"{seq1}/PROC/{dept_slug}/{seq2}/{year}"
+
+
+# ── STEP 1: tender_facts dict for condition_evaluator ─────────────────
 
 def build_tender_facts(args: argparse.Namespace) -> dict:
-    """Construct the facts dict that condition_evaluator reads.
-
-    Mirrors the structure used by every tier1_*_check.py:
-        TenderType         e.g. 'Works' / 'EPC' / 'PPP' / 'Goods' / 'Services'
-        TenderState        'AndhraPradesh' if is_ap_tender else 'Other'
-        EstimatedValue     in rupees (ecv_cr * 1e7)
-        OriginalContractPeriodMonths
-        is_ap_tender       bool
-        ContractType       'EPC' if tender_type=='EPC' else None  (best-effort)
-        ProcurementMethod  'OpenTender' (default; CLI override TBD)
-        plus several pre-RFP defaults set to False so execution-stage rules SKIP
-    """
     is_ap = bool(args.is_ap_tender)
     facts: dict[str, Any] = {
-        # Document-level
-        "tender_type":   args.tender_type,
-        "TenderType":    args.tender_type,
-        "is_ap_tender":  is_ap,
-        "TenderState":   "AndhraPradesh" if is_ap else "Other",
-        # Numeric
-        "EstimatedValue":              float(args.ecv_cr) * 1e7,   # rupees
+        "tender_type":    args.tender_type,
+        "TenderType":     args.tender_type,
+        "is_ap_tender":   is_ap,
+        "TenderState":    "AndhraPradesh" if is_ap else "Other",
+        "EstimatedValue": float(args.ecv_cr) * 1e7,
         "OriginalContractPeriodMonths": int(args.duration_months),
-        "_estimated_value_cr":         float(args.ecv_cr),
-        # Procurement method default
-        "ProcurementMethod":           "OpenTender",
-        "ProcurementMode":             "OpenTender",
-        # Best-effort ContractType derivation
-        "ContractType":                "EPC" if args.tender_type == "EPC" else None,
-        # Pre-RFP / execution-stage signals default to False so rules
-        # gated on these (FMEventInvoked, BidAmbiguityDetected, etc.) SKIP.
+        "_estimated_value_cr":          float(args.ecv_cr),
+        "ProcurementMethod":   "OpenTender",
+        "ProcurementMode":     "OpenTender",
+        "ContractType":        "EPC" if args.tender_type == "EPC" else None,
         "FMEventInvoked":              False,
         "BidAmbiguityDetected":        False,
         "PQRequired":                  False,
@@ -124,41 +173,25 @@ def build_tender_facts(args: argparse.Namespace) -> dict:
         "DetailedSpecificationsPresent":   True,
         "MobilizationAdvanceProvided":     False,
     }
-    # Class-of-Bidders by ECV (per AP-GO-094)
     if is_ap and args.tender_type in ("Works", "EPC"):
         facts["BidderClassRequired"] = _ap_class_for_ecv(args.ecv_cr)
     return facts
 
 
-def _ap_class_for_ecv(ecv_cr: float) -> str:
-    """AP class-of-bidders mapping per AP-GO-094 (used in L43 Eligibility-Class)."""
-    ecv_lakh = ecv_cr * 100   # crore → lakh
-    if ecv_cr > 10:           return "Special"
-    if ecv_cr >= 2:           return "Class-I"
-    if ecv_cr >= 1:           return "Class-II"
-    if ecv_lakh >= 50:        return "Class-III"
-    if ecv_lakh >= 10:        return "Class-IV"
-    return "Class-V"
-
-
-# ── STEP 2: Clause selection via condition_evaluator ─────────────────
+# ── STEP 2: Clause selection (rule-driven) ────────────────────────────
 
 def fetch_drafting_clauses() -> list[dict]:
-    """Pull all DRAFTING_CLAUSE templates."""
-    rows = rest_get("clause_templates", {
+    return rest_get("clause_templates", {
         "clause_type": "eq.DRAFTING_CLAUSE",
         "select":      ("clause_id,title,text_english,parameters,"
                         "applicable_tender_types,mandatory,position_section,"
                         "position_order,rule_ids,cross_references"),
     })
-    return rows
 
 
 def fetch_rules_by_id(rule_ids: list[str]) -> dict[str, dict]:
-    """Batch-fetch rules and index by rule_id."""
     if not rule_ids:
         return {}
-    # PostgREST in() filter
     in_clause = "(" + ",".join(rule_ids) + ")"
     rows = rest_get("rules", {
         "rule_id": f"in.{in_clause}",
@@ -167,18 +200,7 @@ def fetch_rules_by_id(rule_ids: list[str]) -> dict[str, dict]:
     return {r["rule_id"]: r for r in rows}
 
 
-def select_clauses(
-    clauses: list[dict],
-    facts: dict,
-) -> list[dict]:
-    """Apply the rule-driven clause filter described in the docstring.
-
-    Returns each clause enriched with:
-        status   : MANDATORY / ADVISORY / OPTIONAL / MANDATORY-DEFAULT / EXCLUDED
-        rule_verdicts : {rule_id: Verdict.value}
-        firing_rules  : list of FIRE rule_ids
-    """
-    # Pre-fetch all referenced rules in one shot
+def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
     all_rule_ids: set[str] = set()
     for c in clauses:
         for rid in (c.get("rule_ids") or []):
@@ -189,18 +211,14 @@ def select_clauses(
     out: list[dict] = []
 
     for c in clauses:
-        # Filter by applicable_tender_types — both strict-match and the
-        # 'ANY' / empty-list catch-all, since some clauses have no list.
         att = c.get("applicable_tender_types") or []
         att_match = (not att) or (tt in att) or ("ANY" in att)
         if not att_match:
-            c2 = dict(c, status="EXCLUDED",
-                      _exclusion_reason=f"tender_type={tt!r} not in {att}",
-                      rule_verdicts={}, firing_rules=[])
-            out.append(c2)
+            out.append(dict(c, status="EXCLUDED",
+                            _exclusion_reason=f"tender_type={tt!r} not in {att}",
+                            rule_verdicts={}, firing_rules=[]))
             continue
 
-        # Evaluate every linked rule
         rule_verdicts: dict[str, str] = {}
         firing_rules: list[str] = []
         unknown_rules: list[str] = []
@@ -220,117 +238,151 @@ def select_clauses(
             elif verdict == Verdict.SKIP:
                 skip_rules.append(rid)
 
-        # Determine status
         if firing_rules:
             status = "MANDATORY"
-            reason = f"{len(firing_rules)} rule(s) FIRE: {firing_rules[:3]}"
         elif unknown_rules and not skip_rules:
             status = "ADVISORY"
-            reason = f"all rules UNKNOWN ({len(unknown_rules)}): {unknown_rules[:3]}"
         elif (c.get("rule_ids") or []) and not (firing_rules or unknown_rules):
-            # All linked rules SKIP — clause not applicable
             status = "EXCLUDED"
-            reason = f"all {len(skip_rules)} rule(s) SKIP for facts"
         elif c.get("mandatory"):
             status = "MANDATORY-DEFAULT"
-            reason = "no linked rules; mandatory=True (template default)"
         else:
             status = "OPTIONAL"
-            reason = "no linked rules; mandatory=False"
 
-        c2 = dict(c, status=status, _selection_reason=reason,
-                  rule_verdicts=rule_verdicts, firing_rules=firing_rules)
-        out.append(c2)
-
+        out.append(dict(c, status=status,
+                        rule_verdicts=rule_verdicts, firing_rules=firing_rules))
     return out
 
 
-# ── STEP 3: Parameter substitution ────────────────────────────────────
+# ── STEP 3: Parameter map ─────────────────────────────────────────────
 
-# Mustache-style placeholder regex: {{name}} or {{ name }}
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 
 
 def build_parameter_map(args: argparse.Namespace, facts: dict) -> dict[str, Any]:
-    """Derive a {{placeholder_name}} → value map from CLI inputs +
-    AP regulatory defaults. The drafter substitutes these into each
-    clause's text_english. Per-clause `parameters[].example` values
-    are used as fallback for any placeholder name not in this map.
+    """Global placeholder map. Indian numbering, AP regulatory defaults.
 
-    Defaults are anchored on the validators we already wrote:
-        AP-GO-050 (EMD %)    → 1%
-        AP-GO-175 (PBG %)    → 5% (post-Mar-2024 reduced)
-        AP-GO-052 (BidVal)   → 90 days
-        AP-GO-084 (DLP)      → 24 months
-        AP-GO-062 (ABC M)    → 2 (AP Works)
-        MPW 2022 §6.5.3 (MA) → 10%
+    The values here are anchored on the SAME baselines the 24 Tier-1
+    validators read — so a draft using these defaults passes the
+    validator's quality gate by construction.
     """
     ecv_cr   = float(args.ecv_cr)
     ecv_inr  = ecv_cr * 1e7
     is_ap    = bool(args.is_ap_tender)
     today    = date.today()
-    bid_open = today + timedelta(days=14)   # AP-GO-057 minimum 14-day window
 
-    # AP-Works pre-bid meeting commonly held ~7 days before bid submission
-    pre_bid  = bid_open - timedelta(days=7)
+    # AP regulatory date conventions
+    bid_open = today + timedelta(days=21)   # AP-GO-057 minimum 14-day window + buffer
+    pre_bid  = today + timedelta(days=10)   # ~half-way to bid open
+    fin_open = bid_open + timedelta(days=3)
+    loa_date = bid_open + timedelta(days=17)
+
+    contractor_class = _ap_class_for_ecv(ecv_cr) if is_ap else "ANY"
+    department_full = (args.department_full_name
+                       or args.department
+                       or ("APCRDA" if is_ap else "Department"))
+    # Prefer the short --department acronym when supplied; else parse a
+    # parenthesised acronym from the full name; else strip caps.
+    if args.department:
+        department_acronym = args.department.upper()
+    else:
+        m = re.search(r"\(([A-Z][A-Z0-9]{1,15})\)", department_full)
+        if m:
+            department_acronym = m.group(1)
+        else:
+            words = re.findall(r"\b([A-Z])[A-Z]*", department_full)
+            department_acronym = ("".join(words)[:6] if words else "DEPT")
+    nit_number = auto_gen_nit_number(args)
+    issue_date = today.strftime("%d/%m/%Y")
+
+    # Compliance-anchored defaults — these match the 24 validators' expectations
+    emd_stage1_pct = 1.0
+    emd_stage2_pct = 1.5
+    pbg_pct        = 10.0   # per AP-GO-175 (the 2.5% in JA was the L1 PBG-Shortfall violation)
+    bid_validity_days = 90
+    dlp_months     = 24
+    abc_multiplier = 2
 
     pmap: dict[str, Any] = {
-        # Direct CLI passthroughs
-        "project_name":         args.project_name,
-        "tender_type":          args.tender_type,
-        "department":           args.department or ("APCRDA" if is_ap else "Department"),
-        "employer_name":        args.department or ("APCRDA" if is_ap else "Department"),
-        "estimated_value_cr":   f"{ecv_cr:.2f}",
-        "estimated_value":      f"Rs. {ecv_cr:.2f} Crore (Rs. {ecv_inr:,.0f})",
-        "estimated_contract_value":  f"Rs. {ecv_cr:.2f} Crore",
-        "ecv":                  f"Rs. {ecv_cr:.2f} Crore",
-        "contract_value":       f"Rs. {ecv_cr:.2f} Crore",
-        "contract_duration":    f"{args.duration_months} months",
-        "duration_months":      str(args.duration_months),
-        "completion_period":    f"{args.duration_months} months",
-        "n_years":              str(max(1, round(args.duration_months / 12))),
+        # State + department
+        "state_upper":           "ANDHRA PRADESH" if is_ap else "INDIA",
+        "department_full_name":  department_full,
+        "department_acronym":    department_acronym,
+        "department_office":     args.department_office or f"{department_full} Office",
+        # NIT identifiers
+        "nit_number":            nit_number,
+        "issue_date":            issue_date,
+        # Project basics
+        "project_name":          args.project_name,
+        "tender_type":           args.tender_type,
+        "tender_subject":        args.project_name,
+        "duration_months":       str(args.duration_months),
+        "completion_period":     f"{args.duration_months} months",
+        "contract_duration":     f"{args.duration_months} months",
+        "n_years":               str(max(1, round(args.duration_months / 12))),
+        # Currency formats
+        "ecv_cr":                f"{ecv_cr:.2f}",
+        "ecv_rupees":            format_inr_indian(ecv_inr),
+        "estimated_value":       f"Rs. {ecv_cr:.2f} Crore (Rs.{format_inr_indian(ecv_inr)})",
+        "estimated_value_cr":    f"{ecv_cr:.2f}",
+        "estimated_contract_value": f"Rs. {ecv_cr:.2f} Crore",
+        "ecv":                   f"Rs. {ecv_cr:.2f} Crore",
+        "contract_value":        f"Rs. {ecv_cr:.2f} Crore",
         # State + class
-        "tender_state":         "Andhra Pradesh" if is_ap else "Other",
-        "state":                "Andhra Pradesh" if is_ap else "Other",
-        "bidder_class":         _ap_class_for_ecv(ecv_cr) if is_ap else "ANY",
-        "contractor_class":     _ap_class_for_ecv(ecv_cr) if is_ap else "ANY",
-        # AP regulatory defaults (validated by the 24 Tier-1 typologies)
-        "emd_percentage":       "1%",
-        "emd_pct":              "1",
-        "emd_amount":           f"Rs. {ecv_cr * 1e7 * 0.01:,.0f} ({ecv_cr*0.01:.4f} Crore)",
-        "pbg_percentage":       "5%",
-        "pbg_pct":              "5",
-        "pbg_amount":           f"Rs. {ecv_cr * 1e7 * 0.05:,.0f} ({ecv_cr*0.05:.4f} Crore)",
-        "bid_validity_days":    "90",
-        "bid_validity":         "90 days",
-        "dlp_months":           "24",
-        "dlp":                  "24 months (2 years)",
-        "defect_liability_period": "24 months from the date of completion of the work",
-        "abc_multiplier":       "2",
-        "ma_percentage":        "10%",
-        "mobilisation_advance": "10% of contract value",
+        "tender_state":          "Andhra Pradesh" if is_ap else "Other",
+        "state":                 "Andhra Pradesh" if is_ap else "Other",
+        "bidder_class":          contractor_class,
+        "contractor_class":      contractor_class,
+        # AP regulatory values (compliance-anchored)
+        "emd_percentage":        f"{emd_stage1_pct + emd_stage2_pct}%",
+        "emd_stage1_pct":        f"{emd_stage1_pct}",
+        "emd_stage2_pct":        f"{emd_stage2_pct}",
+        "emd_stage1_amount":     format_inr_indian(ecv_inr * emd_stage1_pct / 100),
+        "emd_stage2_amount":     format_inr_indian(ecv_inr * emd_stage2_pct / 100),
+        "emd_total_amount":      format_inr_indian(ecv_inr * (emd_stage1_pct + emd_stage2_pct) / 100),
+        "emd_amount":            format_inr_indian(ecv_inr * emd_stage1_pct / 100),
+        "pbg_percentage":        f"{pbg_pct}%",
+        "pbg_pct":               f"{pbg_pct}",
+        "pbg_amount":            format_inr_indian(ecv_inr * pbg_pct / 100),
+        "bid_validity_days":     str(bid_validity_days),
+        "bid_validity":          f"{bid_validity_days} days",
+        "dlp_months":            str(dlp_months),
+        "dlp_years":             str(max(1, dlp_months // 12)),
+        "dlp":                   f"{dlp_months} months ({dlp_months // 12} years)",
+        "defect_liability_period": f"{dlp_months} months from the date of completion of the work",
+        "abc_multiplier":        str(abc_multiplier),
+        "ma_percentage":         "10%",
+        "mobilisation_advance":  "10% of contract value",
         # Solvency framework (per AP-GO-089)
-        "solvency_threshold":   f"Rs. {ecv_cr * 0.10:.4f} Crore",   # 10% of contract value
-        "solvency_validity":    "1 year from date of issue",
-        # Force Majeure (per L48)
-        "fm_notice_days":       "30",
+        "solvency_threshold":    f"Rs. {ecv_cr * 0.10:.4f} Crore",
+        "solvency_validity":     "1 year from date of issue",
+        # Force Majeure
+        "fm_notice_days":        "30",
         "fm_termination_window_days": "120",
-        # Liquidated Damages (per L25 LD typology)
-        "ld_rate_per_week":     "0.5%",
-        "ld_cap_pct":           "10%",
-        # Pre-bid + dates
-        "pre_bid_meeting_date": pre_bid.strftime("%d-%m-%Y"),
-        "bid_submission_deadline": bid_open.strftime("%d-%m-%Y"),
-        "tender_publication_date": today.strftime("%d-%m-%Y"),
-        # AP regulatory anchors (citations, when a clause asks for one)
-        "ap_go_emd":            "GO Ms No 50 dt 12-04-2024",
-        "ap_go_pbg":            "GO Ms No 175 dt 25-03-2024",
-        "ap_go_dlp":            "GO Ms No 84 (AP Works DLP — 2 years)",
-        "ap_go_abc":            "GO Ms No 62 (AP Works ABC formula M=2)",
-        "ap_go_solvency":       "GO MS No 129 dt 05-10-2015",
-        "ap_go_class":          "GO Ms No 94 dt 01-07-2003",
-        # Fallbacks for common parameters
-        "currency":             "INR",
+        # LD
+        "ld_rate_per_week":      "0.5%",
+        "ld_cap_pct":            "10%",
+        # Dates
+        "today":                 today.strftime("%d/%m/%Y"),
+        "tender_publication_date": today.strftime("%d/%m/%Y"),
+        "prebid_date":           pre_bid.strftime("%d/%m/%Y"),
+        "pre_bid_meeting_date":  pre_bid.strftime("%d/%m/%Y"),
+        "bid_due_date":          bid_open.strftime("%d/%m/%Y"),
+        "bid_submission_deadline": bid_open.strftime("%d/%m/%Y"),
+        "tech_open_date":        bid_open.strftime("%d/%m/%Y"),
+        "fin_open_date":         fin_open.strftime("%d/%m/%Y"),
+        "loa_date":              loa_date.strftime("%d/%m/%Y"),
+        # Officers
+        "contact_officer":       args.contact_officer or "Chief Engineer",
+        "contact_email":         args.contact_email or "proc@example.org",
+        # AP regulatory anchors
+        "ap_go_emd":             "GO Ms No 50 dt 12-04-2024",
+        "ap_go_pbg":             "GO Ms No 175 dt 25-03-2024",
+        "ap_go_dlp":             "GO Ms No 84 (AP Works DLP — 2 years)",
+        "ap_go_abc":             "GO Ms No 62 (AP Works ABC formula M=2)",
+        "ap_go_solvency":        "GO MS No 129 dt 05-10-2015",
+        "ap_go_class":           "GO Ms No 94 dt 01-07-2003",
+        "currency":              "INR",
     }
     return pmap
 
@@ -338,24 +390,18 @@ def build_parameter_map(args: argparse.Namespace, facts: dict) -> dict[str, Any]
 def substitute_placeholders(
     text: str,
     pmap: dict[str, Any],
-    clause_params: list[dict],
+    clause_params: list[dict] | None = None,
 ) -> tuple[str, list[str], list[str]]:
-    """Substitute {{name}} tokens in text. Returns (new_text, substituted, unresolved).
-
-    Resolution order per placeholder:
-      1. pmap[name]   — global parameter map (CLI + AP defaults)
-      2. clause-supplied parameters[].example by name match
-      3. leave as `[[FILL: name]]` placeholder for the procurement officer
-    """
-    by_name = {p["name"]: p for p in (clause_params or []) if isinstance(p, dict) and p.get("name")}
+    """Resolve {{name}} placeholders. pmap first, then per-clause example, else [[FILL: name]]."""
+    by_name = {p["name"]: p for p in (clause_params or [])
+               if isinstance(p, dict) and p.get("name")}
     substituted: list[str] = []
     unresolved: list[str] = []
 
     def _replace(m: re.Match) -> str:
         nm = m.group(1)
         if nm in pmap:
-            substituted.append(nm)
-            return str(pmap[nm])
+            substituted.append(nm); return str(pmap[nm])
         if nm in by_name and by_name[nm].get("example"):
             substituted.append(f"{nm}(example)")
             return str(by_name[nm]["example"])
@@ -365,124 +411,387 @@ def substitute_placeholders(
     return _PLACEHOLDER_RE.sub(_replace, text), substituted, unresolved
 
 
-# ── STEP 4: Assembly in position_section order ───────────────────────
+# ── STEP 4: Slot generators ───────────────────────────────────────────
 
-# Volume → Section ordering used to sort the markdown output.
-# Lifted from clause_templates.position_section distribution:
-#   Volume-I/Section-1/NIT, Volume-I/Section-2/ITB,
-#   Volume-I/Section-3/Datasheet, Volume-I/Section-4/Evaluation,
-#   Volume-I/Section-5/Forms, Volume-II/Section-1/GCC,
-#   Volume-II/Section-2/SCC, Volume-II/Section-3/Scope,
-#   Volume-II/Section-4/Specifications, Volume-II/Section-5/BOQ.
-SECTION_ORDER = [
-    "Volume-I/Section-1/NIT",
-    "Volume-I/Section-2/ITB",
-    "Volume-I/Section-3/Datasheet",
-    "Volume-I/Section-4/Evaluation",
-    "Volume-I/Section-5/Forms",
-    "Volume-II/Section-1/GCC",
-    "Volume-II/Section-2/SCC",
-    "Volume-II/Section-3/Scope",
-    "Volume-II/Section-4/Specifications",
-    "Volume-II/Section-5/BOQ",
-]
+def render_2col_table(rows: list[tuple[str, str]]) -> str:
+    """Render rows as a markdown 2-column table. Newlines in cells → <br>."""
+    if not rows:
+        return "_(no rows)_\n"
+    lines = ["| Field | Value |", "|---|---|"]
+    for label, value in rows:
+        clean_value = (str(value) or "").replace("\n", "<br>").replace("|", "\\|")
+        clean_label = (str(label) or "").replace("|", "\\|")
+        lines.append(f"| **{clean_label}** | {clean_value} |")
+    return "\n".join(lines) + "\n"
 
 
-def _section_sort_key(c: dict) -> tuple[int, int, str]:
-    pos = c.get("position_section") or "ZZZ"
-    try:
-        sec_idx = SECTION_ORDER.index(pos)
-    except ValueError:
-        sec_idx = len(SECTION_ORDER)
-    order = c.get("position_order") or 9999
-    return (sec_idx, int(order), c.get("clause_id") or "")
+def render_overrides_table(rows: list[tuple[str, str]],
+                           left_header: str = "ITB Clause Ref",
+                           right_header: str = "BDS Override") -> str:
+    """Same shape as 2col but with custom headers — for BDS / PCC."""
+    if not rows:
+        return "_(no override rows)_\n"
+    lines = [f"| {left_header} | {right_header} |", "|---|---|"]
+    for label, value in rows:
+        clean_value = (str(value) or "").replace("\n", "<br>").replace("|", "\\|")
+        clean_label = (str(label) or "").replace("|", "\\|")
+        lines.append(f"| **{clean_label}** | {clean_value} |")
+    return "\n".join(lines) + "\n"
 
 
-# ── STEP 5: Markdown emission ────────────────────────────────────────
+def render_clauses_as_table(
+    clauses: list[dict],
+    pmap: dict,
+    left_header: str = "Clause",
+    right_header: str = "Provision",
+    drop_excluded: bool = True,
+) -> str:
+    """Render a list of selected clauses as a 2-column markdown table.
+    Left column = clause title with status badge. Right column = parameter-
+    substituted clause text."""
+    rows: list[tuple[str, str]] = []
+    for c in clauses:
+        if drop_excluded and c.get("status") == "EXCLUDED":
+            continue
+        title = c.get("title") or c.get("clause_id") or "(untitled)"
+        status = c.get("status", "OPTIONAL")
+        firing = c.get("firing_rules") or []
+        cite = (f" · firing: {', '.join(firing)}" if firing else "")
+        text, _, unres = substitute_placeholders(
+            c.get("text_english") or "",
+            pmap, c.get("parameters") or [],
+        )
+        # Compress whitespace for readability inside table cells
+        text = re.sub(r"\s+", " ", text).strip()
+        label = f"`{c.get('clause_id', '')}` · {title} · _{status}_{cite}"
+        rows.append((label, text))
+    if not rows:
+        return "_(no clauses applicable to this tender configuration)_\n"
+    lines = [f"| {left_header} | {right_header} |", "|---|---|"]
+    for label, value in rows:
+        clean_value = (str(value) or "").replace("\n", "<br>").replace("|", "\\|")
+        clean_label = (str(label) or "").replace("\n", " ").replace("|", "\\|")
+        lines.append(f"| {clean_label} | {clean_value} |")
+    return "\n".join(lines) + "\n"
 
-def render_markdown(
+
+def build_nit_body_rows(args: argparse.Namespace, facts: dict, pmap: dict) -> list[tuple[str, str]]:
+    """Generate the canonical NIT body 2-column metadata table.
+    Mirrors the JA real-document structure (L31-92): department,
+    tender id, subject, ECV, duration, DLP, contract form, tender
+    type, eligible class, bid validity, EMD, transaction fee, dates,
+    contact officers."""
+    ecv_cr = float(args.ecv_cr)
+    contractor_class = _ap_class_for_ecv(ecv_cr) if args.is_ap_tender else "ANY"
+
+    rows: list[tuple[str, str]] = [
+        ("Department", pmap['department_full_name']),
+        ("Tender Number", f"NIT No. {pmap['nit_number']}, Dt:{pmap['issue_date']}"),
+        ("Tender Subject", pmap['project_name']),
+        ("Estimated Contract Value (ECV)", f"Rs.{pmap['ecv_rupees']}"),
+        ("Period of Completion of Work", f"{pmap['duration_months']} months"),
+        ("Period of Defect Liability Period (DLP)",
+         f"{pmap['dlp_months']} months from the date of completion of work."),
+        ("Form of Contract", "Lumpsum (% Percentage Tender)"),
+        ("Tender Type",
+         f"National Competitive Tender through AP E-procurement portal "
+         f"(https://apeprocurement.gov.in)"),
+        ("Eligible Class of Bidders and additional references",
+         f"1. {contractor_class} Class Civil registration with Government of "
+         f"Andhra Pradesh, vide GO.MS. No.94, I&CAD (Dept.) dated 01-07-2003."),
+        ("Category of Registration",
+         f"{contractor_class} Class Civil registration with Government of Andhra Pradesh"),
+        ("Bid Validity",
+         f"{pmap['bid_validity_days']} days from the date of Bid submission"),
+        ("Bid Security (EMD)",
+         f"{pmap['emd_stage1_pct']}% of ECV at bid stage = Rs.{pmap['emd_stage1_amount']}; "
+         f"additional {pmap['emd_stage2_pct']}% of ECV at agreement signing = "
+         f"Rs.{pmap['emd_stage2_amount']} (per {pmap['ap_go_emd']})"),
+        ("Transaction Fee",
+         "0.03% of ECV (cap Rs.10,000/- for ECV ≤ Rs.50 Cr; "
+         "Rs.25,000/- for ECV > Rs.50 Cr) plus applicable taxes."),
+        ("BID Processing Fee",
+         "Rs. 20,000/- payable online to the Department (Non-refundable)"),
+        ("Bid Document Downloading Start Date", pmap['issue_date']),
+        ("Bid Document Downloading Close Date",
+         f"{pmap['bid_due_date']} @ 14:00 Hrs"),
+        ("Pre-Bid Meeting Date",
+         f"{pmap['prebid_date']} @ 11:30 Hrs @ {pmap['department_office']}"),
+        ("Bid Submission Due Date and time",
+         f"{pmap['bid_due_date']} @ 15:00 Hrs"),
+        ("Opening of Technical Bid",
+         f"{pmap['bid_due_date']} @ 16:00 Hrs"),
+        ("Opening of Financial Bid",
+         f"{pmap['fin_open_date']} @ 16:00 Hrs"),
+        ("Probable date of Issue of LOA", pmap['loa_date']),
+        ("Place of bid opening", pmap['department_office']),
+        ("Officer Inviting Bids",
+         f"MD, {pmap['department_acronym']}"),
+        ("Address", pmap['department_office']),
+        ("Contact Person until submission of bids",
+         f"{pmap['contact_officer']}, {pmap['department_full_name']} "
+         f"({pmap['contact_email']})"),
+        ("Point of Contact (POC) for procurement-related grievances",
+         f"Addl. Commissioner (Admin), {pmap['department_full_name']}"),
+        ("Note",
+         "The bidder shall upload the scanned copy of online transfer "
+         "acknowledgement / Bank Guarantee / Insurance Surety Bond / EBG "
+         "along with the bid."),
+    ]
+    return rows
+
+
+def build_bds_overrides(args: argparse.Namespace, facts: dict, pmap: dict) -> list[tuple[str, str]]:
+    """Generate the BDS (Section II) override rows.
+
+    The BDS values here are anchored on the 24 validators' regulatory
+    expectations — so a draft using these defaults passes by
+    construction. In particular:
+      ITB 4.1(a): Joint Venture: ALLOWED (NOT 'not allowed' which was
+                 the L53 violation in JA/HC)
+      ITB 19.1:  EMD = 1% of ECV (AP-GO-050 stage 1) + 1.5% additional
+                 at agreement
+      ITB 18.1:  Bid validity = 90 days (AP-GO-067)
+      ITB 42.1:  PBG = 10% of contract value (AP-GO-175 — NOT 2.5%
+                 which was the L1 PBG-Shortfall violation in 5 corpus
+                 docs)
+    """
+    contractor_class = _ap_class_for_ecv(float(args.ecv_cr)) if args.is_ap_tender else "ANY"
+
+    rows: list[tuple[str, str]] = [
+        ("ITB 1.1",
+         f"NIT No: {pmap['nit_number']}, Dt:{pmap['issue_date']}. "
+         f"Name of Work: {pmap['project_name']} including DLP of "
+         f"{pmap['dlp_years']} Years."),
+        ("ITB 1.2",
+         "Definitions added: \"ES\" = Environmental and Social; "
+         "\"SEA\" = Sexual Exploitation and Abuse; \"SH\" = Sexual Harassment "
+         "(per WB / ADB safeguards)."),
+        ("ITB 4.1",
+         f"The Bidder shall have a {contractor_class} Class Civil registration "
+         f"with the Government of Andhra Pradesh per {pmap['ap_go_class']}."),
+        ("ITB 4.1 (a)",
+         f"**Joint Venture: Allowed**. Maximum number of members in the JV: 2. "
+         f"All members shall be jointly and severally liable for execution "
+         f"per ITB 4.1 (f). _(Compliant with MPG-279 — the bidding doc shall "
+         f"not arbitrarily exclude eligible bidders.)_"),
+        ("ITB 4.2 (f)",
+         "Conflict of Interest — affiliates of consultants who prepared the "
+         "design or technical specifications are debarred from bidding."),
+        ("ITB 6.3",
+         "Electronic procurement portal: AP eProcurement Portal — "
+         "https://apeprocurement.gov.in"),
+        ("ITB 7.1",
+         f"Clarification address: {pmap['contact_officer']}, "
+         f"{pmap['department_full_name']} ({pmap['contact_email']}). "
+         f"Queries shall include Clause No., Clause text, and Query, and "
+         f"shall be submitted in writing before 5PM of the date of pre-bid "
+         f"meeting; submissions after the cut-off shall not be entertained."),
+        ("ITB 7.4",
+         f"Pre-Bid meeting: {pmap['prebid_date']} @ 11:30 Hrs @ "
+         f"{pmap['department_office']}."),
+        ("ITB 8.4",
+         "Amendments / Corrigendum shall be published at "
+         "https://apeprocurement.gov.in"),
+        ("ITB 9.1",
+         "Bid Transaction Fee: 0.03% of ECV (cap Rs.10,000 for ECV ≤ Rs.50 Cr; "
+         "Rs.25,000 for ECV > Rs.50 Cr) + GST. Cost of Bid Processing Fee: "
+         "Rs.20,000 (Non-refundable)."),
+        ("ITB 10.1",
+         "Language of the Bid: English. All correspondence shall be in English."),
+        ("ITB 18.1",
+         f"Bid validity period: **{pmap['bid_validity_days']} days** "
+         f"(per AP-GO-067 — minimum 90 days from bid submission)."),
+        ("ITB 19.1",
+         f"**Bid Security (EMD): {pmap['emd_stage1_pct']}% of ECV = "
+         f"Rs.{pmap['emd_stage1_amount']}** at bid stage. Additional "
+         f"{pmap['emd_stage2_pct']}% of ECV = Rs.{pmap['emd_stage2_amount']} "
+         f"at agreement signing (per {pmap['ap_go_emd']}). Acceptable forms: "
+         f"NEFT/RTGS, irrevocable Bank Guarantee, Insurance Surety Bond, "
+         f"or e-Bank Guarantee from any Government / Nationalised / Public "
+         f"Sector / Scheduled Bank, valid for 180 days from last bid-submission date."),
+        ("ITB 22.1",
+         f"Bid Submission Due Date and time: {pmap['bid_due_date']} @ 15:00 Hrs."),
+        ("ITB 25.1",
+         f"Bid opening: {pmap['bid_due_date']} @ 16:00 Hrs at "
+         f"{pmap['department_office']}."),
+        ("ITB 30",
+         "Non-Material and Non-Conformities **shall not be permitted**."),
+        ("ITB 34",
+         "Sub-contracting limit: total value of works to be awarded on "
+         "sub-contracting **shall not exceed 50% of the contract value**. "
+         "Sub-contracting any part requires written employer permission."),
+        ("ITB 42.1",
+         f"**Performance Security (PBG): {pmap['pbg_pct']}% of contract value = "
+         f"Rs.{pmap['pbg_amount']}** (per {pmap['ap_go_pbg']}). The PBG shall "
+         f"be valid until 60 days after the completion of the Defects "
+         f"Liability Period."),
+        ("ITB 43",
+         f"Procurement-related Complaint procedure: complaints in writing to "
+         f"Addl. Commissioner (Admin), {pmap['department_full_name']}. "
+         f"Appellate Authority: Secretary, MA&UD, Government of Andhra Pradesh. "
+         f"Appeal within 7 days of decision; written decision within 15 days "
+         f"of hearing."),
+    ]
+    return rows
+
+
+# ── STEP 5: Skeleton-driven rendering ─────────────────────────────────
+
+def _load_skeleton() -> str:
+    if not SKELETON_PATH.exists():
+        raise FileNotFoundError(
+            f"Skeleton template not found at {SKELETON_PATH}. "
+            f"Run from repo root or check templates/ exists."
+        )
+    return SKELETON_PATH.read_text(encoding="utf-8")
+
+
+_SLOT_RE = re.compile(r"<<SLOT:([a-zA-Z_][a-zA-Z0-9_]*)>>")
+
+
+def render_with_skeleton(
     args: argparse.Namespace,
     facts: dict,
     selected: list[dict],
     pmap: dict,
-    timing: dict,
-) -> str:
-    """Render the draft tender as structured markdown."""
+) -> tuple[str, dict]:
+    """Two-pass render:
+      Pass 1: replace each <<SLOT:xxx>> with rendered content
+      Pass 2: substitute remaining {{name}} placeholders globally from pmap
+    """
+    skeleton = _load_skeleton()
+
+    # Group selected clauses by position_section for slot routing
     by_section: dict[str, list[dict]] = defaultdict(list)
-    excluded: list[dict] = []
     for c in selected:
-        if c["status"] == "EXCLUDED":
-            excluded.append(c); continue
-        by_section[c.get("position_section") or "(uncategorised)"].append(c)
+        if c.get("status") == "EXCLUDED":
+            continue
+        by_section[c.get("position_section") or "(none)"].append(c)
+    # Sort each section by position_order for stable output
+    for k in by_section:
+        by_section[k].sort(key=lambda c: (c.get("position_order") or 9999,
+                                          c.get("clause_id") or ""))
 
-    # Order sections per SECTION_ORDER
-    out: list[str] = []
-    out.append(f"# Draft Tender Document")
-    out.append("")
-    out.append(f"**Project Name:** {args.project_name}")
-    out.append(f"**Tender Type:** {args.tender_type}  ")
-    out.append(f"**Department:** {args.department or '(unspecified)'}  ")
-    out.append(f"**Estimated Contract Value:** Rs. {args.ecv_cr:.2f} Crore  ")
-    out.append(f"**Contract Duration:** {args.duration_months} months  ")
-    out.append(f"**State Jurisdiction:** {'Andhra Pradesh' if args.is_ap_tender else 'Other'}  ")
-    out.append(f"**Drafted On:** {date.today().isoformat()}")
-    out.append("")
-    out.append(f"_Generated by procureAI Drafter from {len(selected)} candidate "
-               f"clauses ({sum(1 for c in selected if c['status']=='MANDATORY')} mandatory, "
-               f"{sum(1 for c in selected if c['status']=='ADVISORY')} advisory, "
-               f"{sum(1 for c in selected if c['status']=='MANDATORY-DEFAULT')} default-mandatory, "
-               f"{sum(1 for c in selected if c['status']=='OPTIONAL')} optional, "
-               f"{len(excluded)} excluded). Knowledge layer: 700 clause_templates_, "
-               f"1,223 rules. Validators: 24 Tier-1 typology checks._")
-    out.append("")
-    out.append("---")
-    out.append("")
+    # Build slot contents
+    slots: dict[str, str] = {}
 
-    sections_in_order = sorted(by_section.keys(), key=lambda s: (
-        SECTION_ORDER.index(s) if s in SECTION_ORDER else len(SECTION_ORDER),
-        s,
-    ))
+    # NIT body — programmatic 25-row metadata table
+    slots["nit_body_table"] = render_2col_table(
+        build_nit_body_rows(args, facts, pmap)
+    )
 
-    for sec in sections_in_order:
-        sec_clauses = sorted(by_section[sec], key=_section_sort_key)
-        out.append(f"## {sec}")
-        out.append("")
-        for c in sec_clauses:
-            text, _, unresolved = substitute_placeholders(
-                c.get("text_english") or "",
-                pmap,
-                c.get("parameters") or [],
-            )
-            out.append(f"### {c['title']}")
-            out.append("")
-            out.append(f"`{c['clause_id']}` · status: **{c['status']}**"
-                       + (f" · firing rules: {', '.join(c['firing_rules'])}"
-                          if c['firing_rules'] else "")
-                       + (f" · unresolved placeholders: {sorted(set(unresolved))}"
-                          if unresolved else ""))
-            out.append("")
-            out.append(text)
-            out.append("")
-        out.append("")
+    # ITB body — clauses with position_section='Volume-I/Section-2/ITB'
+    slots["itb_body"] = render_clauses_as_table(
+        by_section.get("Volume-I/Section-2/ITB", []),
+        pmap,
+        left_header="ITB Clause",
+        right_header="Standard Clause Body",
+    )
 
-    # Coverage footer
-    out.append("---")
-    out.append("")
-    out.append("## Coverage report")
-    out.append("")
-    # `selected` already contains EXCLUDED rows; don't double-count them.
-    out.append(f"- Total DRAFTING_CLAUSE templates considered: {len(selected)}")
-    by_status = defaultdict(int)
-    for c in selected:
-        by_status[c["status"]] += 1
-    for status, n in sorted(by_status.items(), key=lambda kv: -kv[1]):
-        out.append(f"- {status}: {n}")
-    out.append("")
-    out.append(f"- Sections populated: {len(by_section)}")
-    out.append(f"- Generation wall-time: {timing.get('total_wall', 0):.2f}s")
-    out.append("")
+    # BDS — programmatic override table (compliance-anchored values)
+    slots["bds_table"] = render_overrides_table(
+        build_bds_overrides(args, facts, pmap),
+        left_header="ITB Clause Ref",
+        right_header="BDS Override",
+    )
 
-    return "\n".join(out)
+    # Section III — Evaluation criteria (Volume-I/Section-4/Evaluation
+    # + Volume-I/Section-3/Datasheet which has PQ-Datasheet content)
+    eval_clauses = (by_section.get("Volume-I/Section-4/Evaluation", [])
+                  + by_section.get("Volume-I/Section-3/Datasheet", []))
+    slots["evaluation_criteria"] = render_clauses_as_table(
+        eval_clauses, pmap,
+        left_header="Criterion / Datasheet Ref",
+        right_header="Specification",
+    )
+
+    # Section IV — Bidding Forms
+    slots["bidding_forms"] = render_clauses_as_table(
+        by_section.get("Volume-I/Section-5/Forms", []),
+        pmap,
+        left_header="Form",
+        right_header="Form Specification / Template",
+    )
+
+    # Section V — Fraud and Corruption (no specific section in clause_templates;
+    # standard WB/ADB framework boilerplate)
+    slots["fraud_corruption"] = (
+        "1. The Procuring Entity, the World Bank, and the Asian Development "
+        "Bank require compliance with their respective Anti-Corruption "
+        "Guidelines and prevailing sanctions policies and procedures.\n\n"
+        "2. The Bidder shall not, directly or indirectly through its "
+        "agents, subcontractors, sub-consultants, service providers, or "
+        "suppliers, engage in any of the following: (a) corrupt practice; "
+        "(b) fraudulent practice; (c) collusive practice; (d) coercive "
+        "practice; or (e) obstructive practice — as defined in the Bank's "
+        "Anti-Corruption Guidelines.\n\n"
+        "3. The Bidder shall permit, and cause its agents and personnel "
+        "to permit, the World Bank and the Asian Development Bank to "
+        "inspect all accounts, records, and other documents relating to "
+        "any prequalification process, bid submission, proposal submission, "
+        "and contract performance, and to have them audited by auditors "
+        "appointed by the Banks.\n"
+    )
+
+    # Section VI — Works' Requirements (Volume-II/Section-3/Scope +
+    # Volume-II/Section-4/Specifications + Volume-II/Section-5/BOQ)
+    works_clauses = (by_section.get("Volume-II/Section-3/Scope", [])
+                   + by_section.get("Volume-II/Section-4/Specifications", [])
+                   + by_section.get("Volume-II/Section-5/BOQ", []))
+    slots["works_requirements"] = render_clauses_as_table(
+        works_clauses, pmap,
+        left_header="Scope / Specification",
+        right_header="Description",
+    )
+
+    # Section VII — GCC body
+    slots["gcc_body"] = render_clauses_as_table(
+        by_section.get("Volume-II/Section-1/GCC", []),
+        pmap,
+        left_header="GCC Clause",
+        right_header="Provision",
+    )
+
+    # Section VIII — PCC = SCC overrides
+    slots["pcc_overrides"] = render_clauses_as_table(
+        by_section.get("Volume-II/Section-2/SCC", []),
+        pmap,
+        left_header="GCC Clause Ref",
+        right_header="PCC Override",
+    )
+
+    # Section IX — Contract Forms (NIT + Forms-shaped clauses)
+    slots["contract_forms"] = render_clauses_as_table(
+        by_section.get("Volume-I/Section-1/NIT", []),
+        pmap,
+        left_header="Form",
+        right_header="Template",
+    )
+
+    # Pass 1: substitute slot markers
+    def _slot_replace(m: re.Match) -> str:
+        nm = m.group(1)
+        return slots.get(nm, f"_(slot {nm} not implemented)_\n")
+    body = _SLOT_RE.sub(_slot_replace, skeleton)
+
+    # Add summary stats to pmap for the footer placeholder
+    pmap = dict(pmap)
+    pmap["n_clauses_total"]  = str(len(selected))
+    pmap["n_mandatory"]      = str(sum(1 for c in selected if c["status"] == "MANDATORY"))
+    pmap["n_advisory"]       = str(sum(1 for c in selected if c["status"] == "ADVISORY"))
+
+    # Pass 2: substitute remaining {{name}} placeholders in skeleton-level text
+    body, _, _ = substitute_placeholders(body, pmap, [])
+
+    # Stats
+    stats = {
+        "slots_filled": len(slots),
+        "by_section":   {k: len(v) for k, v in by_section.items()},
+        "selected_count": sum(1 for c in selected if c.get("status") != "EXCLUDED"),
+        "excluded_count": sum(1 for c in selected if c.get("status") == "EXCLUDED"),
+    }
+    return body, stats
 
 
 # ── CLI ───────────────────────────────────────────────────────────────
@@ -493,7 +802,7 @@ def _bool(v: str) -> bool:
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
-        description="procureAI Drafter — compose a tender doc from the knowledge layer",
+        description="procureAI Drafter — compose an AP Works tender doc",
     )
     ap.add_argument("--project-name", required=True)
     ap.add_argument("--tender-type",  required=True,
@@ -502,114 +811,94 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--ecv-cr",       required=True, type=float,
                     help="Estimated Contract Value in crores")
     ap.add_argument("--duration-months", required=True, type=int)
-    ap.add_argument("--department",   default=None)
-    ap.add_argument("--output",       default="draft_output.md",
-                    help="Output markdown path")
-    ap.add_argument("--validate",     action="store_true",
-                    help="Run a subset of tier1_*_check.py against the draft (TBD)")
+    ap.add_argument("--department",   default=None,
+                    help="Short department name / acronym (e.g. APCRDA)")
+    ap.add_argument("--department-full-name", default=None,
+                    help="Full department name (default: same as --department)")
+    ap.add_argument("--department-office", default=None,
+                    help="Department office address (for pre-bid meeting + bid opening)")
+    ap.add_argument("--nit-number",   default=None,
+                    help="Override the auto-generated NIT number")
+    ap.add_argument("--contact-officer", default=None)
+    ap.add_argument("--contact-email",   default=None)
+    ap.add_argument("--output",       default="draft_output.md")
     return ap.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     timings: dict[str, float] = {}
-    t0 = time.perf_counter()
+    t_start = time.perf_counter()
 
     print("=" * 76)
-    print("  procureAI Drafter")
+    print("  procureAI Drafter (skeleton-driven, v2)")
     print("=" * 76)
     print(f"  project_name      : {args.project_name}")
     print(f"  tender_type       : {args.tender_type}")
     print(f"  is_ap_tender      : {args.is_ap_tender}")
-    print(f"  estimated_value   : Rs. {args.ecv_cr:.2f} Crore")
+    print(f"  estimated_value   : Rs. {args.ecv_cr:.2f} Crore "
+          f"(Rs.{format_inr_indian(args.ecv_cr * 1e7)})")
     print(f"  duration_months   : {args.duration_months}")
     print(f"  department        : {args.department}")
     print(f"  output            : {args.output}")
     print()
 
-    # STEP 1
     facts = build_tender_facts(args)
-    print(f"── STEP 1: tender_facts ──")
+    print("── tender_facts ──")
     print(f"  TenderType={facts['TenderType']!r}, TenderState={facts['TenderState']!r}, "
           f"EstimatedValue=Rs.{facts['_estimated_value_cr']:.2f}Cr, "
-          f"OriginalContractPeriodMonths={facts['OriginalContractPeriodMonths']}")
+          f"Period={facts['OriginalContractPeriodMonths']}mo")
     if facts.get("BidderClassRequired"):
-        print(f"  derived BidderClassRequired={facts['BidderClassRequired']} "
-              f"(per AP-GO-094)")
+        print(f"  BidderClassRequired={facts['BidderClassRequired']} (per AP-GO-094)")
     print()
 
-    # STEP 2
-    print(f"── STEP 2: clause selection ──")
+    print("── clause selection ──")
     t = time.perf_counter()
     clauses = fetch_drafting_clauses()
     timings["fetch_clauses"] = time.perf_counter() - t
-    print(f"  fetched {len(clauses)} DRAFTING_CLAUSE templates in {timings['fetch_clauses']*1000:.0f}ms")
+    print(f"  fetched {len(clauses)} DRAFTING_CLAUSE templates "
+          f"({timings['fetch_clauses']*1000:.0f}ms)")
     t = time.perf_counter()
     selected = select_clauses(clauses, facts)
     timings["select_clauses"] = time.perf_counter() - t
     by_status: dict[str, int] = defaultdict(int)
     for c in selected:
         by_status[c["status"]] += 1
-    print(f"  classified in {timings['select_clauses']*1000:.0f}ms:")
     for status in ["MANDATORY", "ADVISORY", "MANDATORY-DEFAULT", "OPTIONAL", "EXCLUDED"]:
         print(f"    {status:18s} {by_status.get(status, 0):4d}")
     print()
 
-    # STEP 3 + 4 + 5
-    print(f"── STEP 3+4: parameter substitution + markdown assembly ──")
+    print("── parameter map ──")
     pmap = build_parameter_map(args, facts)
-    print(f"  parameter map: {len(pmap)} keys")
-    t = time.perf_counter()
-    md = render_markdown(args, facts, selected, pmap,
-                         {**timings,
-                          "total_wall": time.perf_counter() - t0})
-    timings["render"] = time.perf_counter() - t
-    timings["total_wall"] = time.perf_counter() - t0
-    md = md.replace("0.00s", f"{timings['total_wall']:.2f}s")  # late-bind wall-time
-    print(f"  rendered {len(md):,} chars / {md.count(chr(10))+1:,} lines in {timings['render']*1000:.0f}ms")
+    print(f"  {len(pmap)} keys")
+    print(f"  ECV (rupees, Indian fmt) : Rs.{pmap['ecv_rupees']}")
+    print(f"  contractor_class         : {pmap['contractor_class']}")
+    print(f"  EMD stage 1              : {pmap['emd_stage1_pct']}% = Rs.{pmap['emd_stage1_amount']}")
+    print(f"  PBG                      : {pmap['pbg_percentage']} = Rs.{pmap['pbg_amount']}")
+    print(f"  Bid validity             : {pmap['bid_validity_days']} days")
+    print(f"  DLP                      : {pmap['dlp_months']} months")
+    print(f"  pre-bid meeting date     : {pmap['prebid_date']}")
+    print(f"  bid submission date      : {pmap['bid_due_date']}")
     print()
 
-    # Write output
+    print("── render with skeleton ──")
+    t = time.perf_counter()
+    body, stats = render_with_skeleton(args, facts, selected, pmap)
+    timings["render"] = time.perf_counter() - t
+    print(f"  slots filled        : {stats['slots_filled']}")
+    print(f"  clauses in sections : {stats['by_section']}")
+    print(f"  rendered            : {len(body):,} chars / {body.count(chr(10))+1:,} lines "
+          f"({timings['render']*1000:.0f}ms)")
+    print()
+
     out_path = Path(args.output).resolve()
-    out_path.write_text(md, encoding="utf-8")
-    print(f"── Output written ──")
+    out_path.write_text(body, encoding="utf-8")
+    print(f"── Output ──")
     print(f"  {out_path}")
     print(f"  size: {out_path.stat().st_size:,} bytes")
-    print()
 
-    # Coverage summary
-    excl_keep = [c for c in selected if c["status"] != "EXCLUDED"]
-    placeholder_total = 0
-    placeholder_filled_pmap = 0
-    placeholder_filled_example = 0
-    placeholder_unresolved: set[str] = set()
-    for c in excl_keep:
-        text = c.get("text_english") or ""
-        ms = _PLACEHOLDER_RE.findall(text)
-        placeholder_total += len(ms)
-        by_name = {p["name"]: p for p in (c.get("parameters") or [])
-                   if isinstance(p, dict) and p.get("name")}
-        for nm in ms:
-            if nm in pmap:
-                placeholder_filled_pmap += 1
-            elif nm in by_name and by_name[nm].get("example"):
-                placeholder_filled_example += 1
-            else:
-                placeholder_unresolved.add(nm)
-
-    print(f"── Coverage summary ──")
-    print(f"  clauses included    : {len(excl_keep)}")
-    print(f"  sections populated  : {len({c.get('position_section') for c in excl_keep})}")
-    print(f"  placeholders total  : {placeholder_total}")
-    print(f"    filled by pmap    : {placeholder_filled_pmap}")
-    print(f"    filled by example : {placeholder_filled_example}")
-    print(f"    unresolved        : {placeholder_total - placeholder_filled_pmap - placeholder_filled_example}"
-          f" ({len(placeholder_unresolved)} unique)")
-    if placeholder_unresolved:
-        print(f"  unresolved sample   : {sorted(placeholder_unresolved)[:10]}")
-    print(f"  wall                : {timings['total_wall']:.2f}s")
-    print()
-
+    timings["total_wall"] = time.perf_counter() - t_start
+    print(f"  wall: {timings['total_wall']:.2f}s")
     return 0
 
 
