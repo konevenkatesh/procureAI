@@ -588,6 +588,32 @@ PREBID_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Available-Bid-Capacity-Error — ABC formula lives in the same PQ
+# Financial Capabilities region as Turnover (L39) — Volume-I tendering
+# machinery. Per AP-GO-062 the AP-prescribed formula is
+#   ABC = (A × N × 2) − B    (M = 2 for AP Works/EPC)
+# while MPW-043 Central allows "M = usually 1.5". Corpus distribution
+# (already extracted at typology 12 build time):
+#   APCRDA Works (JA, HC):  M = 2  → matches AP-GO-062
+#   Vizag UGSS:             M = 3  → deviates (50% over the AP-prescribed cap)
+#   Kakinada SBD:           M = 3  → deviates (same)
+#   NREDCAP PPP DCAs:       no MAN-B formula (fixed INR threshold instead)
+#
+# Section_type distribution mirrors Turnover-Threshold-Excess:
+# section_type=Evaluation in HC/Tirupathi/Vijayawada (BDS rewrites
+# of "Technical Requirements" / "4.2 Financial Criteria"); NIT/ITB
+# in JA. Kakinada SBD uses Evaluation per the L28 SBD pattern. Filter
+# is the union [NIT, ITB, Evaluation] across every family — same
+# shape as the typology-12 Turnover router that surfaced the L36
+# grep-fallback false-positives before being widened.
+ABC_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Evaluation"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Evaluation"],   # rule SKIPs; retained
+    "default":       ["NIT", "ITB", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -609,6 +635,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "DLP-Period-Short":            DLP_SECTION_ROUTER,
     "Solvency-Stale":              SOLVENCY_SECTION_ROUTER,
     "Pre-Bid-Process-Unclear":     PREBID_SECTION_ROUTER,
+    "Available-Bid-Capacity-Error": ABC_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

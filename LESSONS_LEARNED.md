@@ -1038,6 +1038,50 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L52 — Available-Bid-Capacity-Error: Threshold-Exact-Match + AP-Defeats-Central via Rules Table + Third Corpus Pattern
+
+**What we did:** Built `scripts/tier1_abc_check.py` (typology 22) — a threshold-shape Tier-1 check on the multiplier M of the Available Bid Capacity formula. Per AP-GO-062 (HARD_BLOCK), AP Works/EPC contracts must use the formula `ABC = (A × N × 2) − B` with **M = 2 exact** (no "usually" qualifier — deterministic AP-prescribed value). Central MPW-043 allows `M = usually 1.5` and is correctly defeated by AP-GO-062 via the rules-table `defeats=['MPW-043']` relationship — first operationalised use of the rules-table defeats column in a Tier-1 typology.
+
+**Result:** 4/6 expected — 2 COMPLIANT silent (JA, HC: M=2) + **2 GAP_VIOLATION HARD_BLOCKs (Vizag, Kakinada: M=3, +50% lenient than AP-prescribed)** + 2 PPP rule-skip silent. Predictions matched the typology-12 read-first M-coefficient extraction exactly.
+
+**Third corpus-pattern signal — non-APCRDA template gap:**
+- L43 Arbitration: JA + HC pair (APCRDA Works template — §60 Property weakness)
+- L50 Solvency: JA + HC pair (APCRDA Works template — no Tahsildar / no validity rule)
+- **L52 ABC: Vizag + Kakinada pair (NON-APCRDA templates — over-permissive M=3 instead of AP-prescribed M=2)**
+
+The corpus now exhibits gaps in BOTH template families. APCRDA Works template (JA, HC) needs strengthening on Arbitration + Solvency clauses; non-APCRDA templates (Vizag UGSS / Kakinada SBD PR Roads) need correction on the ABC formula multiplier. The procurement-reform narrative has corpus-grounded evidence on both directions — single-template-family generalisations would miss the non-APCRDA pattern.
+
+**Threshold-exact-match shape (vs threshold-min/max):**
+DLP (L49) and Bid-Validity-Short are threshold-min checks (X ≥ N). Mobilisation-Advance-Excess is a threshold-max check (X ≤ N). ABC is a NEW shape: threshold-EXACT-match (X = N). The decision logic differs:
+
+```python
+# Threshold-min (DLP)
+if dlp_months >= threshold_months: COMPLIANT
+else: WARNING
+
+# Threshold-max (MA)
+if ma_pct <= cap_pct: COMPLIANT
+else: WARNING
+
+# Threshold-exact (ABC)
+if abs(M - required_M) < 0.01: COMPLIANT
+else: GAP_VIOLATION  # any deviation, lenient OR restrictive
+```
+
+The `multiplier_M=null` path (formula present but M not extractable) takes the conservative by-reference path — silent compliant — same pattern as L49 DLP's `dlp_months=null` "by-reference to PCC" silence.
+
+**LLM extraction prompt note:** The 7-rule range guard ("multiplier is ALWAYS in [1.0, 5.0]") prevents the LLM from picking up adjacent numeric tokens (years, percentages) as the multiplier. JA's evidence quote contains "ten financial years" but the LLM correctly extracted M=2 (not 10). Forward-applicable: any threshold-shape extraction where the value has a known numeric range should include a range guard in the prompt.
+
+**Why we changed:** Tier-1 catalogues need a threshold-EXACT-match shape alongside threshold-min and threshold-max. AP-GO-062's deterministic M=2 doesn't fit either bound; both directions of deviation (M too low = over-restrictive; M too high = over-lenient) are violations against a regulator-prescribed exact value. Codifying this as a third shape keeps the decision logic explicit and prevents misclassification when a future typology lands in this category.
+
+**Forward applicability:**
+1. **Threshold-exact-match is now an established shape.** Add to the typology-shape vocabulary alongside presence-shape, threshold-min, threshold-max, and presence-multi-field. Any rule with a regulator-prescribed deterministic value (no "usually" / no "minimum" / no "maximum") falls in this bucket.
+2. **The rules-table `defeats` column is operationalised.** AP-GO-062's `defeats=['MPW-043']` automatically silences MPW-043 in the rule selector without requiring a per-typology defeasibility branch (the existing condition_evaluator + defeats filter chain already handles it). Forward-applicable: when an AP-State rule is more specific than a Central baseline, populate the AP rule's `defeats` column to express the AP-defeats-Central relationship at the knowledge layer rather than at the typology-script layer (cleaner than L43's typology-specific AP-defeats-Central branch).
+3. **Reuse of typology-12 extraction is now possible at the data layer.** Future Tier-1 typologies that need the same field (e.g. an Eligibility-Class-Mismatch revisit looking at the same NIT class declaration) can pull from existing finding `properties` rather than re-extracting. The pattern: `properties` is the source of truth for any extracted fact; subsequent typologies should query the existing properties before triggering a new extraction. Not implemented in this script (we did re-extract for L24-verifiable evidence) but a viable optimisation for the Tier-1 catalog as it grows.
+4. **Two distinct corpus-pattern axes** — APCRDA-Works gaps (Arbitration, Solvency) and non-APCRDA gaps (ABC formula) — give the procurement-reform narrative directional richness. A reform deck cannot point at a single template; it must address both axes.
+
+---
+
 ## L51 — Pre-Bid-Process-Unclear: Multi-Field Compliance Gating with Audit Fields + 6/6 Silent on Vague Meta-Quality Rule
 
 **What we did:** Built `scripts/tier1_prebid_check.py` (typology 21) — a presence-shape Tier-1 check operationalising MPW-061 (HARD_BLOCK Works: "Bid Documents must be self-contained and comprehensive without ambiguity") as a 5-field pre-bid clarification protocol extraction. The 5 typology rules collapse to a single Tier-1 firing rule (MPW-061); the others are excluded for the same reasons documented in L48 FM (execution-stage facts default to false; AP-GO-057/211 are timeline/advertisement shapes for a future separate typology; AP-GO-156 is Goods-only).
