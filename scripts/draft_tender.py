@@ -660,6 +660,10 @@ def render_with_skeleton(
       Pass 1: replace each <<SLOT:xxx>> with rendered content
       Pass 2: substitute remaining {{name}} placeholders globally from pmap
     """
+    # Stash args inside pmap so slot generators can pick up CLI flags
+    # like --scope-description / --scope-file. Removed from pmap before
+    # the {{name}} substitution pass.
+    pmap = dict(pmap, __args=args)
     skeleton = _load_skeleton()
 
     # Group selected clauses by position_section for slot routing
@@ -734,15 +738,52 @@ def render_with_skeleton(
         "appointed by the Banks.\n"
     )
 
-    # Section VI — Works' Requirements (Volume-II/Section-3/Scope +
-    # Volume-II/Section-4/Specifications + Volume-II/Section-5/BOQ)
+    # Section VI — Works' Requirements
+    # Resolution chain:
+    #   (a) --scope-file path → file contents verbatim
+    #   (b) --scope-description CLI string → verbatim
+    #   (c) placeholder + Tier-1 framework clauses (Scope / Spec / BOQ)
+    args_obj = pmap.get("__args")  # passed in via render_with_skeleton wrapper
+    scope_text_blocks: list[str] = []
+    scope_file = getattr(args_obj, "scope_file", None) if args_obj else None
+    scope_desc = getattr(args_obj, "scope_description", None) if args_obj else None
+    if scope_file:
+        try:
+            scope_text_blocks.append(Path(scope_file).read_text(encoding="utf-8").strip())
+        except FileNotFoundError:
+            scope_text_blocks.append(f"_(scope-file not found: {scope_file})_")
+    elif scope_desc:
+        scope_text_blocks.append(scope_desc.strip())
+    else:
+        scope_text_blocks.append(
+            "**[SCOPE OF WORK TO BE SPECIFIED BY PROCUREMENT OFFICER]**\n\n"
+            "_The procurement officer shall describe here the technical scope of "
+            "the Works to be performed under this Contract — including the buildings "
+            "/ structures / facilities to be constructed, the volumes (built-up area, "
+            "earthwork quantity, concrete grade, structural steel tonnage, etc.), "
+            "the architectural and engineering services included (civil, structural, "
+            "MEP, finishes, external development, landscaping), and any "
+            "project-specific constraints (site conditions, ground-water table, "
+            "seismic zone, fire-rating requirements, accessibility / Green "
+            "Building / IGBC compliance, etc.). Pass via `--scope-description` "
+            "or `--scope-file` to the drafter to populate this section automatically._\n"
+        )
+    # Append Tier-1 framework clauses (statutory permits, repair caps,
+    # BOQ tender-percentage rule) so the section is not just a single
+    # placeholder
     works_clauses = (by_section.get("Volume-II/Section-3/Scope", [])
                    + by_section.get("Volume-II/Section-4/Specifications", [])
                    + by_section.get("Volume-II/Section-5/BOQ", []))
-    slots["works_requirements"] = render_clauses_as_table(
+    framework_table = render_clauses_as_table(
         works_clauses, pmap,
-        left_header="Scope / Specification",
-        right_header="Description",
+        left_header="Framework Clause",
+        right_header="Provision",
+    )
+    slots["works_requirements"] = (
+        "### Project Scope\n\n"
+        + "\n\n".join(scope_text_blocks) + "\n\n"
+        "### Statutory Framework (applicable Tier-1 clauses)\n\n"
+        + framework_table
     )
 
     # Section VII — GCC body
@@ -775,8 +816,9 @@ def render_with_skeleton(
         return slots.get(nm, f"_(slot {nm} not implemented)_\n")
     body = _SLOT_RE.sub(_slot_replace, skeleton)
 
-    # Add summary stats to pmap for the footer placeholder
+    # Add summary stats and strip the __args stash before pass-2.
     pmap = dict(pmap)
+    pmap.pop("__args", None)
     pmap["n_clauses_total"]  = str(len(selected))
     pmap["n_mandatory"]      = str(sum(1 for c in selected if c["status"] == "MANDATORY"))
     pmap["n_advisory"]       = str(sum(1 for c in selected if c["status"] == "ADVISORY"))
@@ -821,6 +863,14 @@ def parse_args() -> argparse.Namespace:
                     help="Override the auto-generated NIT number")
     ap.add_argument("--contact-officer", default=None)
     ap.add_argument("--contact-email",   default=None)
+    ap.add_argument("--scope-description", default=None,
+                    help="Project-specific scope-of-work description for Section VI. "
+                         "Multi-line allowed. If omitted, a placeholder 'TO BE "
+                         "SPECIFIED' marker is rendered for the procurement "
+                         "officer to fill.")
+    ap.add_argument("--scope-file", default=None,
+                    help="Path to a markdown file whose contents replace the scope "
+                         "description. Useful for long scopes that don't fit on the CLI.")
     ap.add_argument("--output",       default="draft_output.md")
     return ap.parse_args()
 

@@ -1,11 +1,31 @@
-# AP Procurement — Knowledge Layer
+# AP Procurement — Knowledge Layer + Validator + Drafter
 
 > India's first procurement rules-as-code asset for the Government of Andhra Pradesh.
 > Phase 1 of the BIMSaarthi RTGS hackathon platform.
->
-> Scope: build the **knowledge layer** — 400+ verified rules, 750+ clause
-> templates, 200+ SHACL shapes, 200+ vector concepts. Application modules
-> (Drafter, Validator, Evaluator, Communicator) come later and READ from these stores.
+
+## Module status
+
+| Module | Status | Implementation |
+|---|---|---|
+| **Knowledge Layer** | complete | 1,223 rules, 700 clause_templates (499 DRAFTING_CLAUSE + 201 procedural), 200+ SHACL shapes, 1,669 vector points |
+| **Validator (Module 2)** | 24 typologies live; 73 ValidationFindings on the 6-doc corpus; review portal at `frontend/portal.html` | `scripts/tier1_*_check.py` × 24 — see LESSONS_LEARNED.md L1-L54 |
+| **Drafter (Module 3)** | skeleton-driven render of canonical AP Works tender (NIT + ToC + 27-row NIT body + ITB + BDS overrides + Eval + Forms + Fraud + Works' Reqs + GCC + PCC + Contract Forms) | `templates/ap_works_tender_skeleton.md.tmpl` + `scripts/draft_tender.py` |
+| **Post-RFP Evaluator (Module 4)** | not built — blocked on missing bid-submission data | future |
+| **Communication Mgmt (Module 5)** | not built — blocked on missing corrigendum docs | future |
+
+## Drafter — known limitations
+
+The Drafter (Module 3) composes a draft tender by filling the canonical AP Works skeleton with parameter-substituted DRAFTING_CLAUSE templates and a compliance-anchored BDS override table. Three known coverage gaps:
+
+1. **Section IV — Bidding Forms (49 in real JA → 30 currently)**: 13 standard proformas were seeded into `clause_templates` (Statement-I to VI bidder-data tables, PBG / APG / Bid Security bank-guarantee proformas, LoA / Contract Agreement / Manufacturer's Authorisation / Sub-Contractor Declaration). Closed via `scripts/seed_works_forms_clauses.py`. ~19 project-specific declarations remain (e.g. specific compliance certificates per project type) — these are deliberately project-customised by the procurement officer rather than seeded.
+
+2. **Section VI — Works' Requirements (project-specific scope)**: pass `--scope-description "<text>"` or `--scope-file <path.md>` to populate the scope of work verbatim. If neither is provided, a `[SCOPE OF WORK TO BE SPECIFIED BY PROCUREMENT OFFICER]` placeholder is rendered. The Drafter does NOT auto-generate construction scope — that requires project-specific architectural / engineering inputs the system has no source for.
+
+3. **Volume-II/Section-4 — Technical Specifications (49 sections in real JA → 0 in knowledge layer)**: detailed civil / electrical / MEP technical specifications (concrete grades, structural steel grades, finishes, plumbing fixtures, HVAC equipment, electrical switchgear, IT cabling) are not present in the current knowledge layer. The only Specifications-typed clause is `CLAUSE-DI-K9-PIPE-SPEC-001` (Vizag UGSS sewerage). **Closing this gap requires importing Andhra Pradesh Standard Specifications (APSS), MoRTH for roads, or CPWD General Specifications for buildings** as a separate knowledge-layer ingestion phase. Documented as a forward-applicable enhancement; not in scope for the current hackathon iteration.
+
+> Original scope (knowledge-layer only): build **400+ verified rules, 750+ clause
+> templates, 200+ SHACL shapes, 200+ vector concepts**. Application modules
+> (Drafter, Validator, Evaluator, Communicator) READ from these stores.
 
 ---
 
