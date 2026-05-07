@@ -647,6 +647,32 @@ CRN_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Spec-Tailoring — Technical specifications anchored on GFR-G-030
+# ("Description shall NOT indicate a particular trade mark, trade
+# name or brand"). Spec content lives in:
+#   - Specifications  (Volume-II/Section-3 detailed specs by item)
+#   - Scope           (Volume-II/Section-2 scope of work)
+#   - BOQ             (Bill of Quantities — line items with rate/qty)
+#   - Forms           (Proprietary Article Certificate — PAC anchor
+#                      compliance escape valve when a brand IS named)
+#
+# Per the read-first scan, the corpus uses the standard Indian Works
+# convention: "approved make and quality" with engineer pre-approval,
+# BIS / IS standard references, functional/performance specs. No
+# specific trade marks or brand names called out. Predicted 6/6
+# silent COMPLIANT — positive-signal validation.
+#
+# SBD_Format adds Evaluation per the L28 SBD pattern (Kakinada).
+# NREDCAP_PPP DCAs use performance/functional specs in Scope; rule
+# fires (TenderType=ANY) so retrieval is real, not silenced.
+SPEC_TAILORING_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["Specifications", "Scope", "BOQ", "Forms"],
+    "SBD_Format":    ["Specifications", "Scope", "BOQ", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["Specifications", "Scope", "Forms"],
+    "default":       ["Specifications", "Scope", "BOQ", "Forms"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -670,6 +696,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Pre-Bid-Process-Unclear":     PREBID_SECTION_ROUTER,
     "Available-Bid-Capacity-Error": ABC_SECTION_ROUTER,
     "Criteria-Restriction-Narrow": CRN_SECTION_ROUTER,
+    "Spec-Tailoring":              SPEC_TAILORING_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 
