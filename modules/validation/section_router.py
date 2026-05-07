@@ -496,6 +496,43 @@ FORCE_MAJEURE_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# DLP-Period-Short — Defects Liability Period anchors are spread
+# across NIT (datasheet "Period of Defect Liability" rows), GCC
+# (clause definition + risk-allocation references), Forms (bidder
+# declaration "I/We accept defect liability period as N months"),
+# and Evaluation (Kakinada SBD: PCC overrides + GO Ms No 8 T(R&B)
+# 2003 cite at L2953, declaration override at L1945).
+#
+# Per the read-first scan of clause_templates: only one template
+# (CLAUSE-DEFECTS-LIABILITY-CERT-001 in GCC) — the regulatory anchor
+# is AP-GO-084 (2-year DLP for AP Works/EPC, original + maintenance)
+# rather than a Central template family. The short-value extraction
+# pattern matches Bid-Validity-Short / Mobilisation-Advance — small
+# integer (months) buried in long datasheet/GCC blocks; smart_truncate
+# windowing centres on the literal phrase to prevent elision.
+#
+# NREDCAP_PPP: AP-GO-084 SKIPs on TenderType=PPP. Tirupathi/Vijayawada
+# DCAs replace DLP entirely with §18 OPERATIONS AND MAINTENANCE PERIOD
+# spanning the Concession Period — different shape, no DLP semantic
+# at all. Filter retained for completeness; rule selector exits
+# before retrieval.
+#
+# Forms is essential everywhere because Kakinada's L1945 bidder
+# declaration ("I/We are accepting for the defect liability period as
+# 24 Months instead of 6 months under clause 28 of APSS") is the most
+# diagnostic single line in the corpus — it explicitly upgrades from
+# the APSS Clause 28 baseline to AP-GO-084's 24 months, and any
+# future doc that forgets the override would correctly trigger a
+# WARNING. The L41 gap-filler classifies that line as Evaluation /
+# Forms-adjacent depending on which Section node spans it.
+DLP_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "GCC", "Forms"],
+    "SBD_Format":    ["NIT", "GCC", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["GCC"],     # rule SKIPs; filter retained for completeness
+    "default":       ["NIT", "GCC", "Forms", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -514,6 +551,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "MakeInIndia-LCC-Missing":     MII_SECTION_ROUTER,
     "Works-Universal-Mandatory-Fields": WORKS_MANDATORY_SECTION_ROUTER,
     "Missing-Force-Majeure":       FORCE_MAJEURE_SECTION_ROUTER,
+    "DLP-Period-Short":            DLP_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

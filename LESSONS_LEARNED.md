@@ -1038,6 +1038,48 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L49 — DLP-Period-Short: Per-Section-Type Quota Retrieval + Threshold Shape with By-Reference Trap
+
+**What we did:** Built `scripts/tier1_dlp_check.py` (typology 19) — a threshold-shape Tier-1 check for AP-GO-084 (AP Works/EPC Defects Liability Period fixed at 24 months). Three rules in the typology (AP-GO-084 WARNING, MPW-030 EPC latent-defect HARD_BLOCK, CVC-114 Goods-only HARD_BLOCK) collapse to one Tier-1 candidate: AP-GO-084 fires on the 4 AP Works docs, SKIPs on the 2 NREDCAP PPP DCAs. MPW-030 excluded from candidates (it's about the procuring authority's organisational capacity + a separate latent-defect clause beyond DLP — not a doc-content check, same exclusion reasoning as MPW-122 in L48). CVC-114 SKIPs corpus-wide.
+
+**Result:** 6/6 silent — 4 COMPLIANT (`dlp_months=24` extracted, threshold met, no row) + 2 rule-skip (PPP, AP-GO-084 condition_when fails). Zero ValidationFinding rows, zero VIOLATES_RULE edges. This is the second silent-by-design typology after L48 FM, but the first that runs an actual threshold compare on extracted values rather than a presence check.
+
+**The by-reference trap:** First JA run used a single answer-shaped query ("Period of Defect Liability Period DLP 24 months from completion of work...") and Qdrant returned all-GCC top-10 (cosines 0.55–0.69). The LLM picked GCC §35 "Identifying Defects and Correction of Defects" which states: *"The Defects Liability Period, which begins at Completion, and is defined in the PCC."* — the canonical framework clause that's by-reference for the actual duration. Result: `dlp_months=null`, branch `compliant_clause_present_no_months_stated`, silent.
+
+This is technically a defensible Tier-1 outcome (regulated framework present, value by-reference is execution-stage), but it has a critical quality gap: **the threshold compare never runs**. A future doc whose PCC states 12 months (below threshold) would pass Tier-1 silently with the same "framework present, by-reference, default compliant" path. The check degenerates to framework-presence on every AP Works doc.
+
+**Per-section-type quota retrieval (the fix):** Direct Qdrant probes showed the value-stating sections (NIT datasheet rows, Forms bidder declarations) score 0.44–0.49 cosine — well below the GCC ceiling. With a single top-K=10 query, NIT/Forms candidates never enter the LLM's reranking pool regardless of how the query is phrased. The fix:
+
+```python
+# Two queries — framework + value
+qvec_fw  = embed(QUERY_FRAMEWORK)   # "Defects Liability Period clause defined in PCC..."
+qvec_val = embed(QUERY_VALUE)       # "Period of Defect Liability Period DLP 24 months..."
+
+# Per-section-type quotas
+points_fw  = qdrant_topk(qvec_fw, k=5, section_types=["GCC"])         # 5 GCC framework
+for st in [t for t in section_types if t != "GCC"]:
+    points_val += qdrant_topk(qvec_val, k=3, section_types=[st])      # 3 per non-GCC type
+
+# Merge by point id, keep max cosine, dedupe, top-12
+```
+
+After the fix, JA's rerank pool was [5 GCC + 2 NIT + 3 Forms] = 10 candidates. The LLM picked NIT L43-96 (cosine=0.4937, lowest in the pool) over the 7 higher-cosine GCC candidates because it was the only one stating *"Period of Defect Liability Period (DLP) 24 months from the date of completion of work"*. dlp_months=24 extracted, threshold compare ran, COMPLIANT.
+
+The same fix worked across families:
+- **APCRDA_Works (JA, HC, Vizag)**: NIT datasheet rows surfaced at K_VAL=3 quota; LLM extracted dlp_months=24 from each.
+- **SBD_Format (Kakinada)**: n_gcc=0 — GCC-empty branch falls back to value pool [NIT:3, Evaluation:3, Forms:3] = 9 candidates. LLM picked Evaluation L2936-3186 "PREAMBLE (part 2)" carrying the regulatory cite *"defect liability period of contract in terms of GO Ms No: 8, T(R&B)... is twenty four months after completion of work"*.
+- **NREDCAP_PPP (Tirupathi, Vijayawada)**: AP-GO-084 SKIPs at the rule layer — no retrieval, no LLM call, no quota debate.
+
+**Why we changed:** Without per-section-type quotas, threshold-shape typologies built on top of dense GCC clause families become framework-presence checks in disguise. The corpus had no DLP < 24 cases, so the by-reference trap didn't bite — but it would silently leak any future short-DLP doc through Tier-1 unchecked. The fix is a one-time cost (~30 LOC + a second query embedding) that makes threshold-compare run reliably across all 6 docs.
+
+**Forward applicability:**
+1. **Threshold-shape typologies should default to per-section-type quota retrieval.** Single-query top-K is fine for presence-shape (where any framework-stating section qualifies). For threshold-shape, the value-stating sections are often diluted across long tabular blocks and need explicit quotas. The pattern: split the query into framework-shaped and value-shaped variants, fetch K_FW from the dense-clause family (GCC/SCC) and K_VAL from each value-stating family (NIT/Forms/Evaluation), merge by point id, dedupe, feed top-12 to the LLM.
+2. **GCC-empty branch needs a try/except.** SBD_Format docs (Kakinada n_gcc=0) crash any retrieval that assumes GCC populated. The pattern: wrap the GCC fetch in `try/except RuntimeError` and fall back to the value pool — the LLM extracts the regulatory cite from Evaluation/Forms instead of the GCC framework.
+3. **The by-reference exception is forward-compatible with PCC/SCC verification.** When the LLM legitimately can't find a value (the doc TRULY says "as stated in PCC" with no PCC line in any indexed section), the `compliant_clause_present_no_months_stated` branch is the right outcome. Tier-2 / human review can re-open these cases by querying for `properties->>'violation_reason' = 'compliant_clause_present_no_months_stated'`.
+4. **L48 + L49 together prove the silent-on-COMPLIANT contract.** Two consecutive typologies with 5/6 and 6/6 silent outcomes; portal correctly shows "No violations found for this typology" without any COMPLIANT rows in `kg_nodes`. The four-state contract from L37 is the framing — the portal infers COMPLIANT from absence of any other state.
+
+---
+
 ## L48 — Missing-Force-Majeure: First Always-Compliant Typology (5/6) + Run-Aware JSON Sanitizer Fix
 
 **What we did:** Built `scripts/tier1_force_majeure_check.py` (typology 18) — a presence-shape Tier-1 check using the same BGE-M3 + LLM rerank + L24/L36/L40 pipeline as PVC / IP / LD / MII. Three rules in the typology (MPG-174 universal HARD_BLOCK, MPS-100 Services-only, MPW-122 Works execution-stage) collapse to a single firing rule on the corpus: **MPG-174 fires on all 6 docs**. MPW-122 SKIPs at pre-RFP (FMEventInvoked=false), MPS-100 SKIPs (no Services tenders).
