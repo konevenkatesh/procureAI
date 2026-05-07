@@ -564,6 +564,30 @@ SOLVENCY_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Pre-Bid-Process-Unclear — Pre-bid clarification protocol anchors
+# live primarily in ITB (Section §7 "Clarification of Bidding
+# Document, Site Visit, Pre-Bid Meeting" + BDS rewrites of §7.1, 7.3,
+# 7.4) per CLAUSE-CLARIFICATION-001 (Volume-I/Section-2/ITB) and
+# CLAUSE-CLARIFICATION-AMENDMENT-001 (Volume-I/Section-2/ITB). NIT
+# carries the pre-bid meeting date/time row + address (JA L73, HC L74,
+# Tirupathi/Vijayawada Bid Schedule). Forms may carry the bidder query
+# template (HC BDS L325, L328 query-cutoff specification).
+#
+# SBD_Format (Kakinada) puts ITB content in Evaluation per the L28
+# pattern — include Evaluation for that family.
+#
+# NREDCAP_PPP DCAs (Tirupathi/Vijayawada) put pre-bid-meeting protocol
+# in §8.2 of the RFP main body (Tirupathi RFP L1102-1110); rule
+# layer SKIPs (MPW-061 TenderType=Works only) so retrieval doesn't
+# run on these docs, but filter retained for completeness.
+PREBID_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Forms"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Forms"],   # rule SKIPs; retained
+    "default":       ["NIT", "ITB", "Forms", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -584,6 +608,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Missing-Force-Majeure":       FORCE_MAJEURE_SECTION_ROUTER,
     "DLP-Period-Short":            DLP_SECTION_ROUTER,
     "Solvency-Stale":              SOLVENCY_SECTION_ROUTER,
+    "Pre-Bid-Process-Unclear":     PREBID_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

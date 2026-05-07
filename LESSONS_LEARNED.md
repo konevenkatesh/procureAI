@@ -1038,6 +1038,40 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L51 — Pre-Bid-Process-Unclear: Multi-Field Compliance Gating with Audit Fields + 6/6 Silent on Vague Meta-Quality Rule
+
+**What we did:** Built `scripts/tier1_prebid_check.py` (typology 21) — a presence-shape Tier-1 check operationalising MPW-061 (HARD_BLOCK Works: "Bid Documents must be self-contained and comprehensive without ambiguity") as a 5-field pre-bid clarification protocol extraction. The 5 typology rules collapse to a single Tier-1 firing rule (MPW-061); the others are excluded for the same reasons documented in L48 FM (execution-stage facts default to false; AP-GO-057/211 are timeline/advertisement shapes for a future separate typology; AP-GO-156 is Goods-only).
+
+**Result:** **6/6 silent** — 4 AP Works COMPLIANT silent (JA, HC, Vizag full 5-field; Kakinada minimum protocol) + 2 PPP rule-skip silent. Third silent-by-design typology after L48 FM (5/6 silent) and L49 DLP (6/6 silent). The portal will continue to derive "no violations" from absence of any other-state row.
+
+**The narrow-vs-broad compliance gating decision:** A multi-field extraction with N booleans needs an explicit policy for which combinations gate compliance. Three options:
+1. **All-True gate**: COMPLIANT only if all N fields true. Maximally strict; risks false-positives on lean docs (e.g. SBD pattern without formal pre-bid meeting).
+2. **Any-True gate**: COMPLIANT if any field true. Maximally lax; misses real gaps.
+3. **Minimum-protocol gate**: COMPLIANT if a SUBSET (the regulator-essential fields) is true; the rest are audit fields. Calibrated to the rule's actual scope.
+
+L51 picks option 3: COMPLIANT iff `clarification_request_protocol_present AND clarification_response_protocol_present`. Pre-bid-meeting, cutoff-deadline, site-visit-provision are captured in `properties` for portal review but don't gate compliance. Rationale: MPW-061's "self-contained, comprehensive" is satisfied if bidders can ask and the employer is committed to answer; the meeting/deadline/visit are nice-to-have signals that distinguish mature-template docs (APCRDA Works full 5-field) from lean SBD (Kakinada 2-field). A blanket all-true gate would emit a GAP_VIOLATION on Kakinada despite its compliant minimum protocol.
+
+**Kakinada validation:**
+```
+pre_bid_meeting_specified                = False
+clarification_request_protocol_present   = True
+clarification_response_protocol_present  = True
+clarification_deadline_stated            = False
+site_visit_provision_present             = False
+→ has_minimum_protocol = True → COMPLIANT silent
+```
+Evidence: "A prospective tenderer requiring any clarification on tender documents may contact the tender Inviting officer at the address indicated in the eNIT. The tender inviting officer will also respond to any request for clarification, received through post." L24 score=100 substring (no markdown escaping in SBD source, clean exact match).
+
+**Why we changed:** Multi-field typologies with regulatory rules that have a clear "essential vs nice-to-have" structure should encode that structure in the decision logic. Burying it in the LLM prompt ("treat any 2 of 5 as compliant") is fragile across model versions; codifying it in Python is durable. The 5-field extraction is preserved in `properties` so the portal can render the full audit trail (which fields are true / false per doc), while the 2-field gate keeps the OPEN/silent contract clean.
+
+**Forward applicability:**
+1. **Multi-field presence-shape typologies should pick option 3 by default** — extract N fields for audit, gate COMPLIANT on a regulator-essential subset. Document the gate rationale alongside the boolean schema in the script docstring so reviewers can see WHY each field is gating vs audit-only.
+2. **MPW-061 "self-contained, comprehensive" is now operationalised as "bidders have a path to ask + employer commits to answer".** This narrow framing is forward-compatible with stricter readings (a future regulator update could add deadline/meeting fields to the gate without changing the extraction schema).
+3. **The L48 + L49 + L50 + L51 sequence proves the silent-on-COMPLIANT contract scales across shapes.** L48 single-field presence; L49 threshold; L50 multi-field with mixed COMPLIANT/GAP_VIOLATION; L51 multi-field with minimum-protocol gating. The portal infrastructure handles all four without per-typology UI work — typology authors keep populating the standard `properties` schema and the portal renders.
+4. **6/6 silent typologies are not noise.** Each silent run validates the rule selector + retrieval + L24/L36/L40/L49/L50 chain on a different shape. The cumulative coverage of 21 typologies across 6 docs is the audit proof — every doc has been touched by every Tier-1 check, every check has a defensible outcome (OPEN, UNVERIFIED, COMPLIANT-silent, or rule-skip-silent).
+
+---
+
 ## L50 — Solvency-Stale: Grep-Seeded Retrieval Supplement + APCRDA Works Template Gap
 
 **What we did:** Built `scripts/tier1_solvency_check.py` (typology 20) — a presence-shape Tier-1 check with multi-field framework extraction. Four rules in the typology (AP-GO-089 HARD_BLOCK, AP-GO-103 WARNING proforma, AP-GO-106 partnership-change HARD_BLOCK, MPW25-028 PQ Financial Soundness) collapse to AP-GO-089 as the primary firing rule. AP-GO-103/106 are subsumed (proforma) or execution-stage (partnership) and excluded from RULE_CANDIDATES; MPW25-028 is COMPLIANT in all 4 AP Works docs and excluded to avoid double-firing.
