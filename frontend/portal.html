@@ -49,6 +49,7 @@
         <a href="#docs"       class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">Documents</a>
         <a href="#typologies" class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">Typologies</a>
         <a href="#unverified" class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100">UNVERIFIED queue</a>
+        <a href="#draft" class="nav-link px-3 py-1.5 rounded-md hover:bg-slate-100 text-violet-700 font-medium">Draft Tender</a>
         <span id="status-pill"
               class="ml-3 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 mono">loading…</span>
       </nav>
@@ -149,6 +150,161 @@
       </div>
       <div id="unv-summary" class="text-sm text-slate-600 mono"></div>
       <div id="unv-list" class="space-y-4"></div>
+    </section>
+
+
+    <!-- ═══ VIEW 6 — Draft Tender (4-screen workflow) ════════════════ -->
+    <section id="view-draft" hidden class="space-y-4">
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-bold mb-1">Draft a new tender</h2>
+          <p class="text-sm text-slate-600">
+            3-gate workflow: brief → fact verification → clause review → final approval.
+            Powered by the procureAI Drafter LangGraph (M3) at <span id="draft-api-url" class="mono"></span>.
+          </p>
+        </div>
+        <div id="draft-progress" class="flex items-center gap-2 text-xs"></div>
+      </div>
+
+      <!-- ── Screen 1 — Project brief input ─────────────────────────── -->
+      <div id="draft-screen-1" class="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+        <h3 class="text-lg font-semibold">Step 1 — Project brief</h3>
+        <p class="text-sm text-slate-500">
+          Paste a free-text description OR upload a DPR (PDF / DOCX / Markdown).
+          The LLM will extract project facts you'll review at the next step.
+        </p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Option A — Free-text brief
+            </label>
+            <textarea id="draft-brief-text"
+                      class="mt-2 w-full h-48 rounded-md border border-slate-300 p-3 text-sm font-mono focus:outline-none focus:border-indigo-500"
+                      placeholder="e.g. We need to issue a tender for construction of a District Hospital at Kurnool with 3 floors, total built-up area 15,000 sqm. Budget is Rs.85 crore. APIIC is the implementing agency. The work should complete in 18 months. State government funded."></textarea>
+            <button id="draft-btn-load-demo"
+                    class="mt-1 text-xs text-violet-700 hover:underline">
+              ↳ load Kurnool demo brief
+            </button>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Option B — Upload DPR / project document
+            </label>
+            <input id="draft-brief-file"
+                   type="file"
+                   accept=".pdf,.docx,.md,.txt"
+                   class="mt-2 w-full text-sm text-slate-700 file:mr-3 file:px-3 file:py-2 file:rounded-md file:border-0 file:bg-violet-50 file:text-violet-700 file:text-xs file:font-semibold hover:file:bg-violet-100" />
+            <p class="text-xs text-slate-500 mt-2">
+              Supported: PDF (Docling-converted to MD before extraction), DOCX, Markdown, plain text.
+              File is stored in <span class="mono">/tmp</span> on the server during the session.
+            </p>
+          </div>
+        </div>
+        <div class="pt-2 flex items-center gap-3">
+          <button id="draft-btn-extract"
+                  class="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700 disabled:bg-slate-300">
+            Extract Project Details →
+          </button>
+          <span id="draft-extract-status" class="text-xs text-slate-500"></span>
+        </div>
+      </div>
+
+      <!-- ── Screen 2 — Fact verification (Gate 1) ──────────────────── -->
+      <div id="draft-screen-2" hidden class="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">Step 2 — Confirm Project Facts</h3>
+          <span id="draft-gate1-summary" class="text-xs text-slate-500"></span>
+        </div>
+        <p class="text-sm text-slate-500">
+          Review the facts the system extracted from your brief. Fields with a
+          <span class="text-rose-700 font-semibold">red border</span> are REQUIRED and must be filled.
+          You may override any extracted value the system got wrong.
+        </p>
+        <form id="draft-facts-form" class="grid grid-cols-1 md:grid-cols-2 gap-4"></form>
+        <div class="pt-2 flex items-center gap-3 border-t border-slate-100">
+          <button id="draft-btn-confirm-facts"
+                  class="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700">
+            Confirm and Continue →
+          </button>
+          <button id="draft-btn-back-to-1"
+                  class="text-xs text-slate-600 hover:underline">
+            ← back to brief
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Screen 3 — Clause review (Gate 2) ──────────────────────── -->
+      <div id="draft-screen-3" hidden class="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">Step 3 — Review Selected Clauses</h3>
+          <span id="draft-gate2-summary" class="text-xs text-slate-500"></span>
+        </div>
+        <p class="text-sm text-slate-500">
+          The system has selected clauses based on your project facts. Most officers will click
+          <strong>Accept All</strong> here. To drop a specific clause, expand the section below and toggle it off.
+        </p>
+        <div id="draft-clause-summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        <div id="draft-clause-detail" class="space-y-2"></div>
+        <div class="pt-2 flex items-center gap-3 border-t border-slate-100">
+          <button id="draft-btn-accept-all"
+                  class="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700">
+            Accept All Clauses → Generate Draft
+          </button>
+          <button id="draft-btn-back-to-2"
+                  class="text-xs text-slate-600 hover:underline">
+            ← back to facts
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Screen 4 — Final approval (Gate 3) ─────────────────────── -->
+      <div id="draft-screen-4" hidden class="space-y-4">
+        <div class="bg-white rounded-lg border border-slate-200 p-6 space-y-3">
+          <h3 class="text-lg font-semibold">Step 4 — Final Approval</h3>
+          <p class="text-sm text-slate-500">
+            The draft has been assembled and validated. Review the validation report below
+            and the document preview. Approve to finalise; revise to send back for changes.
+          </p>
+          <div id="draft-stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3"></div>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 space-y-2">
+          <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Validation Report</h4>
+          <div id="draft-validation-list" class="space-y-1"></div>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Document Preview</h4>
+            <div class="flex items-center gap-2">
+              <a id="draft-link-download-md"
+                 class="text-xs px-3 py-1.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100">
+                ↓ Download Markdown
+              </a>
+              <button id="draft-btn-download-docx"
+                      class="text-xs px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed"
+                      disabled
+                      title="DOCX export requires python-docx — not yet wired into the API">
+                ↓ Download as Word Doc
+              </button>
+            </div>
+          </div>
+          <pre id="draft-preview" class="mono text-xs bg-slate-50 p-4 rounded border border-slate-200 max-h-[60vh] overflow-auto whitespace-pre-wrap"></pre>
+        </div>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 flex flex-wrap items-center gap-3">
+          <button id="draft-btn-approve"
+                  class="px-4 py-2 bg-emerald-600 text-white text-sm rounded-md hover:bg-emerald-700">
+            ✓ Approve and Publish
+          </button>
+          <button id="draft-btn-revise"
+                  class="px-4 py-2 bg-white text-slate-700 text-sm rounded-md border border-slate-300 hover:bg-slate-50">
+            ↺ Send back for revision
+          </button>
+          <button id="draft-btn-abandon"
+                  class="px-4 py-2 bg-rose-50 text-rose-700 text-sm rounded-md border border-rose-200 hover:bg-rose-100">
+            ✗ Abandon
+          </button>
+          <span id="draft-final-status" class="ml-auto text-xs text-slate-500"></span>
+        </div>
+      </div>
     </section>
 
 
@@ -723,6 +879,9 @@
         } else if (head === "unverified") {
           showView("unverified");
           renderUnverifiedView();
+        } else if (head === "draft") {
+          showView("draft");
+          initDraftView();
         } else if (head === "source") {
           showView("source");
           renderSourceView(
@@ -737,6 +896,413 @@
         setStatus(`error: ${err.message}`);
       }
     }
+
+    // ── DRAFT TENDER (M3) ─────────────────────────────────────────
+    // Talks to api/drafter_api.py at DRAFT_API. The Drafter API is a
+    // separate FastAPI server (different port from Supabase REST). The
+    // 4 screens correspond to the 3 LangGraph interrupt gates plus
+    // the brief-input step that precedes Gate 1.
+    const DRAFT_API = (window.__DRAFT_API__ || "http://localhost:8766");
+
+    let DRAFT_THREAD_ID = null;
+    let DRAFT_CURRENT_GATE = null;
+    let DRAFT_LATEST_PAYLOAD = null;
+    let DRAFT_SELECTED_CLAUSES_MEMO = null;
+    let DRAFT_INIT_DONE = false;
+
+    const KURNOOL_DEMO_BRIEF = (
+      "We need to issue a tender for construction of a new District " +
+      "Hospital at Kurnool with 3 floors, total built-up area 15,000 " +
+      "sqm. Budget is Rs.85 crore. APIIC is the implementing agency. " +
+      "The work should complete in 18 months. This is a state " +
+      "government funded project."
+    );
+
+    function initDraftView() {
+      const lbl = document.getElementById("draft-api-url");
+      if (lbl) lbl.textContent = DRAFT_API;
+      if (DRAFT_INIT_DONE) {
+        renderDraftProgress();
+        return;
+      }
+      DRAFT_INIT_DONE = true;
+
+      // Demo-fill button
+      document.getElementById("draft-btn-load-demo").addEventListener("click", () => {
+        document.getElementById("draft-brief-text").value = KURNOOL_DEMO_BRIEF;
+      });
+      // Step 1 → Extract
+      document.getElementById("draft-btn-extract").addEventListener("click", draftStartFromInput);
+      // Step 2 → Confirm facts
+      document.getElementById("draft-btn-confirm-facts").addEventListener("click", draftConfirmFacts);
+      document.getElementById("draft-btn-back-to-1").addEventListener("click", () => {
+        showDraftScreen(1);
+      });
+      // Step 3 → Accept All
+      document.getElementById("draft-btn-accept-all").addEventListener("click", draftAcceptAllClauses);
+      document.getElementById("draft-btn-back-to-2").addEventListener("click", () => {
+        showDraftScreen(2);
+      });
+      // Step 4 → Approve / Revise / Abandon
+      document.getElementById("draft-btn-approve").addEventListener("click", () => draftFinalAction("approve"));
+      document.getElementById("draft-btn-revise").addEventListener("click", () => draftFinalAction("revise"));
+      document.getElementById("draft-btn-abandon").addEventListener("click", () => draftFinalAction("abandon"));
+
+      showDraftScreen(1);
+      renderDraftProgress();
+    }
+
+    function showDraftScreen(n) {
+      [1,2,3,4].forEach(i => {
+        const el = document.getElementById(`draft-screen-${i}`);
+        if (el) el.hidden = (i !== n);
+      });
+      DRAFT_CURRENT_GATE = (
+        n === 1 ? null :
+        n === 2 ? "FactVerification" :
+        n === 3 ? "ClauseReview" :
+        n === 4 ? "FinalApproval" : null
+      );
+      renderDraftProgress();
+    }
+
+    function renderDraftProgress() {
+      const steps = [
+        ["1. Brief",     1],
+        ["2. Facts",     2],
+        ["3. Clauses",   3],
+        ["4. Approval",  4],
+      ];
+      const current = (
+        DRAFT_CURRENT_GATE === "FactVerification" ? 2 :
+        DRAFT_CURRENT_GATE === "ClauseReview"     ? 3 :
+        DRAFT_CURRENT_GATE === "FinalApproval"    ? 4 : 1
+      );
+      const out = steps.map(([label, n]) => {
+        const cls =
+          n < current ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+          n === current ? "bg-violet-100 text-violet-700 border-violet-300 font-semibold" :
+          "bg-slate-100 text-slate-500 border-slate-200";
+        return `<span class="px-2 py-1 rounded border ${cls}">${escapeHtml(label)}</span>`;
+      }).join('<span class="text-slate-300">›</span>');
+      const el = document.getElementById("draft-progress");
+      if (el) el.innerHTML = out;
+    }
+
+    async function draftApiCall(path, body, method = "POST") {
+      const opts = {method, headers: {"Content-Type": "application/json"}};
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      const r = await fetch(`${DRAFT_API}${path}`, opts);
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`${method} ${path} → ${r.status} ${txt}`);
+      }
+      return r.json();
+    }
+
+    async function draftStartFromInput() {
+      const text = document.getElementById("draft-brief-text").value.trim();
+      const file = document.getElementById("draft-brief-file").files[0];
+      const status = document.getElementById("draft-extract-status");
+      const btn = document.getElementById("draft-btn-extract");
+      status.textContent = "extracting…";
+      btn.disabled = true;
+
+      try {
+        let resp;
+        if (file) {
+          // Multipart upload
+          const fd = new FormData();
+          fd.append("file", file);
+          const r = await fetch(`${DRAFT_API}/draft/start_pdf`, {method: "POST", body: fd});
+          if (!r.ok) throw new Error(`upload failed: ${r.status} ${await r.text()}`);
+          resp = await r.json();
+        } else if (text) {
+          resp = await draftApiCall("/draft/start", {project_brief_text: text});
+        } else {
+          status.textContent = "Please paste a brief OR select a file.";
+          status.classList.add("text-rose-600");
+          btn.disabled = false;
+          return;
+        }
+        DRAFT_THREAD_ID = resp.thread_id;
+        DRAFT_LATEST_PAYLOAD = resp.payload;
+        DRAFT_CURRENT_GATE = resp.gate;
+        renderGate1Form(resp.payload);
+        status.textContent = `extracted in session ${resp.thread_id}`;
+        status.classList.remove("text-rose-600");
+        showDraftScreen(2);
+      } catch (e) {
+        status.textContent = `error: ${e.message}`;
+        status.classList.add("text-rose-600");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderGate1Form(payload) {
+      const summary = document.getElementById("draft-gate1-summary");
+      summary.textContent =
+        `${payload.n_required_missing || 0} REQUIRED missing · ` +
+        `${payload.n_optional_missing || 0} OPTIONAL missing · ` +
+        `${(payload.facts_checklist || []).length} fields total`;
+
+      const form = document.getElementById("draft-facts-form");
+      const checklist = payload.facts_checklist || [];
+      form.innerHTML = checklist.map(c => {
+        const isReq = c.status === "REQUIRED";
+        const mustFill = c.must_fill || (isReq && (c.current_value === null || c.current_value === ""));
+        const conf = (c.confidence != null) ? c.confidence : 0;
+        const conf_pct = Math.round(conf * 100);
+        const conf_cls = conf >= 0.9 ? "bg-emerald-100 text-emerald-700"
+                      : conf >= 0.5 ? "bg-amber-100  text-amber-700"
+                      : "bg-rose-100   text-rose-700";
+        const border = mustFill ? "border-rose-400" : "border-slate-300";
+        const label = c.label || c.field;
+        const help = c.prompt || "";
+        const val = (c.current_value === null || c.current_value === undefined) ? "" : String(c.current_value);
+        const evidence = c.evidence_quote || "";
+        const srcBadge = c.source ? `<span class="text-[10px] uppercase tracking-wide text-slate-500">${escapeHtml(c.source)}</span>` : "";
+        const isBool = (typeof c.current_value === "boolean")
+                       || c.field === "is_ap_tender";
+        let inputHtml;
+        if (isBool) {
+          const checkedTrue  = String(c.current_value) === "true"  ? "checked" : "";
+          const checkedFalse = String(c.current_value) === "false" ? "checked" : "";
+          inputHtml = `
+            <select name="${escapeHtml(c.field)}" class="mt-1 w-full rounded border ${border} px-2 py-1.5 text-sm">
+              <option value="true"  ${checkedTrue}>true</option>
+              <option value="false" ${checkedFalse}>false</option>
+            </select>`;
+        } else if (c.field === "scope_description") {
+          inputHtml = `
+            <textarea name="${escapeHtml(c.field)}"
+                      class="mt-1 w-full rounded border ${border} px-2 py-1.5 text-sm font-mono h-20"
+                      placeholder="${escapeHtml(help)}">${escapeHtml(val)}</textarea>`;
+        } else {
+          inputHtml = `
+            <input  name="${escapeHtml(c.field)}"
+                    value="${escapeHtml(val)}"
+                    placeholder="${escapeHtml(help)}"
+                    class="mt-1 w-full rounded border ${border} px-2 py-1.5 text-sm" />`;
+        }
+        return `
+          <div class="space-y-1 p-3 rounded border border-slate-100">
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                ${escapeHtml(label)} ${isReq ? '<span class="text-rose-600">*</span>' : ''}
+              </label>
+              <div class="flex items-center gap-2">
+                ${srcBadge}
+                <span class="text-[10px] mono px-1.5 py-0.5 rounded ${conf_cls}">${conf_pct}%</span>
+              </div>
+            </div>
+            ${inputHtml}
+            ${evidence ? `<div class="text-[11px] text-slate-500 italic">↳ ${escapeHtml(evidence)}</div>` : ""}
+          </div>`;
+      }).join("");
+    }
+
+    async function draftConfirmFacts() {
+      const form = document.getElementById("draft-facts-form");
+      const fd = new FormData(form);
+      const confirmed = {};
+      for (const [k, v] of fd.entries()) {
+        let value = v;
+        if (v === "true")  value = true;
+        if (v === "false") value = false;
+        if (typeof value === "string" && value !== "" && !isNaN(Number(value))
+            && (k === "ecv_cr" || k === "duration_months" || k === "dlp_months" || k === "bid_validity_days")) {
+          value = Number(value);
+        }
+        if (value === "") value = null;
+        confirmed[k] = value;
+      }
+      const status = document.getElementById("draft-extract-status");
+      const btn = document.getElementById("draft-btn-confirm-facts");
+      btn.disabled = true;
+      btn.textContent = "Selecting clauses…";
+      try {
+        const resp = await draftApiCall("/draft/resume", {
+          thread_id: DRAFT_THREAD_ID,
+          response:  {status: "confirmed", confirmed_facts: confirmed},
+        });
+        DRAFT_LATEST_PAYLOAD = resp.payload;
+        DRAFT_CURRENT_GATE = resp.gate;
+        if (resp.gate === "ClauseReview") {
+          renderGate2(resp.payload);
+          showDraftScreen(3);
+        } else if (resp.status === "completed") {
+          showDraftScreen(4);
+          renderFinalApproval(resp.final_state, true);
+        } else {
+          alert(`Unexpected gate: ${resp.gate}`);
+        }
+      } catch (e) {
+        alert(`Confirm failed: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Confirm and Continue →";
+      }
+    }
+
+    function renderGate2(payload) {
+      DRAFT_SELECTED_CLAUSES_MEMO = payload;
+      const summary = payload.summary || {};
+      const bySection = payload.by_section || {};
+      document.getElementById("draft-gate2-summary").textContent =
+        `${payload.n_total_included || 0} clauses included · ${payload.n_excluded || 0} excluded`;
+
+      const cardEntries = [
+        ["MANDATORY",         "bg-emerald-50 border-emerald-200 text-emerald-700"],
+        ["MANDATORY-DEFAULT", "bg-blue-50 border-blue-200 text-blue-700"],
+        ["ADVISORY",          "bg-amber-50 border-amber-200 text-amber-700"],
+        ["OPTIONAL",          "bg-slate-50 border-slate-200 text-slate-700"],
+      ];
+      const cardEl = document.getElementById("draft-clause-summary-cards");
+      cardEl.innerHTML = cardEntries.map(([k, cls]) => `
+        <div class="p-3 rounded border ${cls}">
+          <div class="text-xs uppercase tracking-wide font-semibold">${escapeHtml(k)}</div>
+          <div class="text-2xl font-bold mt-1">${summary[k] || 0}</div>
+        </div>`).join("");
+
+      // By-section detail
+      const sectionLabels = {
+        "Volume-I/Section-1/NIT":         "NIT (Notice Inviting Tender)",
+        "Volume-I/Section-2/ITB":         "ITB (Instructions to Bidders)",
+        "Volume-I/Section-3/Datasheet":   "BDS / Datasheet",
+        "Volume-I/Section-4/Evaluation":  "Evaluation & Qualification",
+        "Volume-I/Section-5/Forms":       "Bidding Forms",
+        "Volume-II/Section-1/GCC":        "GCC (General Conditions of Contract)",
+        "Volume-II/Section-2/SCC":        "SCC / PCC overrides",
+        "Volume-II/Section-3/Scope":      "Scope of Work",
+        "Volume-II/Section-4/Specifications": "Technical Specifications",
+        "Volume-II/Section-5/BOQ":        "Bill of Quantities",
+      };
+      const detailEl = document.getElementById("draft-clause-detail");
+      const sortedSecs = Object.keys(bySection).sort();
+      detailEl.innerHTML = `<details class="rounded border border-slate-200">
+        <summary class="cursor-pointer px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+          Show clause-by-section breakdown (${sortedSecs.length} sections)
+        </summary>
+        <div class="p-3 space-y-2 bg-slate-50">
+          ${sortedSecs.map(s => `
+            <div class="text-xs">
+              <strong class="text-slate-700">${escapeHtml(sectionLabels[s] || s)}</strong>
+              <span class="text-slate-500 mono">(${(bySection[s] || []).length} clauses)</span>
+            </div>`).join("")}
+        </div>
+      </details>`;
+    }
+
+    async function draftAcceptAllClauses() {
+      const btn = document.getElementById("draft-btn-accept-all");
+      btn.disabled = true;
+      btn.textContent = "Assembling document…";
+      try {
+        const resp = await draftApiCall("/draft/resume", {
+          thread_id: DRAFT_THREAD_ID,
+          response:  {status: "confirmed", accept_all: true, rejected_clause_ids: []},
+        });
+        DRAFT_LATEST_PAYLOAD = resp.payload;
+        DRAFT_CURRENT_GATE = resp.gate;
+        if (resp.gate === "FinalApproval") {
+          renderFinalApproval(resp.payload, false);
+          showDraftScreen(4);
+        } else {
+          alert(`Unexpected gate: ${resp.gate || resp.status}`);
+        }
+      } catch (e) {
+        alert(`Generate failed: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Accept All Clauses → Generate Draft";
+      }
+    }
+
+    async function renderFinalApproval(payload, isFinalState) {
+      // Stats row
+      const statsEl = document.getElementById("draft-stats-row");
+      const stats = isFinalState ? {
+        n_clauses_in_draft: payload.n_clauses_in_draft,
+        n_placeholders_filled: payload.n_placeholders_filled,
+        n_placeholders_unresolved: payload.n_placeholders_unresolved,
+        n_hard_blocks: payload.n_hard_blocks,
+        n_warnings: payload.n_warnings,
+        draft_path: payload.draft_path,
+      } : payload;
+
+      statsEl.innerHTML = `
+        <div class="p-3 rounded border bg-slate-50 border-slate-200">
+          <div class="text-xs uppercase tracking-wide text-slate-700 font-semibold">Clauses included</div>
+          <div class="text-2xl font-bold mt-1">${stats.n_clauses_in_draft || 0}</div>
+        </div>
+        <div class="p-3 rounded border bg-slate-50 border-slate-200">
+          <div class="text-xs uppercase tracking-wide text-slate-700 font-semibold">Placeholders filled</div>
+          <div class="text-2xl font-bold mt-1">${stats.n_placeholders_filled || 0}</div>
+          <div class="text-[10px] text-slate-500 mono">${stats.n_placeholders_unresolved || 0} unresolved</div>
+        </div>
+        <div class="p-3 rounded border ${stats.n_hard_blocks ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}">
+          <div class="text-xs uppercase tracking-wide font-semibold ${stats.n_hard_blocks ? 'text-rose-700' : 'text-emerald-700'}">HARD_BLOCKs</div>
+          <div class="text-2xl font-bold mt-1 ${stats.n_hard_blocks ? 'text-rose-700' : 'text-emerald-700'}">${stats.n_hard_blocks || 0}</div>
+        </div>
+        <div class="p-3 rounded border bg-slate-50 border-slate-200">
+          <div class="text-xs uppercase tracking-wide text-slate-700 font-semibold">Draft path</div>
+          <div class="text-[11px] mono mt-1 break-all text-slate-600">${escapeHtml(stats.draft_path || "—")}</div>
+        </div>
+      `;
+
+      // Validation report
+      const findings = (payload.validation_findings || []);
+      const valEl = document.getElementById("draft-validation-list");
+      valEl.innerHTML = findings.map(f => {
+        const ok = f.status === "COMPLIANT";
+        const cls = ok ? "text-emerald-700" : "text-rose-700";
+        const icon = ok ? "✓" : "✗";
+        return `<div class="text-sm">
+          <span class="${cls} font-semibold">${icon}</span>
+          <span class="font-semibold">${escapeHtml(f.typology)}</span>
+          <span class="text-slate-500">— ${escapeHtml(f.status)}</span>
+          ${f.expected ? `<span class="text-xs text-slate-500"> (expected ${escapeHtml(f.expected)})</span>` : ""}
+        </div>`;
+      }).join("");
+
+      // Download links
+      const dl = document.getElementById("draft-link-download-md");
+      dl.href = `${DRAFT_API}/draft/${DRAFT_THREAD_ID}/download`;
+      dl.setAttribute("download", `draft_${DRAFT_THREAD_ID}.md`);
+
+      // Preview
+      const preview = document.getElementById("draft-preview");
+      preview.textContent = "loading preview…";
+      try {
+        const r = await fetch(`${DRAFT_API}/draft/${DRAFT_THREAD_ID}/preview`);
+        const t = await r.text();
+        preview.textContent = t.slice(0, 12000) + (t.length > 12000 ? "\n\n… (truncated)" : "");
+      } catch (e) {
+        preview.textContent = `failed to load preview: ${e.message}`;
+      }
+    }
+
+    async function draftFinalAction(action) {
+      const status = document.getElementById("draft-final-status");
+      status.textContent = `${action}ing…`;
+      try {
+        const resp = await draftApiCall("/draft/resume", {
+          thread_id: DRAFT_THREAD_ID,
+          response: {action, output_format: "md"},
+        });
+        if (resp.status === "completed") {
+          const fs = resp.final_state || {};
+          status.textContent = `workflow ${fs.workflow_status || action} · output: ${fs.final_output_path || "(none)"}`;
+        } else {
+          status.textContent = `unexpected response: ${JSON.stringify(resp).slice(0,200)}`;
+        }
+      } catch (e) {
+        status.textContent = `error: ${e.message}`;
+      }
+    }
+
 
     // ── Boot ─────────────────────────────────────────────────────
     (async function boot() {
