@@ -533,6 +533,37 @@ DLP_SECTION_ROUTER: dict[str, list[str]] = {
 }
 
 
+# Solvency-Stale — Solvency Certificate framework anchors live in
+# NIT (PQ Financial Capabilities tables, "Solvency certificate from
+# Nationalised/Scheduled Bank" row), ITB (BDS rewrites of PQ
+# requirements + clarifications), Forms (Annexure V(a) FORM OF
+# SOLVENCY CERTIFICATES BY MANDAL REVENUE OFFICER + Annexure V(b)
+# FORM OF SOLVENCY CERTIFICATE BY BANKS proformas + bidder
+# declarations), and Evaluation (Kakinada SBD: PQ blocks at L1068,
+# L1243, L1412 carrying the GO MS No 129/63 cite + Tahsildar option
+# + 1-year validity rule).
+#
+# Per the read-first scan: APCRDA Works template (JA, HC) drops the
+# Tahsildar option entirely and silently omits the 1-year validity
+# rule from the PQ table — only "Solvency certificates from any
+# Nationalized/Scheduled Bank or Certificate issued by CA for not
+# less than Rs.X Cr." appears in NIT. Vizag's NIT (Vol-I L1199)
+# explicitly cites the 1-year-validity rule and attaches the Bank
+# proforma at L2448. Kakinada's Evaluation blocks carry the full
+# regulated framework (Tahsildar + Bank + 1-year + GO citations).
+#
+# NREDCAP_PPP: AP-GO-089/103/106 SKIP on TenderType=PPP. Tirupathi/
+# Vijayawada DCAs reference Scheduled Bank only in EMD/PBG context,
+# not solvency-cert framework. Filter retained for completeness;
+# rule selector exits before retrieval.
+SOLVENCY_SECTION_ROUTER: dict[str, list[str]] = {
+    "APCRDA_Works":  ["NIT", "ITB", "Forms", "Evaluation"],
+    "SBD_Format":    ["NIT", "ITB", "Evaluation", "Forms"],
+    "NREDCAP_PPP":   ["NIT", "ITB", "Forms"],   # rule SKIPs; retained
+    "default":       ["NIT", "ITB", "Forms", "Evaluation"],
+}
+
+
 SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "EMD-Shortfall":               EMD_SECTION_ROUTER,
     "Bid-Validity-Short":          BID_VALIDITY_SECTION_ROUTER,
@@ -552,6 +583,7 @@ SECTION_ROUTERS: dict[str, dict[str, list[str]]] = {
     "Works-Universal-Mandatory-Fields": WORKS_MANDATORY_SECTION_ROUTER,
     "Missing-Force-Majeure":       FORCE_MAJEURE_SECTION_ROUTER,
     "DLP-Period-Short":            DLP_SECTION_ROUTER,
+    "Solvency-Stale":              SOLVENCY_SECTION_ROUTER,
     # Future typologies plug in here.
 }
 

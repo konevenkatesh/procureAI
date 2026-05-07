@@ -1038,6 +1038,49 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L50 — Solvency-Stale: Grep-Seeded Retrieval Supplement + APCRDA Works Template Gap
+
+**What we did:** Built `scripts/tier1_solvency_check.py` (typology 20) — a presence-shape Tier-1 check with multi-field framework extraction. Four rules in the typology (AP-GO-089 HARD_BLOCK, AP-GO-103 WARNING proforma, AP-GO-106 partnership-change HARD_BLOCK, MPW25-028 PQ Financial Soundness) collapse to AP-GO-089 as the primary firing rule. AP-GO-103/106 are subsumed (proforma) or execution-stage (partnership) and excluded from RULE_CANDIDATES; MPW25-028 is COMPLIANT in all 4 AP Works docs and excluded to avoid double-firing.
+
+**Result:** **2 GAP_VIOLATION HARD_BLOCKs (JA + HC)** + 2 COMPLIANT silent (Vizag + Kakinada) + 2 rule-skip silent (Tirupathi + Vijayawada PPPs). First non-silent typology since L46 Mandatory-Fields.
+
+**APCRDA Works template gap surfaced — second corpus-pattern signal:**
+- JA: bank=True, tahsildar=False, validity_1yr=False, threshold="Rs.20.92 Cr."
+- HC: bank=True, tahsildar=False, validity_1yr=False, threshold="Rs. 73 Cr."
+- Vizag (different APCRDA template): bank=True, tahsildar=False, validity_1yr=True ← Vol-I L1199 has explicit "certificate not older than 1 year from Banks" — outlier from JA/HC's gap
+- Kakinada (SBD_Format): tahsildar=True, bank=True, validity_1yr=True, GO MS No 129 cite — full framework
+
+JA and HC share the same APCRDA Works template's "(i) Liquid assets/credit facilities/Solvency certificates from any Nationalized/Scheduled Bank or Certificate issued by CA for not less than Rs.X Cr." pattern — same wording, same missing validity rule, same missing Tahsildar option. This is the second template-shared gap after L43's Arbitration §60 Property pattern. **Diagnostic value:** a procurement-reform narrative can cite the APCRDA Works template for systematic strengthening.
+
+**The grep-seeded retrieval supplement (the new technique):** First JA run with L49 quotas alone returned `chosen_index=null, all_booleans=false`. The PQ row at JA L678 sits in ITB section L618-737 with the misleading heading "SETTLEMENT OF CLAIMS (part 1)" — BGE-M3 ranks this section #7 in ITB by cosine (0.4357), below the K_VAL=3 cutoff. Bumping K_VAL to 7+ would bloat the prompt across all 6 docs and risk distracting the LLM with low-relevance content.
+
+The fix: tight literal grep for the keyword `"solvency"` (extremely specific — near-zero false positives unlike "scheduled bank" / "validity" which match EMD/PBG/bid-validity sections). Sections matching the grep that aren't already in the cosine top-K get added at `cosine=0.0` (signaling "grep-seeded"). The LLM rerank prompt sees both the cosine candidates and the grep-seeded sections, picks the best evidence regardless of cosine origin.
+
+```python
+# After cosine merge:
+SEED_KEYWORDS = ["solvency"]   # tight, typology-specific
+_, seed_hits = grep_source_for_keywords(DOC_ID, section_types, SEED_KEYWORDS)
+seeded_section_ids = {h["section_node_id"] for h in seed_hits}
+for sid in seeded_section_ids:
+    if not any(p["payload"].get("section_id") == sid for p in by_id.values()):
+        # Synthesise a Qdrant-shaped point with cosine=0.0 from kg_nodes payload
+        sec_rows = rest_get("kg_nodes", {"select": "node_id,properties",
+                                          "node_id": f"eq.{sid}"})
+        # ... build seeded_pt and add to by_id
+```
+
+Result on JA: 14 candidates fed to LLM (12 cosine + 1 grep-seeded "SETTLEMENT OF CLAIMS L618-737" at cosine=0.0 + 1 dedupe cushion). The LLM picked the grep-seeded candidate over all 12 higher-cosine candidates because it was the only one stating the actual solvency-certificate framework. Evidence quote (Liquid assets/credit facilities/Solvency certificates from any Nationalized/Scheduled Bank... Rs.20.92 Cr.) verified at L24 score=99 partial_ratio.
+
+**Why we changed:** L49 quota retrieval guarantees section-type diversity but doesn't help when the canonical signal-bearing section has a misleading heading that depresses its cosine. For sparse-signal typologies where a unique regulated keyword exists, grep-seeding is cheap insurance: O(seconds) cost, zero false-positive risk if the keyword vocabulary is tight, and the L24 evidence guard backstops any LLM mistake. The technique reads cleanly alongside L49 quotas — quotas guarantee section-type diversity, L50 guarantees keyword-bearing presence.
+
+**Forward applicability:**
+1. **Sparse-signal Tier-1 typologies should layer L50 grep-seeding on top of L49 quotas.** The default keyword vocabulary for grep-seeding should be ONE highly-specific term (e.g. "solvency" for Solvency-Stale, "MII" for MakeInIndia, "indemnity" for Indemnity-Cap). Multi-keyword vocabularies risk surfacing tangentially-related sections that distract the LLM.
+2. **Grep-seeded candidates must use the same payload shape as Qdrant points.** The script uses a synthetic `id="seeded:<section_node_id>"` and `score=0.0` so they sort to the bottom of the merged list — the LLM still chooses by relevance, not by cosine rank. Critical: the payload must include `section_id`, `heading`, `section_type`, `source_file`, `line_start_local`, `line_end_local` so `resolve_section()` can short-circuit the kg_nodes lookup.
+3. **The APCRDA Works template gap is a procurement-reform signal.** Two systemic patterns now surfaced in the corpus — Arbitration §60 Property (L43) and Solvency framework (L50) — both shared by JA + HC because both use the same APCRDA Works template. A future template-revision deck has corpus-grounded evidence: weakness 1 (Arbitration), weakness 2 (Solvency), and probably more to come.
+4. **L48 + L49 + L50 together prove the silent-on-COMPLIANT contract on a non-trivial typology.** Solvency-Stale emits 2 OPEN HARD_BLOCKs and 4 silents (2 COMPLIANT + 2 rule-skip). The portal correctly distinguishes them: 2 doc tiles show OPEN with framework-gap evidence, 4 doc tiles show "no findings". The four-state contract continues to scale without UI special-cases.
+
+---
+
 ## L49 — DLP-Period-Short: Per-Section-Type Quota Retrieval + Threshold Shape with By-Reference Trap
 
 **What we did:** Built `scripts/tier1_dlp_check.py` (typology 19) — a threshold-shape Tier-1 check for AP-GO-084 (AP Works/EPC Defects Liability Period fixed at 24 months). Three rules in the typology (AP-GO-084 WARNING, MPW-030 EPC latent-defect HARD_BLOCK, CVC-114 Goods-only HARD_BLOCK) collapse to one Tier-1 candidate: AP-GO-084 fires on the 4 AP Works docs, SKIPs on the 2 NREDCAP PPP DCAs. MPW-030 excluded from candidates (it's about the procuring authority's organisational capacity + a separate latent-defect clause beyond DLP — not a doc-content check, same exclusion reasoning as MPW-122 in L48). CVC-114 SKIPs corpus-wide.
