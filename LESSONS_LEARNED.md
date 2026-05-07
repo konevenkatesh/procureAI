@@ -1038,6 +1038,64 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L54 — Spec-Tailoring: Anti-Pattern Compliance Override + Material/Brand/Standard Disambiguation in LLM Prompt
+
+**What we did:** Built `scripts/tier1_spec_tailoring_check.py` (typology 24) — anti-pattern detection on GFR-G-030 ("Description shall NOT indicate a particular trade mark, trade name or brand"). Result: 1 GAP_VIOLATION (Kakinada: doc names HPCL/BPCL/IOCL as required Bitumen/Emulsion suppliers without "or equivalent" or PAC) + 5 COMPLIANT silent.
+
+**Two distinct sub-lessons surfaced during the build:**
+
+### L54a — Anti-pattern compliance-override decision logic
+
+For anti-pattern typologies with multiple compliance escape valves, the decision logic must explicitly OR the escape valves. Vizag's first run flagged `names_brand=True` (LLM mistake — material specs aren't brand names) AND `generic_approved=True` AND `bis_iso=True`. Without explicit override, the script would have emitted a false positive.
+
+```python
+is_arbitrary_brand = (
+    names_brand
+    AND not has_or_equiv          # qualifier override
+    AND not has_pac               # PAC justification override
+    AND not generic_approved      # standard convention override
+    AND not bis_iso               # objective standard override
+)
+```
+
+Forward-applicable to any anti-pattern typology (CRN's regulatory-citation override, MII's classification overrides, etc.). The pattern: codify the OR-of-escape-valves explicitly so a mistakenly-flagged anti-pattern doesn't override correctly-flagged compliance signals.
+
+### L54b — Material/Brand/Standard disambiguation in LLM prompt
+
+The first prompt told the LLM "TRUE if a SPECIFIC company / trade name is named" with a brand-name list. The LLM intermittently flagged `names_brand=True` on:
+- **Material names**: "Aluminium", "Cement", "Steel", "UPVC"
+- **Product categories**: "Sliding Windows", "Glazed Tiles"
+- **BIS/IS standard references**: "IS:1948", "I.S.: 127-106"
+
+These are NOT company names but the LLM didn't reliably distinguish. The fix: enumerate 5 explicit NON-brand-name categories in the prompt, with examples and a definitional anchor:
+
+> *"A specific company name is one you could look up on a stock exchange or business registry — not a material, not a standard, not a category."*
+
+After the fix, Vizag's LLM reliably extracted `names_brand=False` with reasoning "uses 'approved brand and manufacturer' without naming specific brands, and references IS standards, which is compliant." The Kakinada HPCL/BPCL/IOCL violation still flagged correctly because those ARE specific company names (oil PSUs listed on stock exchanges).
+
+Forward-applicable to any anti-pattern typology where the boundary between compliant and violating signals depends on category-distinction (material vs brand, standard vs proprietary, generic vs specific). The pattern: don't just give positive examples — enumerate the contrast cases the LLM is likely to confuse.
+
+### L36/L40 grep fallback DISABLED for this typology
+
+Standard L36/L40 fallback fires when the LLM returns `chosen_index=null` and grep finds keyword hits (suggesting LLM missed real signal). For Spec-Tailoring this is wrong: keywords like "manufactured by" / "trademark" appear in non-spec contexts ("ready-mix concrete manufactured by outside agencies shall not be allowed" is anti-bidder-supplied, not brand-tailoring). The first JA run promoted to UNVERIFIED on 81 false-positive section matches.
+
+Decision: for anti-pattern typologies where grep keywords overlap with non-anti-pattern contexts, **disable grep promotion entirely**. The LLM's "no signal across rerank candidates" judgment is the authoritative compliance verdict. Keep keywords in the script for the audit-trail field (so reviewers can see what was considered) but don't promote.
+
+This adds a third grep-fallback policy to the catalog:
+- L36 + L40: standard for absence-shape (PVC / IP / FM / DLP / Solvency)
+- L36 + L40 with kg_coverage_gap detection: when retrieval coverage is the suspected failure mode (MII / Mandatory-Fields)
+- **L54 — disabled**: when keywords are ambiguous in non-violation contexts (anti-pattern typologies with overlapping vocabulary)
+
+**Why we changed:** Anti-pattern typologies are fundamentally different from absence-shape and presence-shape: the "default" outcome is COMPLIANT (no violation found), and grep is only useful if it can reliably distinguish violation signals from compliance signals. For Spec-Tailoring's keyword vocabulary, that distinction can't be made syntactically — only the LLM's full-context judgment can. Disabling grep for this typology preserves the audit chain (the LLM still verifies via L24) without false-positive UNVERIFIED rows.
+
+**Forward applicability:**
+1. **Anti-pattern typologies need compliance-override decision logic.** Codify the OR-of-escape-valves explicitly to prevent false positives when the LLM co-flags violation + compliance signals.
+2. **LLM prompts for boundary-distinction extractions need enumerated contrast cases.** Don't just say "TRUE if X" — also list what X is NOT, with material/standard/category examples. The LLM trained on procurement docs sees "Aluminium" + "IS:1948" thousands of times in standard contexts; explicit disambiguation is what shifts the prediction.
+3. **Grep fallback policy is per-typology.** Disable for anti-pattern typologies where keywords are ambiguous. Keep enabled for presence/absence shapes where keyword matches are real signal-bearing context.
+4. **Kakinada's brand-tailoring is a fifth corpus-pattern signal** distinct from the prior four — APCRDA Works template gaps (Arbitration L43 + Solvency L50 + JV ban L53) all involved JA + HC; non-APCRDA pair gap (ABC L52) involved Vizag + Kakinada; Spec-Tailoring is **Kakinada-only**, demonstrating the SBD format has a unique Bitumen/Emulsion specification gap (HPCL/BPCL/IOCL named without "or equivalent" qualifier — restricts suppliers to 3 named PSUs, excluding Reliance / Cairn-Vedanta / private importers).
+
+---
+
 ## L52 — Available-Bid-Capacity-Error: Threshold-Exact-Match + AP-Defeats-Central via Rules Table + Third Corpus Pattern
 
 **What we did:** Built `scripts/tier1_abc_check.py` (typology 22) — a threshold-shape Tier-1 check on the multiplier M of the Available Bid Capacity formula. Per AP-GO-062 (HARD_BLOCK), AP Works/EPC contracts must use the formula `ABC = (A × N × 2) − B` with **M = 2 exact** (no "usually" qualifier — deterministic AP-prescribed value). Central MPW-043 allows `M = usually 1.5` and is correctly defeated by AP-GO-062 via the rules-table `defeats=['MPW-043']` relationship — first operationalised use of the rules-table defeats column in a Tier-1 typology.
