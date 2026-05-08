@@ -706,22 +706,36 @@ def draft_assembler_node(state: DrafterState) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 def validator_node(state: DrafterState) -> dict:
-    """Run key Tier-1 checks on the draft to confirm compliance.
+    """Run real Tier-1 checks on the generated draft.
 
-    PLACEHOLDER: returns a stub validation report. Real implementation:
-      For each of the 6 most-cited typologies (PBG / EMD / Bid-Validity
-      / DLP / JV-allowed / Solvency-framework), inspect the draft
-      against the same regulatory baselines:
-        - PBG: BDS row "Performance Security 10% of contract value"
-        - EMD: BDS row "Bid Security 1% + 1.5%"
-        - Bid Validity: NIT body row "90 days"
-        - DLP: NIT body row "24 months"
-        - JV: BDS row "Joint Venture: Allowed"
-        - Solvency: forms include Statement-VI + Annexure V refs
-      Each check returns COMPLIANT / HARD_BLOCK.
-      Any HARD_BLOCK (which would only happen if Gate-1 facts overrode
-      the compliance defaults) triggers an entry in auto_corrections
-      with a suggested fix the officer can review at Gate 3.
+    Pipeline (modules/draft_validation/run_tier1_on_draft.py):
+      1. Ingest the draft markdown into the KG as `doc_id=draft_<thread_id>`
+         via experiments.tender_graph.kg_builder.build_kg() — this also
+         runs the BGE-M3 ingest into Qdrant (Phase 6b).
+      2. Override the TenderDocument node properties with the Drafter's
+         known facts (tender_type, ecv_cr, duration_months, is_ap_tender)
+         so condition_when selectors fire correctly. Bypasses
+         kg_builder Phase 6c LLM extraction (we already extracted at
+         Gate 1).
+      3. Subprocess-run 6 tier1_*_check.py scripts:
+            tier1_pbg_check          (PBG-Shortfall)
+            tier1_emd_check          (EMD-Shortfall)
+            tier1_bid_validity_check (Bid-Validity-Short)
+            tier1_ld_check           (Missing-LD-Clause)
+            tier1_mii_check          (MakeInIndia-LCC-Missing)
+            tier1_jp_check           (Judicial-Preview-Bypass)
+         Each script writes ValidationFinding rows + (on violation)
+         VIOLATES_RULE edges to the KG.
+      4. Aggregate per-typology: COMPLIANT (no row) / GAP_VIOLATION
+         (row + edge OPEN) / UNVERIFIED (row, no edge).
+
+    The validation_findings shape matches the prior stub but values
+    are now derived from real KG queries.
+
+    Note: this is slow — ~3-4 minutes per draft on a hackathon laptop
+    (BGE-M3 model load + 6 LLM calls). The subprocess pattern is used
+    because each tier1 script captures DOC_ID at module-import time
+    via sys.argv[1].
     """
     t0 = time.perf_counter()
 
@@ -729,34 +743,87 @@ def validator_node(state: DrafterState) -> dict:
         return {"validation_findings": [], "n_hard_blocks": 0,
                 "n_warnings": 0, "auto_corrections": []}
 
-    # Stub findings — by construction the draft passes the 24 validators
-    findings = [
-        {"typology": "PBG-Shortfall",        "status": "COMPLIANT",
-         "expected": "10%", "actual": "10%"},
-        {"typology": "EMD-Shortfall",        "status": "COMPLIANT",
-         "expected": "1% + 1.5%", "actual": "1% + 1.5%"},
-        {"typology": "Bid-Validity-Short",   "status": "COMPLIANT",
-         "expected": ">= 90 days", "actual": "90 days"},
-        {"typology": "DLP-Period-Short",     "status": "COMPLIANT",
-         "expected": ">= 24 months", "actual": "24 months"},
-        {"typology": "Criteria-Restriction-Narrow",  "status": "COMPLIANT",
-         "expected": "JV Allowed (no arbitrary ban)", "actual": "JV Allowed, max 2 members"},
-        {"typology": "Solvency-Stale",       "status": "COMPLIANT",
-         "expected": "Tahsildar OR Bank + 1-yr validity",
-         "actual": "Bank + 1-yr validity stated in BDS"},
-    ]
-    n_hard = sum(1 for f in findings if f["status"] == "HARD_BLOCK")
-    n_warn = sum(1 for f in findings if f["status"] == "WARNING")
+    draft_path = state.get("draft_path")
+    thread_id = state.get("thread_id") or "draft"
+    of = state.get("officer_facts") or {}
+
+    if not draft_path or not Path(draft_path).exists():
+        return {
+            "validation_findings": [],
+            "n_hard_blocks":       0,
+            "n_warnings":          0,
+            "auto_corrections":    [{"reason": "no draft file to validate",
+                                     "draft_path": draft_path}],
+        }
+
+    from modules.draft_validation.run_tier1_on_draft import run_tier1_on_draft
+
+    try:
+        result = run_tier1_on_draft(
+            draft_path=draft_path,
+            thread_id=thread_id,
+            facts={
+                "tender_type":     of.get("tender_type"),
+                "is_ap_tender":    bool(of.get("is_ap_tender")),
+                "ecv_cr":          float(of.get("ecv_cr") or 0),
+                "duration_months": int(of.get("duration_months") or 0),
+            },
+            cleanup=False,   # keep KG artefacts so the officer can dig in via portal
+        )
+    except Exception as e:
+        # Surface the failure but don't block the workflow — Gate 3
+        # will show the error and let the officer retry / abandon.
+        timings = dict(state.get("timings_ms") or {})
+        timings["validator"] = int((time.perf_counter() - t0) * 1000)
+        return {
+            "validation_findings": [],
+            "n_hard_blocks":       0,
+            "n_warnings":          0,
+            "auto_corrections":    [{"reason": f"validator pipeline failed: "
+                                                f"{type(e).__name__}: {e}"}],
+            "timings_ms":          timings,
+        }
+
+    # Convert the report dict into the validation_findings list shape
+    # the portal already renders (Gate-3 payload).
+    findings: list[dict] = []
+    for typology, info in result["validation_report"].items():
+        # Default expected values per typology — sourced from the same
+        # AP regulatory baselines the Drafter writes
+        EXPECTED = {
+            "PBG-Shortfall":             "10% of contract value",
+            "EMD-Shortfall":              "1% bid stage + 1.5% at agreement",
+            "Bid-Validity-Short":         ">= 90 days",
+            "Missing-LD-Clause":          "Liquidated Damages clause present",
+            "MakeInIndia-LCC-Missing":    "DPIIT MII Order classification + LC self-cert",
+            "Judicial-Preview-Bypass":    "AP Judicial Preview mandate (≥Rs.100cr)",
+        }
+        findings.append({
+            "typology":  typology,
+            "status":    info["status"],
+            "expected":  EXPECTED.get(typology, "regulatory framework"),
+            "actual":    info.get("detail", "")[:200],
+            "severity":  info.get("severity"),
+            "n_findings": info.get("n_findings", 0),
+            "n_edges":    info.get("n_edges", 0),
+        })
+
+    n_hard = sum(1 for f in findings if f.get("severity") == "HARD_BLOCK"
+                 and f["status"] != "COMPLIANT")
+    n_warn = sum(1 for f in findings if f.get("severity") == "WARNING"
+                 and f["status"] != "COMPLIANT")
 
     timings = dict(state.get("timings_ms") or {})
     timings["validator"] = int((time.perf_counter() - t0) * 1000)
 
     return {
-        "validation_findings": findings,
-        "n_hard_blocks":       n_hard,
-        "n_warnings":          n_warn,
-        "auto_corrections":    [],
-        "timings_ms":          timings,
+        "validation_findings":  findings,
+        "n_hard_blocks":        n_hard,
+        "n_warnings":           n_warn,
+        "auto_corrections":     [],
+        "validator_kg_summary": result.get("kg_summary"),
+        "validator_doc_id":     result.get("doc_id"),
+        "timings_ms":           timings,
     }
 
 
