@@ -151,6 +151,13 @@ def auto_gen_nit_number(args: argparse.Namespace) -> str:
 
 def build_tender_facts(args: argparse.Namespace) -> dict:
     is_ap = bool(args.is_ap_tender)
+    # Step-1 PART C: procurement_mode flows from CLI / extractor.
+    # Default OTE for AP Works > Rs.25 lakh per APSS. Tracked in two
+    # canonical names ("OTE" + "OpenTender") so both rule conditions
+    # and the new clause-id skiplist key off the same source.
+    procurement_mode = (
+        (getattr(args, "procurement_mode", None) or "OTE").upper()
+    )
     facts: dict[str, Any] = {
         "tender_type":    args.tender_type,
         "TenderType":     args.tender_type,
@@ -159,8 +166,9 @@ def build_tender_facts(args: argparse.Namespace) -> dict:
         "EstimatedValue": float(args.ecv_cr) * 1e7,
         "OriginalContractPeriodMonths": int(args.duration_months),
         "_estimated_value_cr":          float(args.ecv_cr),
-        "ProcurementMethod":   "OpenTender",
-        "ProcurementMode":     "OpenTender",
+        "ProcurementMethod":   procurement_mode,
+        "ProcurementMode":     procurement_mode,
+        "procurement_mode":    procurement_mode,
         "ContractType":        "EPC" if args.tender_type == "EPC" else None,
         "FMEventInvoked":              False,
         "BidAmbiguityDetected":        False,
@@ -208,9 +216,85 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
     rules_by_id = fetch_rules_by_id(sorted(all_rule_ids))
 
     tt = facts.get("TenderType")
+    procurement_mode = (facts.get("ProcurementMode") or "OTE").upper()
     out: list[dict] = []
 
+    # ── Step-1 PART C: procurement-mode hard skiplist ─────────────────
+    # When procurement_mode=OTE (the default for AP Works tenders > Rs.25 lakh),
+    # exclude clauses whose entire purpose is to govern a different mode
+    # (Special Limited / Global Tender Enquiry / Two-Stage EoI / Pre-
+    # Qualification Bidding). Even though their condition_when may
+    # evaluate UNKNOWN against an OTE facts dict and the existing
+    # selector would downgrade them to ADVISORY → INCLUDED, the result
+    # is a self-contradicting tender (SLTE clauses inside an OTE doc).
+    # The skiplist below is keyed on substrings in clause_id, not
+    # rule_ids, since these clauses are mode-specific by construction.
+    OTE_SKIP_SUBSTRINGS = (
+        "SLTE",                      # Special Limited Tender Enquiry
+        "GTE-T-AND-C",               # Global Tender Enquiry T&Cs
+        "GLOBAL-TENDER",
+        "EOI-TWOSTAGE",              # Two-stage EoI (process)
+        "TWO-STAGE-EOI",
+        "EOI-WORKS",                 # EoI for Works
+        "2-STAGE-EOI-WORKS",
+        "PQB-DOCUMENT",              # Pre-Qualification Bidding doc
+        "PQB-WORKS",                 # PQB for Works
+    )
+    OTE_SKIP_EXACT = {
+        "CLAUSE-SLTE-001",
+        "CLAUSE-SLTE-CERT-001",
+        "CLAUSE-GTE-T-AND-C-001",
+        "CLAUSE-EOI-TWOSTAGE-001",
+        "CLAUSE-2-STAGE-EOI-WORKS-001",
+        "CLAUSE-PQB-DOCUMENT-001",
+        "CLAUSE-PQB-WORKS-001",
+    }
+
+    # ── Step-2: AP_STATE_DEFEATS — central clauses that an AP-State
+    # authoritative clause supersedes for AP tenders.
+    #
+    # The defeasibility relationship belongs in `rules.defeated_by`,
+    # but a curated subset is missing from the seed data. Until that
+    # gap is closed (separate knowledge-layer task), enforce the
+    # defeat at the selector level so the validator sees only the
+    # canonical AP-State anchor.
+    #
+    # Keyed by (is_ap_tender, tender_type) → set of clause_ids that
+    # the AP-State variant supersedes.
+    #
+    # Initial entry (PBG): CLAUSE-AP-CONTRACTOR-SECURITY-DEPOSIT-001
+    # (linked to AP-GO-175/216/217 — clean 10% statement) supersedes
+    # CLAUSE-WORKS-PBG-001 (linked to MPW-072, which is itself a
+    # mis-linked rule about corrigendum amendments — not PBG).
+    AP_STATE_DEFEATS: dict[tuple[bool, str], set[str]] = {
+        (True, "Works"): {"CLAUSE-WORKS-PBG-001"},
+        (True, "EPC"):   {"CLAUSE-WORKS-PBG-001"},
+    }
+    is_ap = bool(facts.get("is_ap_tender"))
+    ap_state_skip = AP_STATE_DEFEATS.get((is_ap, str(tt or "")), set())
+
     for c in clauses:
+        cid = c.get("clause_id") or ""
+
+        # Procurement-mode hard skip — runs BEFORE the rule evaluator
+        if procurement_mode == "OTE" and (
+            cid in OTE_SKIP_EXACT
+            or any(s in cid for s in OTE_SKIP_SUBSTRINGS)
+        ):
+            out.append(dict(c, status="EXCLUDED",
+                            _exclusion_reason=f"procurement_mode={procurement_mode!r} excludes mode-specific clause {cid!r}",
+                            rule_verdicts={}, firing_rules=[]))
+            continue
+
+        # Step-2: AP-State authoritative clause defeats central variant
+        if cid in ap_state_skip:
+            out.append(dict(c, status="EXCLUDED",
+                            _exclusion_reason=(
+                                f"AP-State authoritative clause supersedes central variant "
+                                f"({cid!r}) for is_ap_tender={is_ap}, tender_type={tt!r}"),
+                            rule_verdicts={}, firing_rules=[]))
+            continue
+
         att = c.get("applicable_tender_types") or []
         att_match = (not att) or (tt in att) or ("ANY" in att)
         if not att_match:
@@ -303,46 +387,74 @@ def build_parameter_map(args: argparse.Namespace, facts: dict) -> dict[str, Any]
     dlp_months     = 24
     abc_multiplier = 2
 
+    # ── Step-1 PART B: pmap convention ────────────────────────────────
+    # pmap values carry RAW data only — no "Rs." prefix, no "%" suffix.
+    # The clause templates (and slot builders) attach their own currency
+    # / percent symbols. Keeping pmap raw eliminates the double-prefix
+    # bugs ("Rs.Rs. 85.00 Crore", "2.5%%") that came from clauses
+    # that wrote "Rs.{{estimated_value}}" or "{{emd_percentage}}%"
+    # against pmap values that already had the prefix.
+    ecv_rupees_raw = format_inr_indian(ecv_inr)            # "85,00,00,000.00"
     pmap: dict[str, Any] = {
         # State + department
         "state_upper":           "ANDHRA PRADESH" if is_ap else "INDIA",
+        "department":            department_acronym,
         "department_full_name":  department_full,
         "department_acronym":    department_acronym,
         "department_office":     args.department_office or f"{department_full} Office",
+        # PART A — param-name aliases that the seeded clauses use.
+        # Resolves CLAUSE-BG-CUSTODY, REFUND, BOC, ARB-APPEAL,
+        # CIPP, MAF, COI-DECLARATION, SEALING-MARKING, TWO-COVER, etc.
+        "procuring_entity":          department_acronym,
+        "procuring_entity_name":     department_full,
+        "procuring_entity_full":     department_full,
+        "procuring_entity_acronym":  department_acronym,
         # NIT identifiers
         "nit_number":            nit_number,
+        "tender_no":             nit_number,           # PART A alias
+        "tender_number":         nit_number,
+        "tender_id":             nit_number,
         "issue_date":            issue_date,
+        "declaration_date":      issue_date,           # PART A alias
+        "publication_date":      issue_date,
         # Project basics
         "project_name":          args.project_name,
         "tender_type":           args.tender_type,
         "tender_subject":        args.project_name,
+        "tender_subject_brief":  args.project_name,
+        "description_of_procurement": args.project_name,   # PART A alias
+        "subject_of_procurement":     args.project_name,
+        "scope_of_work":             args.project_name,
+        "name_of_work":              args.project_name,
         "duration_months":       str(args.duration_months),
         "completion_period":     f"{args.duration_months} months",
         "contract_duration":     f"{args.duration_months} months",
         "n_years":               str(max(1, round(args.duration_months / 12))),
-        # Currency formats
+        # ── Currency formats (PART B: raw values; clauses add Rs.) ────
         "ecv_cr":                f"{ecv_cr:.2f}",
-        "ecv_rupees":            format_inr_indian(ecv_inr),
-        "estimated_value":       f"Rs. {ecv_cr:.2f} Crore (Rs.{format_inr_indian(ecv_inr)})",
-        "estimated_value_cr":    f"{ecv_cr:.2f}",
-        "estimated_contract_value": f"Rs. {ecv_cr:.2f} Crore",
-        "ecv":                   f"Rs. {ecv_cr:.2f} Crore",
-        "contract_value":        f"Rs. {ecv_cr:.2f} Crore",
+        "ecv_rupees":            ecv_rupees_raw,            # raw, no Rs.
+        "estimated_value":       ecv_rupees_raw,            # PART B: raw (was "Rs. 85.00 Crore (Rs.85,...)")
+        "estimated_value_cr":    f"{ecv_cr:.2f}",           # raw number e.g. "85.00"
+        "estimated_value_crore": f"{ecv_cr:.2f}",
+        "estimated_contract_value": ecv_rupees_raw,         # PART B: raw
+        "ecv":                   ecv_rupees_raw,            # PART B: raw
+        "contract_value":        ecv_rupees_raw,            # PART B: raw
         # State + class
         "tender_state":          "Andhra Pradesh" if is_ap else "Other",
         "state":                 "Andhra Pradesh" if is_ap else "Other",
         "bidder_class":          contractor_class,
         "contractor_class":      contractor_class,
-        # AP regulatory values (compliance-anchored)
-        "emd_percentage":        f"{emd_stage1_pct + emd_stage2_pct}%",
+        # ── AP regulatory values (PART B: raw % values, no '%' suffix) ─
+        "emd_percentage":        f"{emd_stage1_pct + emd_stage2_pct}",   # "2.5"
+        "emd_pct":               f"{emd_stage1_pct + emd_stage2_pct}",   # "2.5"
         "emd_stage1_pct":        f"{emd_stage1_pct}",
         "emd_stage2_pct":        f"{emd_stage2_pct}",
         "emd_stage1_amount":     format_inr_indian(ecv_inr * emd_stage1_pct / 100),
         "emd_stage2_amount":     format_inr_indian(ecv_inr * emd_stage2_pct / 100),
         "emd_total_amount":      format_inr_indian(ecv_inr * (emd_stage1_pct + emd_stage2_pct) / 100),
         "emd_amount":            format_inr_indian(ecv_inr * emd_stage1_pct / 100),
-        "pbg_percentage":        f"{pbg_pct}%",
-        "pbg_pct":               f"{pbg_pct}",
+        "pbg_percentage":        f"{pbg_pct}",                  # PART B: raw "10"
+        "pbg_pct":               f"{pbg_pct}",                  # raw "10"
         "pbg_amount":            format_inr_indian(ecv_inr * pbg_pct / 100),
         "bid_validity_days":     str(bid_validity_days),
         "bid_validity":          f"{bid_validity_days} days",
@@ -351,30 +463,36 @@ def build_parameter_map(args: argparse.Namespace, facts: dict) -> dict[str, Any]
         "dlp":                   f"{dlp_months} months ({dlp_months // 12} years)",
         "defect_liability_period": f"{dlp_months} months from the date of completion of the work",
         "abc_multiplier":        str(abc_multiplier),
-        "ma_percentage":         "10%",
-        "mobilisation_advance":  "10% of contract value",
+        "ma_percentage":         "10",                          # PART B: raw "10"
+        "ma_pct":                "10",
+        "mobilisation_advance":  "10",                          # PART B: raw "10"
         # Solvency framework (per AP-GO-089)
-        "solvency_threshold":    f"Rs. {ecv_cr * 0.10:.4f} Crore",
+        "solvency_threshold":    f"{ecv_cr * 0.10:.4f}",        # PART B: raw crore figure
         "solvency_validity":     "1 year from date of issue",
         # Force Majeure
         "fm_notice_days":        "30",
         "fm_termination_window_days": "120",
         # LD
-        "ld_rate_per_week":      "0.5%",
-        "ld_cap_pct":            "10%",
+        "ld_rate_per_week":      "0.5",                         # PART B: raw "0.5"
+        "ld_rate_pct":           "0.5",
+        "ld_cap_pct":            "10",                          # PART B: raw "10"
         # Dates
         "today":                 today.strftime("%d/%m/%Y"),
         "tender_publication_date": today.strftime("%d/%m/%Y"),
         "prebid_date":           pre_bid.strftime("%d/%m/%Y"),
         "pre_bid_meeting_date":  pre_bid.strftime("%d/%m/%Y"),
+        "clarification_deadline": pre_bid.strftime("%d/%m/%Y"),  # PART A alias
         "bid_due_date":          bid_open.strftime("%d/%m/%Y"),
         "bid_submission_deadline": bid_open.strftime("%d/%m/%Y"),
         "tech_open_date":        bid_open.strftime("%d/%m/%Y"),
         "fin_open_date":         fin_open.strftime("%d/%m/%Y"),
+        "financial_bid_opening_date": fin_open.strftime("%d/%m/%Y"),
         "loa_date":              loa_date.strftime("%d/%m/%Y"),
         # Officers
-        "contact_officer":       args.contact_officer or "Chief Engineer",
-        "contact_email":         args.contact_email or "proc@example.org",
+        "contact_officer":       args.contact_officer or "The Officer",
+        "contact_email":         args.contact_email or "[contact email]",
+        # PART C — procurement_mode (default OTE; selector uses this)
+        "procurement_mode":      getattr(args, "procurement_mode", None) or "OTE",
         # AP regulatory anchors
         "ap_go_emd":             "GO Ms No 50 dt 12-04-2024",
         "ap_go_pbg":             "GO Ms No 175 dt 25-03-2024",
@@ -391,22 +509,49 @@ def substitute_placeholders(
     text: str,
     pmap: dict[str, Any],
     clause_params: list[dict] | None = None,
+    *,
+    section: str = "",
 ) -> tuple[str, list[str], list[str]]:
-    """Resolve {{name}} placeholders. pmap first, then per-clause example, else [[FILL: name]]."""
-    by_name = {p["name"]: p for p in (clause_params or [])
-               if isinstance(p, dict) and p.get("name")}
+    """Resolve ``{{name}}`` placeholders.
+
+    Resolution order (Step-1 PART A change, 2026-05-08):
+      1. pmap[name] — wired from facts via build_parameter_map()
+      2. (REMOVED) per-clause `parameters[].example` fallback —
+         this was the root cause of "Department of XYZ", "Mr. ABC",
+         "PROC/2025/W/001", "M/s ABC Pvt Ltd" leaking into rendered
+         documents. Those strings were *example* values for human
+         template authors, not substitution defaults.
+      3. Section-aware blank fallback:
+           - Forms section (``Volume-I/Section-5/Forms``):
+             render an underline placeholder ``___________________``
+             so bidders can fill the form by hand or in Word.
+           - Anywhere else: render ``[TO BE SPECIFIED]`` so a
+             procurement officer reviewing the draft sees the gap
+             plainly and can correct it before publication.
+
+    The legacy ``[[FILL: name]]`` marker is retained internally on
+    the ``unresolved`` list for telemetry only — it no longer
+    appears in rendered text.
+    """
+    is_forms = "Forms" in (section or "")
+    by_name  = {p["name"]: p for p in (clause_params or [])
+                if isinstance(p, dict) and p.get("name")}
     substituted: list[str] = []
-    unresolved: list[str] = []
+    unresolved:  list[str] = []
 
     def _replace(m: re.Match) -> str:
         nm = m.group(1)
         if nm in pmap:
             substituted.append(nm); return str(pmap[nm])
-        if nm in by_name and by_name[nm].get("example"):
-            substituted.append(f"{nm}(example)")
-            return str(by_name[nm]["example"])
+        # Param exists on the clause but no fact-driven mapping →
+        # blank for the officer / bidder to fill, NOT the seeded
+        # example value.
         unresolved.append(nm)
-        return f"[[FILL: {nm}]]"
+        if nm in by_name:
+            return "_" * 25 if is_forms else "[TO BE SPECIFIED]"
+        # Truly unknown placeholder — same blank treatment, with
+        # the name retained as a hint via [[FILL]] in dev mode.
+        return "_" * 25 if is_forms else "[TO BE SPECIFIED]"
 
     return _PLACEHOLDER_RE.sub(_replace, text), substituted, unresolved
 
@@ -447,24 +592,31 @@ def render_clauses_as_table(
     drop_excluded: bool = True,
 ) -> str:
     """Render a list of selected clauses as a 2-column markdown table.
-    Left column = clause title with status badge. Right column = parameter-
-    substituted clause text."""
+    Left column = clause title (clean, no internal metadata). Right
+    column = parameter-substituted clause text.
+
+    Step-1a fix (2026-05-08): the prior version emitted
+    ``\\`{cid}\\` · {title} · _{status}_ · firing: {rule_ids}`` in the
+    left column. That metadata is internal — auditors and procurement-
+    officer reviewers should never see clause IDs, status tags, or
+    firing-rule references in the published tender. The audit trail
+    still lives on each ValidationFinding row in the KG; the rendered
+    document is now clean.
+    """
     rows: list[tuple[str, str]] = []
     for c in clauses:
         if drop_excluded and c.get("status") == "EXCLUDED":
             continue
-        title = c.get("title") or c.get("clause_id") or "(untitled)"
-        status = c.get("status", "OPTIONAL")
-        firing = c.get("firing_rules") or []
-        cite = (f" · firing: {', '.join(firing)}" if firing else "")
+        title = c.get("title") or "(untitled)"
         text, _, unres = substitute_placeholders(
             c.get("text_english") or "",
             pmap, c.get("parameters") or [],
+            section=c.get("position_section") or "",
         )
         # Compress whitespace for readability inside table cells
         text = re.sub(r"\s+", " ", text).strip()
-        label = f"`{c.get('clause_id', '')}` · {title} · _{status}_{cite}"
-        rows.append((label, text))
+        # Title only — no clause_id, no status pill, no firing rules.
+        rows.append((title, text))
     if not rows:
         return "_(no clauses applicable to this tender configuration)_\n"
     lines = [f"| {left_header} | {right_header} |", "|---|---|"]
@@ -487,7 +639,15 @@ def render_clauses_as_sections(
     Used for GCC, SCC, and Scope sections where Tier-1 validators
     (LD, PVC, IP, MA) expect paragraph-form text — table-cell rendering
     collapses whitespace and breaks the BGE-M3 retrieval expectations
-    encoded in those validators (paragraphs, not table rows)."""
+    encoded in those validators (paragraphs, not table rows).
+
+    Step-1a fix (2026-05-08): the prior version emitted a
+    ``\\`{cid}\\` · _{status}_ · firing: {rule_ids}`` meta line above
+    every clause body. That metadata is internal — auditors and
+    procurement-officer reviewers should never see clause IDs, status
+    tags, or firing-rule references in the published tender.
+    The audit trail still lives on each ValidationFinding row in the
+    KG; the rendered document is now clean prose only."""
     if not clauses:
         return "_(no clauses applicable to this tender configuration)_\n"
     blocks: list[str] = []
@@ -498,18 +658,17 @@ def render_clauses_as_sections(
             continue
         visible += 1
         title  = c.get("title") or c.get("clause_id") or "(untitled)"
-        status = c.get("status", "OPTIONAL")
-        cid    = c.get("clause_id", "")
-        firing = c.get("firing_rules") or []
-        cite   = (f" · firing: {', '.join(firing)}" if firing else "")
         text, _, _ = substitute_placeholders(
             c.get("text_english") or "",
             pmap, c.get("parameters") or [],
+            section=c.get("position_section") or "",
         )
         # Preserve paragraph structure — only normalise CRLF + trim trailing
         text = (text or "").replace("\r\n", "\n").rstrip()
-        meta = f"`{cid}` · _{status}_{cite}"
-        blocks.append(f"{hashes} {title}\n\n_{meta}_\n\n{text}\n")
+        # Heading + body only. No clause_id, no status pill, no firing
+        # rules. Title is human-readable; that's all the document
+        # needs to expose.
+        blocks.append(f"{hashes} {title}\n\n{text}\n")
     if visible == 0:
         return "_(no clauses applicable to this tender configuration)_\n"
     return "\n".join(blocks) + "\n"
@@ -690,6 +849,53 @@ def _load_skeleton() -> str:
 _SLOT_RE = re.compile(r"<<SLOT:([a-zA-Z_][a-zA-Z0-9_]*)>>")
 
 
+# ── Step-1d: bid-validity literal override ────────────────────────────
+#
+# The placeholder leakage that motivated the original _post_substitute
+# table (Department of XYZ, Mr. ABC, PROC/2025/W/001, M/s ABC Pvt Ltd,
+# 2.5%%, Rs.Rs., …) is now fixed at source — see PART A of
+# substitute_placeholders() and PART B of build_parameter_map().
+#
+# This residual pass handles the ONE case that genuinely lives in
+# clause_templates.text_english and not in parameters[].example:
+# CLAUSE-WORKS-BID-VALIDITY-001's hardcoded "120 days" sentence,
+# which contradicts the regulator-anchored 90-day BDS row. Until that
+# clause's text_english gets recurated, this swap keeps the document
+# internally consistent.
+def _post_substitute(body: str, pmap: dict) -> str:
+    bid_validity_days = pmap.get("bid_validity_days") or "90"
+    procurement_mode  = pmap.get("procurement_mode")  or "OTE"
+
+    pairs: list[tuple[str, str]] = [
+        # Bid validity contradiction (longer first)
+        (
+            "Bid validity for this tender: 120 days; type: OTE — extended to 120 days due to multi-package coordination",
+            f"Bid validity for this tender: {bid_validity_days} days; type: {procurement_mode}",
+        ),
+        (
+            "Bid validity for this tender: 120 days",
+            f"Bid validity for this tender: {bid_validity_days} days",
+        ),
+        (
+            "type: OTE — extended to 120 days due to multi-package coordination",
+            f"type: {procurement_mode}",
+        ),
+        # Defence-in-depth: if anything still slips Rs.Rs. or %% past
+        # the source-level fixes (e.g. a clause body literal we missed),
+        # collapse the duplicates so the document never ships with
+        # those typos.
+        ("Rs.Rs.",  "Rs."),
+        ("Rs. Rs.", "Rs."),
+        ("%%",      "%"),
+    ]
+
+    out = body
+    for needle, repl in pairs:
+        if needle in out:
+            out = out.replace(needle, repl)
+    return out
+
+
 def render_with_skeleton(
     args: argparse.Namespace,
     facts: dict,
@@ -868,6 +1074,17 @@ def render_with_skeleton(
     # Pass 2: substitute remaining {{name}} placeholders in skeleton-level text
     body, _, _ = substitute_placeholders(body, pmap, [])
 
+    # Pass 3 — Step-1b/1d post-substitute pass.
+    # Many seeded clause_templates carry hardcoded example values
+    # ("Department of XYZ", "Mr. ABC", "PROC/2025/W/001",
+    #  "M/s ABC Pvt Ltd", "Rs.Rs.", "2.5%%", "Bid validity for this
+    #  tender: 120 days") that the {{param}} substitution layer does
+    # not touch because they are not Jinja markers.
+    # Curating the seed text_english is the long-term fix; this pass
+    # is a deterministic band-aid so the generated document is clean
+    # this week.
+    body = _post_substitute(body, pmap)
+
     # Stats
     stats = {
         "slots_filled": len(slots),
@@ -966,7 +1183,7 @@ def main() -> int:
     print(f"  ECV (rupees, Indian fmt) : Rs.{pmap['ecv_rupees']}")
     print(f"  contractor_class         : {pmap['contractor_class']}")
     print(f"  EMD stage 1              : {pmap['emd_stage1_pct']}% = Rs.{pmap['emd_stage1_amount']}")
-    print(f"  PBG                      : {pmap['pbg_percentage']} = Rs.{pmap['pbg_amount']}")
+    print(f"  PBG                      : {pmap['pbg_percentage']}% = Rs.{pmap['pbg_amount']}")
     print(f"  Bid validity             : {pmap['bid_validity_days']} days")
     print(f"  DLP                      : {pmap['dlp_months']} months")
     print(f"  pre-bid meeting date     : {pmap['prebid_date']}")

@@ -92,6 +92,11 @@ IMPORTANT_FIELDS: tuple[str, ...] = (
     "nit_number",
     "funding_source",
     "contractor_class",
+    # Step-1 PART C: procurement_mode is "important" rather than
+    # "required" because it has a sensible default (OTE for AP Works
+    # > Rs.25 lakh per APSS) — we only need the LLM to override when
+    # the brief explicitly mentions SLTE / GTE / EOI / PQB.
+    "procurement_mode",
 )
 OPTIONAL_FIELDS: tuple[str, ...] = (
     "dlp_months",
@@ -105,6 +110,10 @@ ALL_FIELDS: tuple[str, ...] = REQUIRED_FIELDS + IMPORTANT_FIELDS + OPTIONAL_FIEL
 ALLOWED_TENDER_TYPES   = ("Works", "EPC", "PPP", "Goods", "Services", "Consultancy")
 ALLOWED_FUNDING        = ("State", "Central", "MDB", "PPP", "Mixed")
 ALLOWED_CLASSES        = ("Special", "Class-I", "Class-II", "Class-III", "Class-IV", "Class-V")
+# Procurement modes: OTE = Open Tender Enquiry (default for ECV > 25 L),
+# LTE = Limited Tender Enquiry, SLTE = Special LTE, GTE = Global TE,
+# EOI = Expression of Interest, PQB = Pre-Qualification Bidding.
+ALLOWED_PROCUREMENT_MODES = ("OTE", "LTE", "SLTE", "GTE", "EOI", "PQB")
 
 # AP departments / agencies — used to infer is_ap_tender from
 # department alone when the LLM doesn't surface that flag explicitly.
@@ -122,6 +131,11 @@ REGULATORY_DEFAULTS = {
     "dlp_months":         24,    # AP-GO-084
     "bid_validity_days":  90,    # AP-GO-067
     "funding_source":     "State",
+    # Step-1 PART C: default OTE for AP Works > Rs.25 lakh per APSS.
+    # The selector uses this to exclude SLTE / GTE / EOI / PQB
+    # mode-specific clauses that would otherwise leak in via UNKNOWN
+    # condition_when verdicts.
+    "procurement_mode":   "OTE",
 }
 
 
@@ -166,6 +180,7 @@ def build_user_prompt(brief_text: str) -> str:
         "  \"nit_number\":        {\"value\": <NIT No string>,  \"confidence\": <float>, \"evidence\": <quote or null>},\n"
         "  \"funding_source\":    {\"value\": <one of [State, Central, MDB, PPP, Mixed]>, \"confidence\": <float>, \"evidence\": <quote or null>},\n"
         "  \"contractor_class\":  {\"value\": <one of [Special, Class-I, Class-II, Class-III, Class-IV, Class-V]>, \"confidence\": <float>, \"evidence\": <quote or null>},\n"
+        "  \"procurement_mode\":  {\"value\": <one of [OTE, LTE, SLTE, GTE, EOI, PQB]>, \"confidence\": <float>, \"evidence\": <quote or null>},\n"
         "  \"dlp_months\":        {\"value\": <integer>,        \"confidence\": <float>, \"evidence\": <quote or null>},\n"
         "  \"bid_validity_days\": {\"value\": <integer>,        \"confidence\": <float>, \"evidence\": <quote or null>},\n"
         "  \"scope_description\": {\"value\": <string>,         \"confidence\": <float>, \"evidence\": <quote or null>},\n"
@@ -202,6 +217,12 @@ def build_user_prompt(brief_text: str) -> str:
         "Per AP-GO-094: ECV > Rs.10 Cr → Special; Rs.2-10 Cr → Class-I; "
         "Rs.1-2 Cr → Class-II; Rs.50 Lakh - 1 Cr → Class-III; "
         "Rs.10-50 Lakh → Class-IV; ≤ Rs.10 Lakh → Class-V.\n"
+        "- procurement_mode: only override if the brief explicitly mentions "
+        "Special Limited Tender Enquiry (SLTE), Global Tender Enquiry (GTE), "
+        "Expression of Interest (EOI), Two-Stage tender, or Pre-Qualification "
+        "Bidding (PQB). Otherwise return null with confidence 0.0 — the "
+        "workflow defaults to OTE (Open Tender Enquiry, the standard for "
+        "AP Works > Rs.25 lakh per APSS).\n"
         "- dlp_months / bid_validity_days: only fill these if EXPLICITLY "
         "stated in the brief. Otherwise return null with confidence 0.0 "
         "— the workflow applies regulatory defaults (24mo / 90 days) "
@@ -306,6 +327,23 @@ def _validate_field(name: str, raw: Any) -> dict:
                 value = None; confidence = 0.0
             elif name == "contractor_class" and value not in ALLOWED_CLASSES:
                 value = None; confidence = 0.0
+            elif name == "procurement_mode":
+                # Normalise common variants → canonical short codes.
+                norm = str(value).upper().strip().replace(" ", "")
+                aliases = {
+                    "OPENTENDER": "OTE", "OPEN-TENDER-ENQUIRY": "OTE",
+                    "OPENTENDERENQUIRY": "OTE",
+                    "LIMITEDTENDER": "LTE", "LIMITEDTENDERENQUIRY": "LTE",
+                    "SPECIALLIMITEDTENDER": "SLTE",
+                    "GLOBALTENDER": "GTE", "GLOBALTENDERENQUIRY": "GTE",
+                    "EXPRESSIONOFINTEREST": "EOI",
+                    "PREQUALIFICATIONBIDDING": "PQB",
+                }
+                norm = aliases.get(norm, norm)
+                if norm in ALLOWED_PROCUREMENT_MODES:
+                    value = norm
+                else:
+                    value = None; confidence = 0.0
             elif name in ("pre_bid_date", "bid_due_date"):
                 # Allow ISO date OR date-like string; pass through as str
                 value = str(value)

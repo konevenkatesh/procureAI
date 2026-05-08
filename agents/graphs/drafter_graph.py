@@ -523,6 +523,10 @@ def clause_selector_node(state: DrafterState) -> dict:
         scope_description=of.get("scope_description"),
         scope_file=None,
         nit_number=of.get("nit_number"),
+        # PART C — procurement_mode flows from extractor → officer_facts
+        # → here. Default OTE if the officer left it blank (the most
+        # common AP Works case for ECV > Rs.25 lakh).
+        procurement_mode=of.get("procurement_mode") or "OTE",
         output=None,
     )
     facts = build_tender_facts(args)
@@ -659,6 +663,7 @@ def draft_assembler_node(state: DrafterState) -> dict:
         scope_description=of.get("scope_description"),
         scope_file=None,
         nit_number=of.get("nit_number"),
+        procurement_mode=of.get("procurement_mode") or "OTE",  # PART C
         output=None,
     )
     facts = build_tender_facts(args)
