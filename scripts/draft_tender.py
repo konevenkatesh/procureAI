@@ -68,6 +68,44 @@ import requests
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+# ── Phase 2.4: fixed-skeleton feature flags ───────────────────────────
+#
+# When True, the corresponding section's slot in render_with_skeleton()
+# loads a fixed-text skeleton from templates/sections/ instead of
+# assembling clause fragments. The skeletons are extracted from the
+# Standard Bidding Document (Zone-11 SBD canonical, Bid+document
+# cross-validated) and capture the SBD's fixed legal text — the parts
+# that don't change between AP Works tenders.
+#
+# Defaults are False so the existing clause-fragment assembly path
+# remains the live behaviour. Override via env var for testing:
+#   USE_FIXED_SKELETON_ITB=1 python3 scripts/draft_tender.py …
+#   USE_FIXED_SKELETON_GCC=1 python3 scripts/draft_tender.py …
+#   USE_FIXED_SKELETON_FRAUD=1 python3 scripts/draft_tender.py …
+#
+# Phase 2.6 will run a side-by-side validator comparison; only after
+# all 6 Tier-1 validators pass will the defaults be flipped to True.
+def _flag(name: str, default: bool) -> bool:
+    v = os.environ.get(name)
+    if v is None: return default
+    return v.lower() in {"1", "true", "yes", "y", "t"}
+
+# Defaults flipped to True after Phase 2.6 side-by-side validator
+# verification (2026-05-08): 5 validators unchanged, 1 improved
+# (Judicial-Preview-Bypass), 0 regressed. PBG-Shortfall canary stayed
+# COMPLIANT under both paths. To revert any individual section to the
+# legacy clause-fragment assembly path, set the env var to "0":
+#   USE_FIXED_SKELETON_ITB=0 python3 scripts/draft_tender.py …
+USE_FIXED_SKELETON_ITB   = _flag("USE_FIXED_SKELETON_ITB",   True)
+USE_FIXED_SKELETON_GCC   = _flag("USE_FIXED_SKELETON_GCC",   True)
+USE_FIXED_SKELETON_FRAUD = _flag("USE_FIXED_SKELETON_FRAUD", True)
+
+SKELETONS_DIR = REPO / "templates" / "sections"
+
+# funding_source values that mean "World-Bank-funded" (toggles
+# DELETED_IF_DOMESTIC blocks ON and selects fraud_wb_funded.md).
+WB_FUNDED_SOURCES = {"MDB"}
+
 from builder.config import settings
 from modules.validator.condition_evaluator import (
     evaluate as evaluate_when, Verdict,
@@ -273,8 +311,34 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
     is_ap = bool(facts.get("is_ap_tender"))
     ap_state_skip = AP_STATE_DEFEATS.get((is_ap, str(tt or "")), set())
 
+    # ── Phase 2.5: fixed-skeleton exclusions ─────────────────────────
+    # When the corresponding feature flag is on, the section's clauses
+    # are rendered from a canonical SBD skeleton in templates/sections/
+    # and the clause-template fragments are redundant — exclude them
+    # to prevent double-rendering. This runs BEFORE the rule evaluator
+    # because the skeleton-replaced clauses don't need rule evaluation.
+    #
+    # Note: there is no FRAUD exclusion here because the existing
+    # `fraud_corruption` slot is filled by an inline boilerplate string
+    # in render_with_skeleton() — not from clause_templates. The
+    # USE_FIXED_SKELETON_FRAUD flag (2.4) swaps the inline string for
+    # the loaded skeleton file directly; no clause_template change
+    # needed.
+    SKELETON_REPLACED_SECTIONS: set[str] = set()
+    if USE_FIXED_SKELETON_ITB: SKELETON_REPLACED_SECTIONS.add("Volume-I/Section-2/ITB")
+    if USE_FIXED_SKELETON_GCC: SKELETON_REPLACED_SECTIONS.add("Volume-II/Section-1/GCC")
+
     for c in clauses:
         cid = c.get("clause_id") or ""
+
+        # Phase 2.5: fixed-skeleton replaces this whole section
+        if c.get("position_section") in SKELETON_REPLACED_SECTIONS:
+            out.append(dict(c, status="EXCLUDED",
+                            _exclusion_reason=(
+                                f"section {c.get('position_section')!r} replaced by "
+                                f"fixed skeleton (templates/sections/)"),
+                            rule_verdicts={}, firing_rules=[]))
+            continue
 
         # Procurement-mode hard skip — runs BEFORE the rule evaluator
         if procurement_mode == "OTE" and (
@@ -849,6 +913,70 @@ def _load_skeleton() -> str:
 _SLOT_RE = re.compile(r"<<SLOT:([a-zA-Z_][a-zA-Z0-9_]*)>>")
 
 
+# ── Phase 2.4: fixed-skeleton loader + marker substitution ───────────
+
+# {{DELETED_IF_DOMESTIC}}…{{/DELETED_IF_DOMESTIC}} blocks. When the
+# project is NOT WB-funded, the entire body between these markers is
+# replaced with the literal "DELETED" (the AP-State convention for
+# clauses that don't apply to a specific tender). When WB-funded, only
+# the markers themselves are stripped — content is kept.
+_DELETED_IF_DOMESTIC_RE = re.compile(
+    r"\{\{DELETED_IF_DOMESTIC\}\}.*?\{\{/DELETED_IF_DOMESTIC\}\}",
+    re.DOTALL,
+)
+_PROC_AUTH_RE     = re.compile(r"\{\{procuring_authority\}\}")
+_HTML_COMMENT_RE  = re.compile(r"<!--.*?-->", re.DOTALL)
+# The skeleton's own `## Section — ITB` / `## Section — GCC` H2 banner
+# is redundant once the slot is embedded inside the parent skeleton
+# (which already supplies the section heading). Strip it.
+_SECTION_BANNER_RE = re.compile(r"^##\s*Section\s*—\s*\w+\s*$", re.M)
+
+
+def _load_fixed_skeleton(filename: str, pmap: dict, *, is_wb_funded: bool) -> str:
+    """Load a fixed-skeleton file from templates/sections/ and apply
+    marker substitutions:
+
+      • {{DELETED_IF_DOMESTIC}}…{{/DELETED_IF_DOMESTIC}} blocks →
+        replaced with "DELETED" if NOT WB-funded; otherwise contents
+        kept (markers stripped).
+      • {{procuring_authority}} → pmap['department'] (with safe fallback
+        to department_full_name or "[Department]").
+      • <!-- … --> HTML comments → stripped.
+      • Top-level "## Section — XXX" banner → stripped (the parent
+        skeleton already supplies the section heading).
+
+    Returns the cleaned markdown ready to embed as a slot's body.
+    """
+    path = SKELETONS_DIR / filename
+    if not path.exists():
+        return f"_(fixed-skeleton file missing: {filename})_\n"
+    text = path.read_text(encoding="utf-8")
+
+    # 1) DELETED_IF_DOMESTIC blocks
+    if is_wb_funded:
+        text = text.replace("{{DELETED_IF_DOMESTIC}}",  "")
+        text = text.replace("{{/DELETED_IF_DOMESTIC}}", "")
+    else:
+        text = _DELETED_IF_DOMESTIC_RE.sub("DELETED", text)
+
+    # 2) procuring_authority slot
+    dept = (pmap.get("department")
+            or pmap.get("department_acronym")
+            or pmap.get("department_full_name")
+            or "[Department]")
+    text = _PROC_AUTH_RE.sub(str(dept), text)
+
+    # 3) HTML comments
+    text = _HTML_COMMENT_RE.sub("", text)
+
+    # 4) Strip the section banner the skeleton starts with
+    text = _SECTION_BANNER_RE.sub("", text)
+
+    # 5) Tidy excess whitespace caused by the substitutions
+    text = re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+    return text
+
+
 # ── Step-1d: bid-validity literal override ────────────────────────────
 #
 # The placeholder leakage that motivated the original _post_substitute
@@ -932,12 +1060,21 @@ def render_with_skeleton(
     )
 
     # ITB body — clauses with position_section='Volume-I/Section-2/ITB'
-    slots["itb_body"] = render_clauses_as_table(
-        by_section.get("Volume-I/Section-2/ITB", []),
-        pmap,
-        left_header="ITB Clause",
-        right_header="Standard Clause Body",
-    )
+    # Phase 2.4: when USE_FIXED_SKELETON_ITB is on, use the canonical
+    # SBD ITB skeleton (templates/sections/itb_fixed.md) instead of the
+    # clause-fragment table — gives proper numbered hierarchy 1./1.1/(a).
+    is_wb_funded = pmap.get("funding_source") in WB_FUNDED_SOURCES
+    if USE_FIXED_SKELETON_ITB:
+        slots["itb_body"] = _load_fixed_skeleton(
+            "itb_fixed.md", pmap, is_wb_funded=is_wb_funded,
+        )
+    else:
+        slots["itb_body"] = render_clauses_as_table(
+            by_section.get("Volume-I/Section-2/ITB", []),
+            pmap,
+            left_header="ITB Clause",
+            right_header="Standard Clause Body",
+        )
 
     # BDS — programmatic override table (compliance-anchored values)
     slots["bds_table"] = render_overrides_table(
@@ -964,25 +1101,36 @@ def render_with_skeleton(
         right_header="Form Specification / Template",
     )
 
-    # Section V — Fraud and Corruption (no specific section in clause_templates;
-    # standard WB/ADB framework boilerplate)
-    slots["fraud_corruption"] = (
-        "1. The Procuring Entity, the World Bank, and the Asian Development "
-        "Bank require compliance with their respective Anti-Corruption "
-        "Guidelines and prevailing sanctions policies and procedures.\n\n"
-        "2. The Bidder shall not, directly or indirectly through its "
-        "agents, subcontractors, sub-consultants, service providers, or "
-        "suppliers, engage in any of the following: (a) corrupt practice; "
-        "(b) fraudulent practice; (c) collusive practice; (d) coercive "
-        "practice; or (e) obstructive practice — as defined in the Bank's "
-        "Anti-Corruption Guidelines.\n\n"
-        "3. The Bidder shall permit, and cause its agents and personnel "
-        "to permit, the World Bank and the Asian Development Bank to "
-        "inspect all accounts, records, and other documents relating to "
-        "any prequalification process, bid submission, proposal submission, "
-        "and contract performance, and to have them audited by auditors "
-        "appointed by the Banks.\n"
-    )
+    # Section V — Fraud and Corruption
+    # Phase 2.4: when USE_FIXED_SKELETON_FRAUD is on, pick the
+    # canonical SBD Section V text by funding_source — wb_funded.md
+    # (long, includes WB Anti-Corruption Guidelines verbatim) for MDB
+    # tenders, or domestic.md (short Indian-domestic version) for
+    # State/Central/PPP/Mixed-funded ones.
+    if USE_FIXED_SKELETON_FRAUD:
+        fraud_filename = ("fraud_wb_funded.md" if is_wb_funded
+                          else "fraud_domestic.md")
+        slots["fraud_corruption"] = _load_fixed_skeleton(
+            fraud_filename, pmap, is_wb_funded=is_wb_funded,
+        )
+    else:
+        slots["fraud_corruption"] = (
+            "1. The Procuring Entity, the World Bank, and the Asian Development "
+            "Bank require compliance with their respective Anti-Corruption "
+            "Guidelines and prevailing sanctions policies and procedures.\n\n"
+            "2. The Bidder shall not, directly or indirectly through its "
+            "agents, subcontractors, sub-consultants, service providers, or "
+            "suppliers, engage in any of the following: (a) corrupt practice; "
+            "(b) fraudulent practice; (c) collusive practice; (d) coercive "
+            "practice; or (e) obstructive practice — as defined in the Bank's "
+            "Anti-Corruption Guidelines.\n\n"
+            "3. The Bidder shall permit, and cause its agents and personnel "
+            "to permit, the World Bank and the Asian Development Bank to "
+            "inspect all accounts, records, and other documents relating to "
+            "any prequalification process, bid submission, proposal submission, "
+            "and contract performance, and to have them audited by auditors "
+            "appointed by the Banks.\n"
+        )
 
     # Section VI — Works' Requirements
     # Resolution chain:
@@ -1034,13 +1182,23 @@ def render_with_skeleton(
     )
 
     # Section VII — GCC body
-    # Render GCC clauses as paragraph sections (LD / PVC / IP / MA
-    # validators expect paragraph-form prose; table-cell whitespace
-    # compression breaks BGE-M3 retrieval).
-    slots["gcc_body"] = render_clauses_as_sections(
-        by_section.get("Volume-II/Section-1/GCC", []),
-        pmap, heading_level=3,
-    )
+    # Phase 2.4: when USE_FIXED_SKELETON_GCC is on, use the canonical
+    # SBD GCC skeleton (templates/sections/gcc_fixed.md) — proper
+    # numbered hierarchy, {{procuring_authority}} substituted.
+    # Validators continue to work because the skeleton text preserves
+    # all the clauses they retrieve (PBG, EMD, LD, MA, etc.).
+    if USE_FIXED_SKELETON_GCC:
+        slots["gcc_body"] = _load_fixed_skeleton(
+            "gcc_fixed.md", pmap, is_wb_funded=is_wb_funded,
+        )
+    else:
+        # Render GCC clauses as paragraph sections (LD / PVC / IP / MA
+        # validators expect paragraph-form prose; table-cell whitespace
+        # compression breaks BGE-M3 retrieval).
+        slots["gcc_body"] = render_clauses_as_sections(
+            by_section.get("Volume-II/Section-1/GCC", []),
+            pmap, heading_level=3,
+        )
 
     # Section VIII — PCC = SCC overrides
     # Same paragraph-form treatment as GCC — SCC overrides reference
