@@ -565,6 +565,83 @@ def build_parameter_map(args: argparse.Namespace, facts: dict) -> dict[str, Any]
         "ap_go_solvency":        "GO MS No 129 dt 05-10-2015",
         "ap_go_class":           "GO Ms No 94 dt 01-07-2003",
         "currency":              "INR",
+        # ── Phase 2.7 COMMIT 1: AP-State procurement constants ──────
+        # Project-invariant AP-State values that the gap-analysis
+        # surface as MISSING_BLOCKING. Filling them here moves them
+        # out of the [TO BE SPECIFIED] fallback path.
+        # Source: GO Ms No 94/2003, AP-GO-001 to AP-GO-100, MPW 2022.
+        "tender_premium_ceiling_pct":    "10",
+        "discount_acceptance_pct":       "15",
+        "discount_tender_threshold_pct": "15",
+        "retention_threshold_pct":       "85",
+        "deadband_pct":                  "5",
+        "judicial_preview_threshold_cr": "100",
+        "lead_member_min_equity_pct":    "26",
+        "min_consortium_lead_equity_pct":"26",
+        "tender_threshold":              "2,500",
+        "eproc_works_threshold":         "1,00,000",
+        "eproc_material_threshold":      "1,00,000",
+        "lte_threshold":                 "5,00,000",
+        "lte_threshold_value":           "5,00,000",
+        "ma_threshold":                  "1,00,00,000",     # Rs.1 cr
+        "mobilisation_advance_threshold_cr": "1",
+        "mobilisation_advance_pct":      "10",
+        "nac_pct":                       "0.10",
+        "reverse_tender_threshold_cr":   "1",
+        "mclr_rate_pct":                 "9",
+        "performance_security_validity_days": "60",
+        "bid_security_validity_days":    "180",
+        "contract_signing_days":         "14",
+        "works_ip_threshold":            "50,00,00,000",    # Rs.50 cr
+        "experience_years":              "10",
+        "past_perf_years":               "7",
+        "turnover_lookback_years":       "5",
+        "turnover_multiplier":           "2",
+        "construction_share_pct":        "50",
+        "two_proj_pct":                  "50",
+        "three_proj_pct":                "40",
+        "alb_trigger_pct":               "80",
+        "validity_months":               "3",
+        "large_contract_min_days":       "30",
+        "large_contract_min_multiplier": "1.5",
+        "representation_window_days":    "7",
+        "pol_component_pct":             "15",
+        "pig_iron_factor":               "0.96",
+        "pig_iron_factor_default":       "0.96",
+        "pa_threshold_lakh":             "40",
+        "pa_min_months":                 "6",
+        # CCI / regulatory references
+        "cci_registration_no":           "Not applicable",
+        "cartel_debarred":               "None — clean tender",
+        # Officer-default-to-NIL fields (officer overrides if applicable)
+        "coi_disclosure":                "NIL",
+        "previous_transgression_list":   "NIL",
+        "download_fee_status":           "NIL — no cost charged for downloaded documents",
+        # Department-derived references
+        "tender_authority":              department_full,
+        "authority_office":              args.department_office or f"Managing Director, {department_acronym}, {('Amaravati' if is_ap else department_full)}",
+        # NIT-number aliases used by some seeded clauses
+        "bid_ref":                       nit_number,
+        "bid_reference":                 nit_number,
+        # Date aliases (already-computed values — exposing under the
+        # names the seeded clauses use)
+        "bid_opening_date":              bid_open.strftime("%d/%m/%Y"),
+        "tech_opening_date":             bid_open.strftime("%d/%m/%Y"),
+        # ── Phase 2.7 COMMIT 1b: additional AP-State defaults found
+        # by gap-analysis after the first round (12 more constants).
+        # Source: APSS, MPW 2022, AP-FC standard penalty schedule.
+        "lte_invitation_count":          "5",                # APSS default LTE bidder list size
+        "nit_district_threshold_lakh":   "50",               # district-publication threshold
+        "labour_default_penalty":        "500",              # per-day labour-law non-compliance penalty
+        "minor_min_penalty":             "10,000",
+        "minor_max_penalty":             "10,00,000",
+        "major_min_penalty":             "10,00,000",
+        "major_max_penalty":             "50,00,000",
+        "rectification_max_days":        "15",
+        "program_review_days":           "15",
+        "forward_window_months":         "3",
+        "photo_min_count":               "10",               # site-progress photo minimum
+        "video_min_minutes":             "5",
     }
     return pmap
 
@@ -1208,12 +1285,36 @@ def render_with_skeleton(
         pmap, heading_level=3,
     )
 
-    # Section IX — Contract Forms (NIT + Forms-shaped clauses)
-    slots["contract_forms"] = render_clauses_as_table(
-        by_section.get("Volume-I/Section-1/NIT", []),
-        pmap,
-        left_header="Form",
-        right_header="Template",
+    # Section IX — Contract Forms (Phase 2.7 COMMIT 3)
+    #
+    # In a real AP Standard Bidding Document, Section IX is a 7-form
+    # INDEX TABLE — not a policy-clause dump. The actual form bodies
+    # (Letter of Acceptance, PBG Proforma, Contract Agreement) live
+    # in Section IV Bidding Forms where they already render correctly.
+    # Section IX just enumerates them.
+    #
+    # Previously this slot was hardwired to render
+    # `by_section.get("Volume-I/Section-1/NIT", [])`, which mistakenly
+    # routed 17 NIT-section policy clauses (AP Judicial Preview,
+    # Mandatory CPPP Publication, AP Reverse Tendering, RTI
+    # Disclosure, Mode of Procurement, etc.) into Section IX as a
+    # policy dump. None of those belong in Section IX of a bid
+    # document — they're internal procurement-officer reference
+    # material. Dropping them from the rendered output (they remain
+    # selectable in clause_templates for officer reference if a
+    # future schedule/annex needs them).
+    slots["contract_forms"] = (
+        "The forms listed below shall be used for the contractual instruments noted. "
+        "Each form's body is provided in Section IV — Bidding Forms.\n\n"
+        "| S.No | Form Name |\n"
+        "|---|---|\n"
+        "| 1.   | Letter of Acceptance |\n"
+        "| 2.   | Contract Agreement |\n"
+        "| 3.   | Performance Bank Guarantee — Option 1: Bank Guarantee |\n"
+        "| 4.   | Performance Bank Guarantee — Option 2: Insurance Surety Bond |\n"
+        "| 5.   | Environmental & Social Performance Security Form |\n"
+        "| 6.   | Appendix — Code of Conduct (E&S) |\n"
+        "| 7.   | Anti-Corruption Guidelines |\n"
     )
 
     # Pass 1: substitute slot markers

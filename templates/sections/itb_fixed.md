@@ -543,8 +543,12 @@ If the Successful bidder fails to sign the Contract Agreement, the contract Regi
 ## 42. Performance Security
 
 ### 42.1
-The successful Bidder shall, for the performance of its obligations hereunder during the Construction Period, furnish the Performance Security for an amount equal to 2.5 per cent of the bid amount/contract value in the shape of unconditional and irrevocable Bank Guarantee/ Insurance Surety Bond valid until 60 days after the completion of DLP period.
+The successful Bidder shall, for the performance of its obligations hereunder during the Construction Period, furnish the Performance Security for an amount equal to {{pbg_pct}} per cent of the contract value, as specified in the BDS, in the shape of unconditional and irrevocable Bank Guarantee/Insurance Surety Bond valid until 60 days after the completion of DLP period.
 
 ### 42.2
 <!-- {BDS_REF: ITB_42.2} -->
-Failure of the successful Bidder to submit the above- mentioned Performance Security or sign the Contract shall constitute sufficient grounds for the annulment of the award and forfeiture of the Bid Security. 43. Procurement - The point of contact and procedure for procurement related related complaints are specified in the BDS complaints
+Failure of the successful Bidder to submit the above-mentioned Performance Security or sign the Contract shall constitute sufficient grounds for the annulment of the award and forfeiture of the Bid Security.
+
+### 43. Procurement-Related Complaints
+
+The point of contact and procedure for procurement-related complaints are specified in the BDS.
