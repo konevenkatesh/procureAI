@@ -475,6 +475,46 @@ def render_clauses_as_table(
     return "\n".join(lines) + "\n"
 
 
+def render_clauses_as_sections(
+    clauses: list[dict],
+    pmap: dict,
+    drop_excluded: bool = True,
+    heading_level: int = 3,
+) -> str:
+    """Render clauses as standalone H{heading_level} sections preserving
+    paragraph / prose structure of the source clause text.
+
+    Used for GCC, SCC, and Scope sections where Tier-1 validators
+    (LD, PVC, IP, MA) expect paragraph-form text — table-cell rendering
+    collapses whitespace and breaks the BGE-M3 retrieval expectations
+    encoded in those validators (paragraphs, not table rows)."""
+    if not clauses:
+        return "_(no clauses applicable to this tender configuration)_\n"
+    blocks: list[str] = []
+    hashes = "#" * heading_level
+    visible = 0
+    for c in clauses:
+        if drop_excluded and c.get("status") == "EXCLUDED":
+            continue
+        visible += 1
+        title  = c.get("title") or c.get("clause_id") or "(untitled)"
+        status = c.get("status", "OPTIONAL")
+        cid    = c.get("clause_id", "")
+        firing = c.get("firing_rules") or []
+        cite   = (f" · firing: {', '.join(firing)}" if firing else "")
+        text, _, _ = substitute_placeholders(
+            c.get("text_english") or "",
+            pmap, c.get("parameters") or [],
+        )
+        # Preserve paragraph structure — only normalise CRLF + trim trailing
+        text = (text or "").replace("\r\n", "\n").rstrip()
+        meta = f"`{cid}` · _{status}_{cite}"
+        blocks.append(f"{hashes} {title}\n\n_{meta}_\n\n{text}\n")
+    if visible == 0:
+        return "_(no clauses applicable to this tender configuration)_\n"
+    return "\n".join(blocks) + "\n"
+
+
 def build_nit_body_rows(args: argparse.Namespace, facts: dict, pmap: dict) -> list[tuple[str, str]]:
     """Generate the canonical NIT body 2-column metadata table.
     Mirrors the JA real-document structure (L31-92): department,
@@ -774,32 +814,34 @@ def render_with_skeleton(
     works_clauses = (by_section.get("Volume-II/Section-3/Scope", [])
                    + by_section.get("Volume-II/Section-4/Specifications", [])
                    + by_section.get("Volume-II/Section-5/BOQ", []))
-    framework_table = render_clauses_as_table(
-        works_clauses, pmap,
-        left_header="Framework Clause",
-        right_header="Provision",
+    # Statutory Framework clauses rendered as paragraph sections (not
+    # table rows) so that prose-form retrieval by Tier-1 validators
+    # works against the original whitespace structure.
+    framework_sections = render_clauses_as_sections(
+        works_clauses, pmap, heading_level=4,
     )
     slots["works_requirements"] = (
         "### Project Scope\n\n"
         + "\n\n".join(scope_text_blocks) + "\n\n"
         "### Statutory Framework (applicable Tier-1 clauses)\n\n"
-        + framework_table
+        + framework_sections
     )
 
     # Section VII — GCC body
-    slots["gcc_body"] = render_clauses_as_table(
+    # Render GCC clauses as paragraph sections (LD / PVC / IP / MA
+    # validators expect paragraph-form prose; table-cell whitespace
+    # compression breaks BGE-M3 retrieval).
+    slots["gcc_body"] = render_clauses_as_sections(
         by_section.get("Volume-II/Section-1/GCC", []),
-        pmap,
-        left_header="GCC Clause",
-        right_header="Provision",
+        pmap, heading_level=3,
     )
 
     # Section VIII — PCC = SCC overrides
-    slots["pcc_overrides"] = render_clauses_as_table(
+    # Same paragraph-form treatment as GCC — SCC overrides reference
+    # parent GCC clauses by number, so prose preservation matters.
+    slots["pcc_overrides"] = render_clauses_as_sections(
         by_section.get("Volume-II/Section-2/SCC", []),
-        pmap,
-        left_header="GCC Clause Ref",
-        right_header="PCC Override",
+        pmap, heading_level=3,
     )
 
     # Section IX — Contract Forms (NIT + Forms-shaped clauses)

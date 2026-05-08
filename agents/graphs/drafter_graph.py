@@ -759,6 +759,13 @@ def validator_node(state: DrafterState) -> dict:
     from modules.draft_validation.run_tier1_on_draft import run_tier1_on_draft
 
     try:
+        # cleanup=True ensures the draft's transient KG artefacts
+        # (TenderDocument + Section + ValidationFinding nodes,
+        # HAS_SECTION + VIOLATES_RULE edges, Qdrant points, and the
+        # staged markdown copy) are deleted AFTER the report is built.
+        # The validation_report dict is materialised in Python before
+        # cleanup runs, so the response is unaffected. Original
+        # /tmp/draft_<id>.md is preserved (caller's draft output).
         result = run_tier1_on_draft(
             draft_path=draft_path,
             thread_id=thread_id,
@@ -768,7 +775,7 @@ def validator_node(state: DrafterState) -> dict:
                 "ecv_cr":          float(of.get("ecv_cr") or 0),
                 "duration_months": int(of.get("duration_months") or 0),
             },
-            cleanup=False,   # keep KG artefacts so the officer can dig in via portal
+            cleanup=True,
         )
     except Exception as e:
         # Surface the failure but don't block the workflow — Gate 3
@@ -874,10 +881,25 @@ def human_gate_3_final_approval(state: DrafterState) -> dict:
     output_format  = response.get("output_format", "md")
 
     final_path = state.get("draft_path", "")
-    if action == "approve" and output_format == "docx":
-        # PLACEHOLDER: real impl uses python-docx or pandoc to convert
-        # final_path = final_path.replace(".md", ".docx")
-        pass
+    if action == "approve" and output_format == "docx" and final_path:
+        try:
+            from modules.draft_export.md_to_docx import md_to_docx
+            from pathlib import Path as _P
+            docx_path = str(_P(final_path).with_suffix(".docx"))
+            final_path = md_to_docx(final_path, docx_path)
+        except Exception as e:
+            # If conversion fails, fall back to MD path so the workflow
+            # still completes — surface the error in the final state for
+            # the portal to display.
+            return {
+                "officer_approved":  True,
+                "revision_notes":    revision_notes,
+                "output_format":     "md",
+                "final_output_path": state.get("draft_path", ""),
+                "gate_3_status":     action,
+                "workflow_status":   "approved",
+                "docx_export_error": f"{type(e).__name__}: {e}",
+            }
 
     return {
         "officer_approved":  (action == "approve"),

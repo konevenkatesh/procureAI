@@ -279,12 +279,10 @@
                  class="text-xs px-3 py-1.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100">
                 ↓ Download Markdown
               </a>
-              <button id="draft-btn-download-docx"
-                      class="text-xs px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed"
-                      disabled
-                      title="DOCX export requires python-docx — not yet wired into the API">
+              <a id="draft-link-download-docx"
+                 class="text-xs px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
                 ↓ Download as Word Doc
-              </button>
+              </a>
             </div>
           </div>
           <pre id="draft-preview" class="mono text-xs bg-slate-50 p-4 rounded border border-slate-200 max-h-[60vh] overflow-auto whitespace-pre-wrap"></pre>
@@ -1271,6 +1269,11 @@
       const dl = document.getElementById("draft-link-download-md");
       dl.href = `${DRAFT_API}/draft/${DRAFT_THREAD_ID}/download`;
       dl.setAttribute("download", `draft_${DRAFT_THREAD_ID}.md`);
+      const dlx = document.getElementById("draft-link-download-docx");
+      if (dlx) {
+        dlx.href = `${DRAFT_API}/draft/${DRAFT_THREAD_ID}/download?format=docx`;
+        dlx.setAttribute("download", `draft_${DRAFT_THREAD_ID}.docx`);
+      }
 
       // Preview
       const preview = document.getElementById("draft-preview");
@@ -1288,13 +1291,18 @@
       const status = document.getElementById("draft-final-status");
       status.textContent = `${action}ing…`;
       try {
+        // Default approve → DOCX so the canonical output is a Word doc.
+        // Revise / abandon don't need a format; pass it for symmetry.
         const resp = await draftApiCall("/draft/resume", {
           thread_id: DRAFT_THREAD_ID,
-          response: {action, output_format: "md"},
+          response: {action, output_format: action === "approve" ? "docx" : "md"},
         });
         if (resp.status === "completed") {
           const fs = resp.final_state || {};
-          status.textContent = `workflow ${fs.workflow_status || action} · output: ${fs.final_output_path || "(none)"}`;
+          const errBit = fs.docx_export_error
+            ? ` · ⚠ DOCX export failed (${fs.docx_export_error}); falling back to MD`
+            : "";
+          status.textContent = `workflow ${fs.workflow_status || action} · output: ${fs.final_output_path || "(none)"}${errBit}`;
         } else {
           status.textContent = `unexpected response: ${JSON.stringify(resp).slice(0,200)}`;
         }

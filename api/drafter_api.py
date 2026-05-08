@@ -291,24 +291,52 @@ def draft_status(thread_id: str) -> dict:
 
 
 @app.get("/draft/{thread_id}/download")
-def draft_download(thread_id: str) -> Any:
-    """Download the rendered draft markdown for a session. Returns the
-    file (Content-Disposition: attachment) for browsers."""
+def draft_download(thread_id: str, format: str = "md") -> Any:
+    """Download the rendered draft for a session.
+
+    Query string: ``?format=md`` (default) or ``?format=docx``.
+
+    For DOCX, the file is converted on-demand from the source markdown
+    so that an officer who picked "md" at Gate 3 can still grab a DOCX
+    later without re-running the workflow.
+    """
     if thread_id not in _SESSIONS:
         raise HTTPException(status_code=404, detail="thread_id not found")
     config = {"configurable": {"thread_id": thread_id}}
     snap = _GRAPH.get_state(config)
     state = snap.values if hasattr(snap, "values") else {}
-    draft_path = state.get("draft_path") or state.get("final_output_path")
-    if not draft_path:
+    md_path = state.get("draft_path") or state.get("final_output_path")
+    if not md_path:
         raise HTTPException(
             status_code=404,
             detail="No draft has been generated yet for this session",
         )
-    p = Path(draft_path)
+    p = Path(md_path)
     if not p.exists():
         raise HTTPException(status_code=404,
-                            detail=f"Draft file missing on disk: {draft_path}")
+                            detail=f"Draft file missing on disk: {md_path}")
+    fmt = (format or "md").lower()
+    if fmt == "docx":
+        try:
+            from modules.draft_export.md_to_docx import md_to_docx
+        except ImportError as e:
+            raise HTTPException(status_code=500,
+                                detail=f"DOCX export unavailable: {e}")
+        # Reuse cached DOCX if it exists and is newer than the MD source.
+        docx_path = p.with_suffix(".docx")
+        if (not docx_path.exists()
+                or docx_path.stat().st_mtime < p.stat().st_mtime):
+            try:
+                md_to_docx(p, docx_path)
+            except Exception as e:
+                raise HTTPException(status_code=500,
+                                    detail=f"DOCX conversion failed: {e}")
+        return FileResponse(
+            docx_path,
+            media_type=("application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"),
+            filename=f"draft_{thread_id}.docx",
+        )
     return FileResponse(
         p,
         media_type="text/markdown",
