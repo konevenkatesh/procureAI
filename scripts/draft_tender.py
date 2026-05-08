@@ -1323,6 +1323,62 @@ def render_with_skeleton(
         return slots.get(nm, f"_(slot {nm} not implemented)_\n")
     body = _SLOT_RE.sub(_slot_replace, skeleton)
 
+    # Post-pass: NIT "Procurement Policy References" subsection
+    #
+    # Bug B (Phase 2.7): COMMIT 3 deleted the slot reader for
+    # Volume-I/Section-1/NIT clauses without re-routing them. Any
+    # selected clause whose position_section starts with
+    # "Volume-I/Section-1/NIT" — including the 3 mandatory AP Judicial
+    # Preview clauses for tenders ≥ Rs.100cr — was selected but never
+    # rendered, producing a silent gap.
+    #
+    # Real AP SBDs treat these as a "Procurement Policy References"
+    # annexure inside the NIT block — statutory framework citations
+    # (JP mandate, RTI, AP reverse tendering, e-proc thresholds,
+    # MII/IP framework refs, mode-of-procurement). They sit AFTER the
+    # NIT body 25-row metadata table and BEFORE PART 1 (ITB).
+    #
+    # This is a true post-pass: it runs after slot substitution and
+    # introduces no new <<SLOT:…>> marker — preserving the slot dict
+    # as a section-level placement abstraction.
+    nit_policy_refs = [c for c in selected
+                       if c.get("status") in ("MANDATORY", "MANDATORY-DEFAULT", "ADVISORY")
+                       and (c.get("position_section") or "").startswith(
+                           "Volume-I/Section-1/NIT")]
+    if nit_policy_refs:
+        nit_policy_refs.sort(key=lambda c: (c.get("position_order") or 9999,
+                                            c.get("clause_id") or ""))
+        # Render each clause as a numbered H4 (A.1, A.2, …) with prose body.
+        ref_blocks: list[str] = []
+        for i, c in enumerate(nit_policy_refs, start=1):
+            title = c.get("title") or c.get("clause_id") or "(untitled)"
+            text, _, _ = substitute_placeholders(
+                c.get("text_english") or "",
+                pmap, c.get("parameters") or [],
+                section=c.get("position_section") or "",
+            )
+            text = (text or "").replace("\r\n", "\n").rstrip()
+            ref_blocks.append(f"#### A.{i}  {title}\n\n{text}\n")
+        refs_md = "\n".join(ref_blocks)
+        block = (
+            "\n### Procurement Policy References\n\n"
+            "The clauses below are the statutory framework references "
+            "applicable to this tender — reproduced here so bidders, "
+            "auditors, and the procurement officer have a single anchor "
+            "point for every policy mandate cited above. Each reference "
+            "carries the rule number(s) it derives from in its body.\n\n"
+            + refs_md
+            + "\n"
+        )
+        # Anchor: insert before "## **PART 1 – BIDDING PROCEDURES**".
+        # Falls back to a no-op append if the skeleton ever changes its
+        # part-1 header — surfaces visibly rather than silently dropping.
+        anchor = "## **PART 1 – BIDDING PROCEDURES**"
+        if anchor in body:
+            body = body.replace(anchor, block + "\n" + anchor, 1)
+        else:
+            body = body + "\n" + block
+
     # Add summary stats and strip the __args stash before pass-2.
     pmap = dict(pmap)
     pmap.pop("__args", None)
