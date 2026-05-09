@@ -29,36 +29,102 @@ Verdict semantics:
                           UNVERIFIED, not synthetic SKIP.
 
   UNVERIFIED            — validator ran but extraction / retrieval
-                          failed. Row carries failure_path so the
-                          root cause is diagnosable:
-                            no_candidate          — LLM rerank found
-                                                    nothing usable
-                            chosen_oor            — LLM picked an index
-                                                    outside the candidate
-                                                    list (extraction
-                                                    integrity failure)
-                            extraction_path_none  — neither pct nor
-                                                    amount path produced
-                                                    a usable value
-                            rule_lookup_missing   — rule referenced is
-                                                    missing from the
-                                                    rules table
-                            L24_evidence_guard    — LLM extracted a
-                                                    value but the
-                                                    evidence quote
-                                                    failed verbatim
-                                                    verification
+                          failed. Row carries `failure_path` (canonical
+                          values listed below) so the root cause is
+                          diagnosable.
 
   GAP_VIOLATION         — rule fires, evidence missing or wrong.
-                          Severity ∈ ADVISORY / WARNING. Existing
-                          semantics preserved; verdict label added.
-                          Pairs with a VIOLATES_RULE edge.
+                          Severity ∈ ADVISORY / WARNING per the firing
+                          rule. Pairs with a VIOLATES_RULE edge.
 
   HARD_BLOCK            — severe violation (PBG below threshold, EMD
-                          missing, etc.). Existing semantics + edge.
+                          missing, mandatory-field absent, etc.).
+                          Severity is HARD_BLOCK per the firing rule.
+                          Pairs with a VIOLATES_RULE edge.
+
+═══════════════════════════════════════════════════════════════════
+  CANONICAL `failure_path` taxonomy (UNVERIFIED rows)
+═══════════════════════════════════════════════════════════════════
+
+  no_candidate            — top-K retrieval found nothing matching the
+                            target concept; LLM rerank returned
+                            chosen_index=null OR found=false on every
+                            candidate.
+
+  chosen_oor              — LLM picked a chosen_index outside the
+                            candidate list bounds, OR the extracted
+                            value was out of expected range. Extraction
+                            integrity failure.
+
+  extraction_path_none    — neither percentage nor amount nor
+                            equivalent extraction path produced a
+                            usable value. The validator ran but had
+                            no anchor to reason about.
+
+  rule_lookup_missing     — rule referenced by `select_*_rule()` is
+                            missing from the rules table. Knowledge-
+                            layer integrity gap (see Bug A patch).
+
+  L24_evidence_guard      — LLM extracted a value but the evidence
+                            quote failed verbatim verification against
+                            the chosen section's text (potential
+                            hallucination caught).
+
+  retrieval_coverage_gap  — BGE-M3 returned candidates but none had
+                            sufficient coverage of the target concept;
+                            grep fallback (L36 / L40) was promoted to
+                            UNVERIFIED rather than emitting an absence
+                            finding (added during Batch 1/2 migration).
+
+  Future failure_paths must extend this canonical list; do NOT
+  introduce ad-hoc strings. Add a new entry here, then thread it
+  through every validator that can emit it.
+
+═══════════════════════════════════════════════════════════════════
+  CONTRACT: silent-COMPLIANT path for multi-rule validators
+═══════════════════════════════════════════════════════════════════
+
+Single-rule validators (rule selector returns `dict | None`) cover
+the silent-compliant path implicitly via their `is_compliant` /
+`not is_violation` branch — exactly one row per run is guaranteed.
+
+Multi-rule validators (rule selector returns `list[dict]`) run a
+loop over fired rules and emit one row per fired rule. The silent-
+compliant path — when NO rule produces a violation row AND no
+informational marker is emitted — must be made explicit by emitting
+a final `COMPLIANT_FIRED` row at end-of-main:
+
+    if not findings_emitted:
+        emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY,
+            rule_id=(fired_rules[0]["rule_id"] if fired_rules else None),
+            severity=(fired_rules[0].get("severity") if fired_rules else None),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            ...
+            extra_props={"violation_reason": "compliant_…",
+                         "rule_shape": "multi-rule"},
+        )
+
+Without this, the aggregator sees zero rows for that (doc, typology)
+cell and emits VALIDATOR_NOT_MIGRATED.
+
+The original Bug C migration (commit edc68bd, the first 6 validators)
+did not need this because all 6 were single-rule. The pattern was
+articulated explicitly only after the Batch-2 expansion surfaced
+VALIDATOR_NOT_MIGRATED on Arbitration and Geographic-Restriction
+(both multi-rule). Mandatory-Fields in Batch 1 happened to cover the
+case via its sub-check rows — its loop emits one row per missing
+sub-check, so the cell is always populated.
+
+Future multi-rule validators must include the end-of-main silent-
+COMPLIANT emit. Sub-check shapes that always emit at least one row
+per cell (like Mandatory-Fields) are exempt.
+
+═══════════════════════════════════════════════════════════════════
 
 The aggregator at modules/draft_validation/run_tier1_on_draft.py
-reads `properties.verdict` first; on empty rows it now emits
+reads `properties.verdict` first; on empty rows it emits
 VALIDATOR_NOT_MIGRATED (regression alarm) instead of defaulting to
 COMPLIANT.
 """
