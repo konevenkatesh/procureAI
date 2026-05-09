@@ -371,10 +371,12 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
         firing_rules: list[str] = []
         unknown_rules: list[str] = []
         skip_rules: list[str] = []
+        missing_rules: list[str] = []
         for rid in (c.get("rule_ids") or []):
             r = rules_by_id.get(rid)
             if not r:
                 rule_verdicts[rid] = "MISSING"
+                missing_rules.append(rid)
                 continue
             cw = r.get("condition_when") or ""
             verdict = evaluate_when(cw, facts).verdict
@@ -386,10 +388,29 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
             elif verdict == Verdict.SKIP:
                 skip_rules.append(rid)
 
+        # Bug A patch (Phase 2.7): when EVERY rule_id resolves to a row
+        # missing from the `rules` table (knowledge-layer integrity
+        # gap, not a facts-driven SKIP), the clause used to fall into
+        # the `(rule_ids) and not (firing or unknown) → EXCLUDED`
+        # branch — silently dropping mandatory clauses like
+        # CLAUSE-MAKE-IN-INDIA-PPP2017-001 (rule MPS22-005 unseeded).
+        # Promote based on the `mandatory` flag instead, and tag the
+        # clause with `_audit_warning` so the gap surfaces in stats /
+        # logs rather than vanishing. Mixed MISSING+SKIP cases still
+        # fall to EXCLUDED (some rule says "doesn't apply"; conservative).
+        all_rule_ids = c.get("rule_ids") or []
+        all_missing  = bool(all_rule_ids) and len(missing_rules) == len(all_rule_ids)
+        audit_warning = None
+
         if firing_rules:
             status = "MANDATORY"
         elif unknown_rules and not skip_rules:
             status = "ADVISORY"
+        elif all_missing:
+            audit_warning = (f"all {len(missing_rules)} rule(s) referenced by this "
+                             f"clause are missing from the rules table: "
+                             f"{missing_rules}. Promoted via mandatory-flag fallback.")
+            status = "MANDATORY-DEFAULT" if c.get("mandatory") else "ADVISORY"
         elif (c.get("rule_ids") or []) and not (firing_rules or unknown_rules):
             status = "EXCLUDED"
         elif c.get("mandatory"):
@@ -398,7 +419,8 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
             status = "OPTIONAL"
 
         out.append(dict(c, status=status,
-                        rule_verdicts=rule_verdicts, firing_rules=firing_rules))
+                        rule_verdicts=rule_verdicts, firing_rules=firing_rules,
+                        _audit_warning=audit_warning))
     return out
 
 
