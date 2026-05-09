@@ -1038,6 +1038,36 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L55 — kg_builder Section Classifier Mistags Fixed-Skeleton Numeric Headings; Validator Section-Filter Widen as Tactical Fix
+
+**Context:** Bug C (explicit verdict emission across 6 Tier-1 validators) revealed 6/18 verdicts on Kurnool / JA / HC coming back UNVERIFIED `failure_path=no_candidate`. All six concentrated in PBG-Shortfall (×3) and Bid-Validity-Short (×3). Drafts demonstrably contained the verbatim anchors (`grep "10 per cent of the contract value"` returned 1 hit per draft; `grep "90 days"` returned several). Step-1 diagnostic — top-20 BGE-M3 retrieval + per-candidate LLM extractor on the Kurnool draft — established that the right anchor was **NOT IN TOP-20**, ruling out batch-rerank wrong-neighbor (H1), recall via top-K bump (H2), and extractor prompt failure (H3).
+
+**Root cause (H4):** the fixed-skeleton drafter renders ITB and BDS clauses with short numeric headings — `### 42.1`, `### 18.1`, etc. — that lack a parent ITB/BDS context anchor. The kg_builder Phase-6c section classifier (heuristic + LLM at `experiments/tender_graph/kg_builder.py`) can't infer the parent section type from a 4-character heading like `42.1` and defaults to `Forms`. BDS rows likewise land under `Datasheet`. Confirmed on both Kurnool and JA via Supabase Section-node query:
+
+| Anchor | Section heading | Lines | Section type | PBG filter `[ITB,GCC,PCC,SCC,NIT]` | BV filter `[ITB,NIT]` |
+|---|---|---|---|---|---|
+| PBG § 42.1 (line 670) | `42.1` | 670–671 | **`Forms`** (mistag) | EXCLUDED | EXCLUDED |
+| BV §18.1 (BDS row, line 700) | `Section II - Bid Data Sheet (BDS)` | 689–715 | `Datasheet` | EXCLUDED | EXCLUDED |
+| BV NIT cover (line 54) | `- (Bidding Process with AP e-Procurement)` | 44–75 | `NIT` | INCLUDED | INCLUDED but cosine-buried under noisy ITB sub-sections |
+
+**Tactical fix applied in this commit** — widen the validators' section_type filters at the validator level, NOT the router or the classifier:
+
+- `scripts/tier1_pbg_check.py`: `PBG_SECTION_TYPES` widened from `['ITB','GCC','PCC','SCC','NIT']` to add `'Forms'` and `'Datasheet'`.
+- `scripts/tier1_bid_validity_check.py`: BV section filter widened inline (post-router) from `['ITB','NIT']` to add `'Forms'` and `'Datasheet'`. Inline rather than router-level so the blast radius is contained to the BV typology.
+
+**Why this is safe:** the LLM rerank's existing negative-selection rules (ignore retention / EMD / mobilisation-advance / liquidated-damages percentages on PBG; ignore Bid-Security validity / BG validity / contract period / DLP / warranty on BV) act as the precision guard over the wider candidate pool. We are not loosening the typology — only restoring recall on legitimately-applicable sections that the classifier has mis-tagged.
+
+**Methodology discipline — no regex fallback added.** The first design draft included a regex-fallback safety net for `no_candidate` cases. Pulled before code touch. The platform's thesis is rules-as-code + SHACL + Vector + LLM; regex is the baseline benchmark we measure against, not a production code path. Adding regex to a validator weakens the patent / hackathon story and contradicts a multi-session project commitment. If section-widening alone leaves any UNVERIFIED, the next move is BGE-M3 query rephrasing or rerank-prompt tightening — within the methodology — NOT regex.
+
+**Strategic fix (deferred, post-hackathon, cross-module):** kg_builder Phase 6c section classifier should track a heading stack — when an `### X.Y` numeric heading appears immediately after an ITB or BDS section header at heading level 2, inherit the parent section type instead of defaulting to `Forms`. This requires changes to `experiments/tender_graph/kg_builder.py` and re-classification of the staged corpus. The validator-level filter widen handles the immediate symptom across every Tier-1 typology that runs against fixed-skeleton drafts; the classifier fix would close the underlying gap and would let every future typology that's added rely on the current heuristic.
+
+**Pre-fix:** 12/18 COMPLIANT_FIRED, 6/18 UNVERIFIED no_candidate (PBG×3 + BV×3) on Kurnool+JA+HC.
+**Post-fix (target):** 18/18 COMPLIANT_FIRED on the same corpus. EMD / LD / MII / JP regression-checked — same evidence_quote and anchor preserved (those validators' filters were not touched).
+
+**Forward-applicable:** any future Tier-1 typology that runs against fixed-skeleton drafter output should include `'Forms'` and `'Datasheet'` in its section filter until kg_builder L55-strategic lands. Worth documenting on every new validator's section-filter constant.
+
+---
+
 ## L54 — Spec-Tailoring: Anti-Pattern Compliance Override + Material/Brand/Standard Disambiguation in LLM Prompt
 
 **What we did:** Built `scripts/tier1_spec_tailoring_check.py` (typology 24) — anti-pattern detection on GFR-G-030 ("Description shall NOT indicate a particular trade mark, trade name or brand"). Result: 1 GAP_VIOLATION (Kakinada: doc names HPCL/BPCL/IOCL as required Bitumen/Emulsion suppliers without "or equivalent" or PAC) + 5 COMPLIANT silent.

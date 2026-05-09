@@ -122,7 +122,19 @@ def first_two_sentences(text: str) -> str:
 # all of which were dominating top-1 for JA and High Court because they
 # lexically overlap the AP-FC clause query without containing the actual
 # percentage.
-PBG_SECTION_TYPES = ["ITB", "GCC", "PCC", "SCC", "NIT"]
+# `Forms` and `Datasheet` added to capture fixed-skeleton drafter output:
+# the Drafter's `### 42.1` ITB-clause headings get tagged `Forms` by the
+# kg_builder section classifier (short numeric heading without parent
+# context defaults), and BDS rows land under section_type `Datasheet`.
+# Without these, the actual PBG anchor in fixed-skeleton drafts is
+# filtered out before retrieval — manifesting as UNVERIFIED no_candidate
+# even though the rendered markdown contains the verbatim percentage.
+# The LLM rerank's existing negative-selection rules (ignore retention /
+# EMD / MA / LD percentages) handle precision over the wider candidate
+# pool. Strategic fix tracked in LESSONS_LEARNED L55 — kg_builder
+# section classifier should inherit parent ITB/BDS context for orphan
+# numeric headings via heading-stack tracking.
+PBG_SECTION_TYPES = ["ITB", "GCC", "PCC", "SCC", "NIT", "Forms", "Datasheet"]
 
 
 def qdrant_topk(
