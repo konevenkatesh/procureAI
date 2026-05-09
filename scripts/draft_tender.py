@@ -903,6 +903,155 @@ def build_nit_body_rows(args: argparse.Namespace, facts: dict, pmap: dict) -> li
     return rows
 
 
+def render_bds_thematic(args: argparse.Namespace, facts: dict, pmap: dict) -> str:
+    """Render the BDS (Section II) as themed H2 sub-sections matching real
+    AP corpus structure (e.g. real JA's BDS at L435–545).
+
+    Pattern (mirroring real JA):
+      ## **A. General**                    — table for simple meta rows
+      ## **B. Eligibility and Bid Preparation** — table for eligibility/format rows
+      ## **The clause shall be read as**   — prose paragraphs for the
+                                              complex clause re-statements
+                                              (BV / EMD / PBG). Each prose
+                                              paragraph carries an explicit
+                                              "ITB X.Y — …" reference so
+                                              the kg_builder content-based
+                                              section classifier reads ITB
+                                              and the validators retrieve
+                                              the numeric anchor at the
+                                              cited line.
+      ## **C. Submission and Opening of Bids** — table for date/venue rows
+      ## **D. Award of Contract**           — table for award-related rows
+
+    Replaces the prior single-table render that pooled all ~21 rows into
+    one Section node typed `Datasheet`. See LESSONS_LEARNED L57.
+    """
+    contractor_class = (
+        _ap_class_for_ecv(float(args.ecv_cr)) if args.is_ap_tender else "ANY"
+    )
+
+    # ── A. General — simple meta rows ────────────────────────────
+    a_general: list[tuple[str, str]] = [
+        ("ITB 1.1",
+         f"NIT No: {pmap['nit_number']}, Dt:{pmap['issue_date']}. "
+         f"Name of Work: {pmap['project_name']} including DLP of "
+         f"{pmap['dlp_years']} Years."),
+        ("ITB 1.2",
+         "Definitions added: \"ES\" = Environmental and Social; "
+         "\"SEA\" = Sexual Exploitation and Abuse; \"SH\" = Sexual Harassment "
+         "(per WB / ADB safeguards)."),
+    ]
+
+    # ── B. Eligibility and Bid Preparation ───────────────────────
+    b_eligibility: list[tuple[str, str]] = [
+        ("ITB 4.1",
+         f"The Bidder shall have a {contractor_class} Class Civil registration "
+         f"with the Government of Andhra Pradesh per {pmap['ap_go_class']}."),
+        ("ITB 4.1 (a)",
+         "**Joint Venture: Allowed**. Maximum number of members in the JV: 2. "
+         "All members shall be jointly and severally liable for execution "
+         "per ITB 4.1 (f). _(Compliant with MPG-279 — the bidding doc shall "
+         "not arbitrarily exclude eligible bidders.)_"),
+        ("ITB 4.2 (f)",
+         "Conflict of Interest — affiliates of consultants who prepared the "
+         "design or technical specifications are debarred from bidding."),
+        ("ITB 6.3",
+         "Electronic procurement portal: AP eProcurement Portal — "
+         "https://apeprocurement.gov.in"),
+        ("ITB 7.1",
+         f"Clarification address: {pmap['contact_officer']}, "
+         f"{pmap['department_full_name']} ({pmap['contact_email']}). "
+         f"Queries shall include Clause No., Clause text, and Query, and "
+         f"shall be submitted in writing before 5PM of the date of pre-bid "
+         f"meeting; submissions after the cut-off shall not be entertained."),
+        ("ITB 7.4",
+         f"Pre-Bid meeting: {pmap['prebid_date']} @ 11:30 Hrs @ "
+         f"{pmap['department_office']}."),
+        ("ITB 8.4",
+         "Amendments / Corrigendum shall be published at "
+         "https://apeprocurement.gov.in"),
+        ("ITB 9.1",
+         "Bid Transaction Fee: 0.03% of ECV (cap Rs.10,000 for ECV ≤ Rs.50 Cr; "
+         "Rs.25,000 for ECV > Rs.50 Cr) + GST. Cost of Bid Processing Fee: "
+         "Rs.20,000 (Non-refundable)."),
+        ("ITB 10.1",
+         "Language of the Bid: English. All correspondence shall be in English."),
+    ]
+
+    # ── The clause shall be read as — prose, complex clauses ──────
+    bv_prose = (
+        f"The clause shall be read as: ITB 18.1 — Bid validity period shall be "
+        f"{pmap['bid_validity_days']} days from the date of bid submission, "
+        f"per AP-GO-067 (minimum 90 days for AP Works tenders)."
+    )
+    emd_prose = (
+        f"The clause shall be read as: ITB 19.1 — Bid Security (EMD): "
+        f"{pmap['emd_stage1_pct']}% of ECV = Rs.{pmap['emd_stage1_amount']} "
+        f"at bid stage; additional {pmap['emd_stage2_pct']}% of ECV = "
+        f"Rs.{pmap['emd_stage2_amount']} at agreement signing, per "
+        f"{pmap['ap_go_emd']}. Acceptable forms: NEFT/RTGS, irrevocable "
+        f"Bank Guarantee, Insurance Surety Bond, or e-Bank Guarantee from "
+        f"any Government / Nationalised / Public Sector / Scheduled Bank, "
+        f"valid for 180 days from the last bid-submission date."
+    )
+    pbg_prose = (
+        f"The clause shall be read as: ITB 42.1 — Performance Security (PBG): "
+        f"{pmap['pbg_pct']}% of contract value = Rs.{pmap['pbg_amount']}, "
+        f"per {pmap['ap_go_pbg']}. The PBG shall be valid until 60 days "
+        f"after the completion of the Defects Liability Period."
+    )
+
+    # ── C. Submission and Opening of Bids ─────────────────────────
+    c_submission: list[tuple[str, str]] = [
+        ("ITB 22.1",
+         f"Bid Submission Due Date and time: {pmap['bid_due_date']} @ 15:00 Hrs."),
+        ("ITB 25.1",
+         f"Bid opening: {pmap['bid_due_date']} @ 16:00 Hrs at "
+         f"{pmap['department_office']}."),
+    ]
+
+    # ── D. Award of Contract ──────────────────────────────────────
+    d_award: list[tuple[str, str]] = [
+        ("ITB 30",
+         "Non-Material and Non-Conformities **shall not be permitted**."),
+        ("ITB 34",
+         "Sub-contracting limit: total value of works to be awarded on "
+         "sub-contracting **shall not exceed 50% of the contract value**. "
+         "Sub-contracting any part requires written employer permission."),
+        ("ITB 43",
+         f"Procurement-related Complaint procedure: complaints in writing to "
+         f"Addl. Commissioner (Admin), {pmap['department_full_name']}. "
+         f"Appellate Authority: Secretary, MA&UD, Government of Andhra Pradesh. "
+         f"Appeal within 7 days of decision; written decision within 15 days "
+         f"of hearing."),
+    ]
+
+    def _table_block(title: str, rows: list[tuple[str, str]]) -> str:
+        if not rows:
+            return ""
+        out: list[str] = [f"## **{title}**", "",
+                          "| ITB Clause Ref | BDS Override |", "|---|---|"]
+        for k, v in rows:
+            out.append(f"| **{k}** | {v} |")
+        out.append("")
+        return "\n".join(out)
+
+    parts: list[str] = []
+    parts.append(_table_block("A. General", a_general))
+    parts.append(_table_block("B. Eligibility and Bid Preparation", b_eligibility))
+    parts.append("## **The clause shall be read as**")
+    parts.append("")
+    parts.append(bv_prose)
+    parts.append("")
+    parts.append(emd_prose)
+    parts.append("")
+    parts.append(pbg_prose)
+    parts.append("")
+    parts.append(_table_block("C. Submission and Opening of Bids", c_submission))
+    parts.append(_table_block("D. Award of Contract", d_award))
+    return "\n".join(p for p in parts if p) + "\n"
+
+
 def build_bds_overrides(args: argparse.Namespace, facts: dict, pmap: dict) -> list[tuple[str, str]]:
     """Generate the BDS (Section II) override rows.
 
@@ -1175,12 +1324,12 @@ def render_with_skeleton(
             right_header="Standard Clause Body",
         )
 
-    # BDS — programmatic override table (compliance-anchored values)
-    slots["bds_table"] = render_overrides_table(
-        build_bds_overrides(args, facts, pmap),
-        left_header="ITB Clause Ref",
-        right_header="BDS Override",
-    )
+    # BDS — themed H2 sub-sections + prose for complex clauses (Change B,
+    # see render_bds_thematic). Replaces the prior single-table render
+    # that pooled all rows into one Datasheet-classified Section node.
+    # build_bds_overrides remains exported for back-compat / external
+    # callers but is no longer called from the slot.
+    slots["bds_table"] = render_bds_thematic(args, facts, pmap)
 
     # Section III — Evaluation criteria (Volume-I/Section-4/Evaluation
     # + Volume-I/Section-3/Datasheet which has PQ-Datasheet content)
