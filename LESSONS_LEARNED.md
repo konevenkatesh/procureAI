@@ -1038,6 +1038,25 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L58 — Severity-Aware Verdict Tagging (Bug C Original Migration Inconsistency to Retroactively Fix)
+
+**Identified during Batch 1 of the validator-suite Bug C expansion** (from 6 wired-and-migrated to 24 total). The original Bug C migration (commit `edc68bd` covering PBG / EMD / Bid-Validity / LD / MII / JP) used a binary `verdict = "UNVERIFIED" if is_unverified else "GAP_VIOLATION"` mapping — collapsing the rule's severity into a single `GAP_VIOLATION` tag regardless of whether the rule itself was `HARD_BLOCK` or `ADVISORY/WARNING`.
+
+**Real-corpus consequence:** MII/JP across all 6 docs sit at `verdict=GAP_VIOLATION, severity=HARD_BLOCK`. Aggregator's `n_hard_blocks` count under-counts those — it relies on `verdict=="HARD_BLOCK"`. Same on EMD where AP-GO-050 ADVISORY violations got tagged `verdict=HARD_BLOCK` instead.
+
+**Correct shape (used in Batch 1 onwards, 12 total typologies now):**
+```
+verdict = ("UNVERIFIED" if is_unverified
+           else ("HARD_BLOCK" if rule.get("severity") == "HARD_BLOCK"
+                 else "GAP_VIOLATION"))
+```
+
+Severity preserved literally from the rule. HARD_BLOCK-severity rules emit `verdict=HARD_BLOCK`; ADVISORY/WARNING rules emit `verdict=GAP_VIOLATION`.
+
+**Retroactive cleanup pending after all 3 batches finish.** Touch only the 6 original validators (PBG / EMD / BV / LD / MII / JP), update the verdict-tagging logic, re-run on the 6-tender corpus to refresh existing rows. Single small commit. Not part of the expansion-migration work.
+
+---
+
 ## L57 — Drafter Structural Alignment: Markup Fixes Insufficient Without Content Density
 
 **What landed (commit `597776c`):** ITB/GCC fixed-skeleton replaced 257 bare-numeric `### N.M` sub-headings (103 ITB + 154 GCC) with `**N.M.**` bold-prefix paragraphs under `## N. Topic` H2 parents. BDS rendering replaced single-table form with 6 themed H2 sub-sections + a "The clause shall be read as" H2 carrying prose paragraphs for BV/EMD/PBG that explicitly cite `ITB X.Y — …` (mirroring real JA's pattern at line 462). Cross-ref anchor safety: 0 broken markdown anchors. Section count compressed Kurnool drafter 265 → 158; Forms count 55 → 29.

@@ -64,6 +64,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -558,6 +561,17 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule  = select_ma_rule(facts)
     if rule is None:
+        # Bug C: SKIP_NOT_APPLICABLE
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # 2. Family + section_type filter (router)
@@ -695,6 +709,36 @@ def main() -> int:
     print(f"  is_violation   : {is_violation}")
 
     if not is_violation:
+        # Bug C: explicit COMPLIANT_FIRED row.
+        if section is not None:
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+                severity=rule.get("severity"),
+                verdict="COMPLIANT_FIRED",
+                evidence_quote=evidence,
+                evidence_section_heading=section["heading"],
+                evidence_line_no_local=section["line_start_local"],
+                section_node_id=section["section_node_id"],
+                source_file=section["source_file"],
+                qdrant_similarity=round(similarity, 4) if similarity is not None else None,
+                passed_threshold=True,
+                value_extracted={"ma_present": ma_present, "ma_pct": ma_pct,
+                                 "cap_pct": cap_pct, "rule_shape": rule["shape"]},
+                extra_props={"violation_reason": reason_label, "defeated": False},
+            )
+        else:
+            # ma_present=False (clause absent — compliant by optionality
+            # per L34); no section anchor.
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+                severity=rule.get("severity"),
+                verdict="COMPLIANT_FIRED",
+                passed_threshold=True,
+                value_extracted={"ma_present": False, "ma_pct": None,
+                                 "cap_pct": cap_pct},
+                extra_props={"violation_reason": reason_label, "defeated": False},
+            )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  ({reason_label})")
         return 0
 
     # 9. Materialise finding + edge
@@ -768,6 +812,10 @@ def main() -> int:
         # L27 audit
         "verdict_origin":              rule.get("verdict_origin"),
         "severity_origin":             rule.get("severity_origin"),
+        # Bug C verdict tag — severity-aware (HARD_BLOCK rules stay HARD_BLOCK)
+        "verdict":             ("HARD_BLOCK"
+                                if rule.get("severity") == "HARD_BLOCK"
+                                else "GAP_VIOLATION"),
         "status":              "OPEN",
         "defeated":            False,
     }

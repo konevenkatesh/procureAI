@@ -68,6 +68,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -632,7 +635,23 @@ def _materialise_finding(doc_id: str, props: dict, label: str,
                          rule_node_id: str | None,
                          section_node_id: str | None,
                          emit_edge: bool, edge_props: dict | None) -> tuple[str, str | None]:
-    """Insert ValidationFinding + (optionally) VIOLATES_RULE edge."""
+    """Insert ValidationFinding + (optionally) VIOLATES_RULE edge.
+
+    Bug C: inject `verdict` and `failure_path` into props if not already
+    set, derived from the existing status/severity fields. Severity-aware:
+    HARD_BLOCK rules stay HARD_BLOCK; ADVISORY/WARNING become GAP_VIOLATION.
+    """
+    if "verdict" not in props:
+        st  = props.get("status") or ""
+        sev = props.get("severity") or ""
+        if st == "UNVERIFIED":
+            props["verdict"] = "UNVERIFIED"
+        elif st == "OPEN" and sev == "HARD_BLOCK":
+            props["verdict"] = "HARD_BLOCK"
+        elif st == "OPEN":
+            props["verdict"] = "GAP_VIOLATION"
+        else:
+            props["verdict"] = st or "UNVERIFIED"
     finding = rest_post("kg_nodes", [{
         "doc_id":     doc_id,
         "node_type":  "ValidationFinding",
@@ -675,6 +694,17 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     fired_rules = select_mandatory_field_rules(facts)
     if not fired_rules:
+        # Bug C: SKIP_NOT_APPLICABLE (no sub-rule fires for this tender)
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     rule_148 = get_rule_by_sub_check(fired_rules, "representation_officer")
@@ -855,6 +885,25 @@ def main() -> int:
         primary_rule = rule_148 or rule_150 or rule_293 or rule_124
         print(f"  → UNVERIFIED chain triggered — single audit-only finding emitted")
         if primary_rule is None:
+            # Bug C: degenerate path — all 4 sub-rules unresolved.
+            # Emit explicit UNVERIFIED with failure_path=rule_lookup_missing
+            # so the gap surfaces rather than getting silently dropped.
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+                verdict="UNVERIFIED",
+                failure_path="rule_lookup_missing",
+                retrieval_debug={
+                    "is_unverified_global": True,
+                    "rule_148_resolved":    rule_148 is not None,
+                    "rule_150_resolved":    rule_150 is not None,
+                    "rule_293_resolved":    rule_293 is not None,
+                    "rule_124_resolved":    rule_124 is not None,
+                    "grep_promoted":        bool(grep_promoted_to_unverified),
+                    "full_grep_promoted":   bool(full_grep_promoted),
+                },
+                what_was_searched="Works-Universal-Mandatory-Fields sub-check chain",
+            )
+            print(f"  → UNVERIFIED (rule_lookup_missing) {row['node_id']}")
             return 0
 
         td_rows = rest_get("kg_nodes", {
@@ -917,6 +966,11 @@ def main() -> int:
             "estimated_value_cr":        facts.get("_estimated_value_cr"),
             "verdict_origin":            primary_rule.get("verdict_origin"),
             "severity_origin":           primary_rule.get("severity_origin"),
+            # Bug C verdict tag — UNVERIFIED with failure_path
+            "verdict":                   "UNVERIFIED",
+            "failure_path":              ("retrieval_coverage_gap"
+                                          if (grep_promoted_to_unverified or full_grep_promoted)
+                                          else "L24_evidence_guard"),
             "status":                    "UNVERIFIED",
             "requires_human_review":     True,
             "defeated":                  False,
