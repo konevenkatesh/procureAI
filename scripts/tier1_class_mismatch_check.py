@@ -75,6 +75,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -601,6 +604,17 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule  = select_class_match_rule(facts)
     if rule is None:
+        # Bug C: SKIP_NOT_APPLICABLE
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # 2. Family + section_type filter (router)
@@ -609,9 +623,20 @@ def main() -> int:
     print(f"  family         : {family}")
     print(f"  section_types  : {section_types}")
     if not section_types:
-        # Defensive — should not reach here because rule selector
-        # SKIPped on PPP. If it does, exit cleanly.
-        print(f"  → empty section_filter (typology N/A on this family); silent exit")
+        # Defensive: rule selector should have SKIPped on PPP, but if
+        # we reach here with empty filter, emit UNVERIFIED with
+        # extraction_path_none failure_path so the cell is auditable.
+        print(f"  → empty section_filter (typology N/A on this family); "
+              f"emitting UNVERIFIED extraction_path_none")
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="extraction_path_none",
+            what_was_searched="empty section_filter from family router",
+            retrieval_debug={"family": family, "section_types": list(section_types)},
+        )
+        print(f"  → UNVERIFIED {row['node_id']}")
         return 0
 
     # 3. BGE-M3 embed
@@ -895,8 +920,27 @@ def main() -> int:
     print(f"  is_absence                 : {is_absence}")
     print(f"  reason_label               : {reason_label}")
 
-    # COMPLIANT branch returns early — no finding emitted.
+    # Bug C: COMPLIANT_FIRED row (was silent pre-Bug-C).
     if is_compliant:
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"] if section else None,
+            evidence_line_no_local=section["line_start_local"] if section else None,
+            section_node_id=section["section_node_id"] if section else None,
+            source_file=section["source_file"] if section else None,
+            qdrant_similarity=round(similarity, 4) if similarity is not None else None,
+            passed_threshold=True,
+            value_extracted={"band_required": band_required_name,
+                             "rule_shape": rule.get("shape")},
+            extra_props={"violation_reason": reason_label,
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  ({reason_label})")
         return 0
 
     # 10. Materialise finding (violation, advisory, UNVERIFIED, or ABSENCE)
@@ -1108,6 +1152,16 @@ def main() -> int:
         # L27 audit
         "verdict_origin":           rule.get("verdict_origin"),
         "severity_origin":          rule.get("severity_origin"),
+        # Bug C verdict tag — severity-aware (Q1 fix)
+        "verdict":                  ("UNVERIFIED" if is_unverified
+                                     else ("HARD_BLOCK"
+                                           if rule.get("severity") == "HARD_BLOCK"
+                                           else "GAP_VIOLATION")),
+        "failure_path":             ("L24_evidence_guard"
+                                     if is_unverified and not (grep_promoted_to_unverified or full_grep_promoted)
+                                     else ("retrieval_coverage_gap"
+                                           if (grep_promoted_to_unverified or full_grep_promoted)
+                                           else None)),
         # L35 status / human-review markers
         "status":                   "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":    bool(is_unverified),
