@@ -1038,6 +1038,33 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L57 — Drafter Structural Alignment: Markup Fixes Insufficient Without Content Density
+
+**What landed (commit `597776c`):** ITB/GCC fixed-skeleton replaced 257 bare-numeric `### N.M` sub-headings (103 ITB + 154 GCC) with `**N.M.**` bold-prefix paragraphs under `## N. Topic` H2 parents. BDS rendering replaced single-table form with 6 themed H2 sub-sections + a "The clause shall be read as" H2 carrying prose paragraphs for BV/EMD/PBG that explicitly cite `ITB X.Y — …` (mirroring real JA's pattern at line 462). Cross-ref anchor safety: 0 broken markdown anchors. Section count compressed Kurnool drafter 265 → 158; Forms count 55 → 29.
+
+**Residue: 5/18 drafter-regeneration UNVERIFIED** (PBG × 3 docs + BV × 2 docs Kurnool/JA/HC). Markup-structure changes alone didn't flip kg_builder's section-classifier outputs into the targeted ITB/GCC categories. Verdict landscape went 12/18 → 13/18 COMPLIANT_FIRED — one cell improved (Kurnool BV via NIT body row), the rest unchanged.
+
+**Root cause:** kg_builder's content-based section classifier weights body-content density. Below ~10 lines per H2 section, it falls back to heading-stack heuristic defaults (`Forms` / `Datasheet`). Measured directly:
+
+| Section | Drafter width | Real-corpus equivalent | Drafter classifier output | Real classifier output |
+|---|---|---|---|---|
+| PBG anchor (`## 42. Performance Security`) | 4 lines | Real JA `## To: [Contractor]` (Letter of Acceptance template) = 10 lines | `Forms` | `GCC` |
+| BDS clause-prose (`## The clause shall be read as`) | 3 lines | Real JA same heading = **78 lines** (covers ITB 4.5 sanctions/debarment/environmental in long prose) | `Datasheet` | `ITB` |
+
+Drafter's per-clause concise rendering doesn't reach the width threshold the classifier needs. Real-corpus tenders write multi-paragraph multi-clause prose under each H2; drafter writes 1-2 paragraph terse bodies.
+
+**Fix surface (deferred, post-hackathon, ~2–4 h):** extend the fixed-skeleton from real AP SBD source to mirror real-corpus prose breadth. Specifically:
+
+- ITB `## 42. Performance Security`: real SBD has 8–12 sub-clauses (form-acceptable banks, encashment, claim procedure, return-on-completion, additional security at over-runs, currency, format references, etc.); drafter currently has 2–3. Same SBD source as the original fixed-skeleton extraction.
+- ITB `## 18. Period of Validity of Bids`: similar — real SBD has extension-procedure paragraphs, refusal consequences, bid-security extension co-requirement.
+- BDS `## The clause shall be read as` prose section: expandable with sanctions/debarment paragraphs (real JA L464–542), environmental-requirements re-statement, beneficial-ownership disclosure (BDS ITB 47.1 in real JA), and similar long-prose rows.
+
+Source: same processed Markdown as the original fixed-skeleton (`source_documents/e_procurement/processed_md/`). Pattern: lift the multi-paragraph prose verbatim where it's policy-correct, parameterise where values vary (`{{pbg_pct}}` etc.).
+
+**Decision: not on current critical path.** Real-corpus validator coverage (12/36 COMPLIANT_FIRED + 22 honestly-surfaced violations) is the substantive validator claim and is unaffected. Drafter closed-loop at 13/18 is acceptable resting state.
+
+---
+
 ## L56 — Methodology Violation: Validator-Widen Reverted; Drafter Is What's Wrong, Not Validators
 
 **Context:** L55 documented widening PBG and BV section_type filters to include `Forms` and `Datasheet` so they would catch the fixed-skeleton drafter's mistagged `### 42.1` headings and BDS rows. That commit (`0317bf4`) shipped and showed measured "improvement" on drafter regenerations (PBG flipped UNVERIFIED → COMPLIANT_FIRED on JA/HC/Kurnool drafter outputs).
