@@ -400,16 +400,26 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
         # fall to EXCLUDED (some rule says "doesn't apply"; conservative).
         all_rule_ids = c.get("rule_ids") or []
         all_missing  = bool(all_rule_ids) and len(missing_rules) == len(all_rule_ids)
-        audit_warning = None
+        # Bug A patch upgraded to structured dict (was a flat string) so
+        # renderers can consume the missing_rule_ids list directly without
+        # parsing the string. Schema:
+        #   {"missing_rule_ids": [str, …],
+        #    "reason":           "<human-readable explanation>"}
+        audit_warning: dict | None = None
 
         if firing_rules:
             status = "MANDATORY"
         elif unknown_rules and not skip_rules:
             status = "ADVISORY"
         elif all_missing:
-            audit_warning = (f"all {len(missing_rules)} rule(s) referenced by this "
-                             f"clause are missing from the rules table: "
-                             f"{missing_rules}. Promoted via mandatory-flag fallback.")
+            audit_warning = {
+                "missing_rule_ids": list(missing_rules),
+                "reason": (
+                    f"all {len(missing_rules)} rule(s) referenced by this "
+                    f"clause are missing from the rules table: "
+                    f"{missing_rules}. Promoted via mandatory-flag fallback."
+                ),
+            }
             status = "MANDATORY-DEFAULT" if c.get("mandatory") else "ADVISORY"
         elif (c.get("rule_ids") or []) and not (firing_rules or unknown_rules):
             status = "EXCLUDED"
@@ -422,6 +432,28 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
                         rule_verdicts=rule_verdicts, firing_rules=firing_rules,
                         _audit_warning=audit_warning))
     return out
+
+
+# ── Audit-warning marker rendering ────────────────────────────────────
+
+def _format_audit_warning_marker(audit_warning: dict | None) -> str:
+    """Format the Bug-A `_audit_warning` dict as a single-line italic
+    marker for inline placement above a clause body.
+
+    Returns "" when audit_warning is None or empty (nothing to render).
+    Otherwise returns one line:
+        _[⚠ rules pending seed: <id1>, <id2>, <id3> +N more]_
+
+    Truncates to first 3 rule_ids; appends "+N more" when more exist."""
+    if not audit_warning:
+        return ""
+    ids = list(audit_warning.get("missing_rule_ids") or [])
+    if not ids:
+        return ""
+    shown = ids[:3]
+    extra = len(ids) - 3
+    suffix = f" +{extra} more" if extra > 0 else ""
+    return f"_[⚠ rules pending seed: {', '.join(shown)}{suffix}]_"
 
 
 # ── STEP 3: Parameter map ─────────────────────────────────────────────
@@ -778,6 +810,13 @@ def render_clauses_as_table(
         )
         # Compress whitespace for readability inside table cells
         text = re.sub(r"\s+", " ", text).strip()
+        # Bug-A audit-warning marker (closing sub-finding from 63d8e7f):
+        # in table cells we can't use blank-line separation, so prepend
+        # the italic marker followed by a hard line break (`<br>`) so it
+        # renders as its own visual line above the body inside the cell.
+        marker = _format_audit_warning_marker(c.get("_audit_warning"))
+        if marker:
+            text = f"{marker}<br><br>{text}"
         # Title only — no clause_id, no status pill, no firing rules.
         rows.append((title, text))
     if not rows:
@@ -828,10 +867,21 @@ def render_clauses_as_sections(
         )
         # Preserve paragraph structure — only normalise CRLF + trim trailing
         text = (text or "").replace("\r\n", "\n").rstrip()
-        # Heading + body only. No clause_id, no status pill, no firing
-        # rules. Title is human-readable; that's all the document
-        # needs to expose.
-        blocks.append(f"{hashes} {title}\n\n{text}\n")
+        # Bug-A audit-warning marker (closing sub-finding from 63d8e7f):
+        # if the clause was conservatively included via the
+        # all-MISSING-rule_ids fallback, surface a single-line italic
+        # marker between the heading and the body so an officer
+        # reviewing the rendered DOCX sees which rule_ids are pending
+        # seed. Plain markdown italic; blank-line separation on both
+        # sides for clean rendering.
+        marker = _format_audit_warning_marker(c.get("_audit_warning"))
+        if marker:
+            blocks.append(f"{hashes} {title}\n\n{marker}\n\n{text}\n")
+        else:
+            # Heading + body only. No clause_id, no status pill, no
+            # firing rules. Title is human-readable; that's all the
+            # document needs to expose.
+            blocks.append(f"{hashes} {title}\n\n{text}\n")
     if visible == 0:
         return "_(no clauses applicable to this tender configuration)_\n"
     return "\n".join(blocks) + "\n"
@@ -1520,6 +1570,10 @@ def render_with_skeleton(
         nit_policy_refs.sort(key=lambda c: (c.get("position_order") or 9999,
                                             c.get("clause_id") or ""))
         # Render each clause as a numbered H4 (A.1, A.2, …) with prose body.
+        # Bug-A audit-warning marker propagated here too — 4 of the 16
+        # all-MISSING-rule_ids victims (MII PPP2017, MII Reciprocity,
+        # MII Existing-Policy-Precedence, MDB-Funded-Exemption) render
+        # in this loop.
         ref_blocks: list[str] = []
         for i, c in enumerate(nit_policy_refs, start=1):
             title = c.get("title") or c.get("clause_id") or "(untitled)"
@@ -1529,7 +1583,11 @@ def render_with_skeleton(
                 section=c.get("position_section") or "",
             )
             text = (text or "").replace("\r\n", "\n").rstrip()
-            ref_blocks.append(f"#### A.{i}  {title}\n\n{text}\n")
+            marker = _format_audit_warning_marker(c.get("_audit_warning"))
+            if marker:
+                ref_blocks.append(f"#### A.{i}  {title}\n\n{marker}\n\n{text}\n")
+            else:
+                ref_blocks.append(f"#### A.{i}  {title}\n\n{text}\n")
         refs_md = "\n".join(ref_blocks)
         block = (
             "\n### Procurement Policy References\n\n"
