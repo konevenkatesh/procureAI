@@ -1038,6 +1038,21 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L59 — Mandatory-Fields Per-Sub-Check UNVERIFIED Rows: Unset failure_path
+
+**Identified during Batch 1 of the validator-suite Bug C expansion** (commit `c968c61`). The Works-Universal-Mandatory-Fields validator emits per-sub-check rows through a single chokepoint helper `_materialise_finding(doc_id, props, label, …)`. Bug C's auto-injection in `_materialise_finding` correctly sets `verdict` per the severity-aware rule (HARD_BLOCK / GAP_VIOLATION / UNVERIFIED) based on the existing `props.status` and `props.severity` — but does NOT set `failure_path` on UNVERIFIED rows because the legacy props dicts pre-date the failure_path discriminator and don't carry the source signal needed to set it.
+
+**Observed in Batch 1**: 9 UNVERIFIED Mandatory-Fields per-sub-check rows landed with `verdict=UNVERIFIED` ✓ but `failure_path=(unset)`. Verdict correctness intact; sub-check identity is still visible via the row's other audit fields (`rule_id`, label).
+
+**Not blocking**:
+- Aggregator's empty-rows / VALIDATOR_NOT_MIGRATED checks pass cleanly (verdict is set).
+- UNVERIFIED breakdown reporting groups these as "(unset)" — visible in the matrix audit; recoverable per-row.
+- Severity tagging is correct.
+
+**Fix surface (deferred — fold into the L58 retroactive cleanup after Batch 3):** at each per-sub-check props-dict construction site in `tier1_mandatory_fields_check.py`, set `props["failure_path"]` based on the local context (`grep_promoted_to_unverified` → `retrieval_coverage_gap`; `is_unverified_l24_fail` → `L24_evidence_guard`; degenerate `primary_rule is None` → `rule_lookup_missing`). ~10-15 line patch.
+
+---
+
 ## L58 — Severity-Aware Verdict Tagging (Bug C Original Migration Inconsistency to Retroactively Fix)
 
 **Identified during Batch 1 of the validator-suite Bug C expansion** (from 6 wired-and-migrated to 24 total). The original Bug C migration (commit `edc68bd` covering PBG / EMD / Bid-Validity / LD / MII / JP) used a binary `verdict = "UNVERIFIED" if is_unverified else "GAP_VIOLATION"` mapping — collapsing the rule's severity into a single `GAP_VIOLATION` tag regardless of whether the rule itself was `HARD_BLOCK` or `ADVISORY/WARNING`.

@@ -86,6 +86,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -565,6 +568,17 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule  = select_crn_rule(facts)
     if rule is None:
+        # Bug C: SKIP_NOT_APPLICABLE
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     family, section_types = family_for_doc_with_filter(DOC_ID, TYPOLOGY)
@@ -829,10 +843,30 @@ def main() -> int:
     print(f"  is_absence        : {is_absence}")
     print(f"  reason_label      : {reason_label}")
 
-    # COMPLIANT (or absence-treated-as-compliant) → silent
+    # COMPLIANT (or absence-treated-as-compliant)
     if is_compliant_l24 or is_absence:
-        print(f"\n  → COMPLIANT — no row, no edge emitted "
-              f"(positive signal derived from absence of finding)")
+        # Bug C: explicit COMPLIANT_FIRED row.
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"] if section else None,
+            evidence_line_no_local=section["line_start_local"] if section else None,
+            section_node_id=section["section_node_id"] if section else None,
+            source_file=section["source_file"] if section else None,
+            qdrant_similarity=round(similarity, 4) if similarity is not None else None,
+            passed_threshold=True,
+            value_extracted={"jv_banned": jv_banned,
+                             "jv_cited": jv_cited,
+                             "is_arbitrary_ban": is_arbitrary_ban,
+                             "rule_shape": rule.get("shape")},
+            extra_props={"violation_reason": reason_label,
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  ({reason_label})")
         timings["total_wall"] = time.perf_counter() - t_start
         print()
         print("=" * 76)
@@ -975,6 +1009,16 @@ def main() -> int:
         "estimated_value_cr":          facts.get("_estimated_value_cr"),
         "verdict_origin":              rule.get("verdict_origin"),
         "severity_origin":             rule.get("severity_origin"),
+        # Bug C verdict tag — severity-aware (Q1 fix)
+        "verdict":                    ("UNVERIFIED" if is_unverified
+                                       else ("HARD_BLOCK"
+                                             if rule.get("severity") == "HARD_BLOCK"
+                                             else "GAP_VIOLATION")),
+        "failure_path":               ("L24_evidence_guard"
+                                       if is_unverified and not (grep_promoted_to_unverified or full_grep_promoted)
+                                       else ("retrieval_coverage_gap"
+                                             if (grep_promoted_to_unverified or full_grep_promoted)
+                                             else None)),
         "status":                     "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":      bool(is_unverified),
         "grep_fallback_audit":         grep_audit,

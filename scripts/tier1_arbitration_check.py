@@ -60,6 +60,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -620,6 +623,17 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     fired_rules = select_arbitration_rules(facts)
     if not fired_rules:
+        # Bug C: SKIP_NOT_APPLICABLE
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # Identify which sub-checks have a fired rule available.
@@ -1025,6 +1039,17 @@ def main() -> int:
             # L27 audit
             "verdict_origin":                   primary_rule.get("verdict_origin"),
             "severity_origin":                  primary_rule.get("severity_origin"),
+            # Bug C verdict tag — severity-aware (Q1 fix). primary_status
+            # is OPEN/UNVERIFIED; map per primary_rule's severity.
+            "verdict":                          ("UNVERIFIED" if primary_status == "UNVERIFIED"
+                                                 else ("HARD_BLOCK"
+                                                       if primary_rule.get("severity") == "HARD_BLOCK"
+                                                       else "GAP_VIOLATION")),
+            "failure_path":                     ("L24_evidence_guard"
+                                                 if primary_status == "UNVERIFIED" and not (grep_promoted_to_unverified or full_grep_promoted)
+                                                 else ("retrieval_coverage_gap"
+                                                       if (grep_promoted_to_unverified or full_grep_promoted)
+                                                       else None)),
             # Status / human-review markers
             "status":                           primary_status,
             "requires_human_review":            primary_status == "UNVERIFIED",
@@ -1166,6 +1191,9 @@ def main() -> int:
             "evidence_match_score":          ev_score,
             "evidence_match_method":         ev_method,
             "estimated_value_cr":            facts.get("_estimated_value_cr"),
+            # Bug C verdict — informational marker is GAP_VIOLATION-shape
+            # (severity=ADVISORY, OPEN with edge per L43)
+            "verdict":                       "GAP_VIOLATION",
             "status":                        "OPEN",
             "requires_human_review":         False,
             "defeated":                      False,
@@ -1210,6 +1238,34 @@ def main() -> int:
         print(f"\n  → AP-GO-229 informational ValidationFinding {marker_finding['node_id']}  "
               f"(status=OPEN, severity=ADVISORY, marker_kind=informational)")
         print(f"  → VIOLATES_RULE              {marker_edge['edge_id']}")
+
+    # Bug C: if neither primary violation nor informational marker
+    # emitted, this is the silent-COMPLIANT path. Emit explicit
+    # COMPLIANT_FIRED so the aggregator doesn't see an empty cell
+    # and emit VALIDATOR_NOT_MIGRATED.
+    if not findings_emitted:
+        chosen_rule = (fired_rules[0] if fired_rules else None)
+        compliant_row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY,
+            rule_id=(chosen_rule["rule_id"] if chosen_rule else None),
+            severity=(chosen_rule.get("severity") if chosen_rule else None),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"] if section else None,
+            evidence_line_no_local=section["line_start_local"] if section else None,
+            section_node_id=section["section_node_id"] if section else None,
+            source_file=section["source_file"] if section else None,
+            qdrant_similarity=round(similarity, 4) if similarity is not None else None,
+            passed_threshold=True,
+            value_extracted={"arb_present": arb_present,
+                             "ap_ladder_accepted": ap_ladder_accepted,
+                             "rule_shape": "multi-rule"},
+            extra_props={"violation_reason": "compliant_arbitration_clause_present_no_anti_pattern",
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {compliant_row['node_id']}  (silent-COMPLIANT path)")
 
     # Summary
     timings["total_wall"] = time.perf_counter() - t_start
