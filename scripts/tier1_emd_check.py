@@ -49,6 +49,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard import verify_evidence_in_section
 from modules.validation.section_router import family_for_doc_with_filter
 from modules.validation.amount_to_pct import compute_implied_pct
@@ -524,6 +527,18 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule  = select_emd_rule(facts)
     if rule is None:
+        # Bug C: every candidate condition_when evaluated False —
+        # SKIP_NOT_APPLICABLE for these tender facts.
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # 2. Family + section_type filter (router)
@@ -598,11 +613,40 @@ def main() -> int:
     print(f"  evidence     : {evidence[:300]!r}")
 
     if chosen is None or not found:
-        print(f"\n  → no EMD candidate identified; no finding emitted")
+        print(f"\n  → no EMD candidate identified; emitting UNVERIFIED")
+        top1 = candidates[0]["similarity"] if candidates else None
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="no_candidate",
+            what_was_searched=QUERY_TEXT,
+            retrieval_debug={"top1_score": top1,
+                             "candidates_returned": len(candidates),
+                             "K": K,
+                             "section_filter": list(section_types),
+                             "llm_chose": chosen, "llm_found": found},
+        )
+        print(f"  → UNVERIFIED (no_candidate) {row['node_id']}")
         return 0
 
     if not isinstance(chosen, int) or not (0 <= chosen < len(candidates)):
-        print(f"  → chosen_index out of range; no finding emitted")
+        print(f"  → chosen_index out of range; emitting UNVERIFIED")
+        top1 = candidates[0]["similarity"] if candidates else None
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="chosen_oor",
+            what_was_searched=QUERY_TEXT,
+            retrieval_debug={"top1_score": top1,
+                             "candidates_returned": len(candidates),
+                             "K": K,
+                             "section_filter": list(section_types),
+                             "llm_chose": chosen,
+                             "llm_chose_type": type(chosen).__name__},
+        )
+        print(f"  → UNVERIFIED (chosen_oor) {row['node_id']}  chosen={chosen!r}")
         return 0
 
     section = candidates[chosen]
@@ -663,6 +707,9 @@ def main() -> int:
             "evidence_verified":     ev_passed,
             "evidence_match_score":  ev_score,
             "evidence_match_method": ev_method,
+            # Bug C verdict tag — L24 evidence-guard failure path
+            "verdict":               "UNVERIFIED",
+            "failure_path":          "L24_evidence_guard",
             # L35 status / human-review markers
             "status":                "UNVERIFIED",
             "requires_human_review": True,
@@ -721,15 +768,62 @@ def main() -> int:
     print(f"  is_violation   : {is_violation}")
     print(f"  needs_cv       : {needs_contract_value}")
 
-    # Emission rules:
-    #   percentage / amount paths: emit only on violation (compliant
-    #     case is implicit "no finding row")
-    #   amount_pending_value:      emit always (with status=PENDING_VALUE,
-    #     no VIOLATES_RULE edge) so the gap is auditable downstream
+    # Bug C verdict-emission rules:
+    #   - compliant pass (not violation, not pending) → COMPLIANT_FIRED
+    #   - extraction_path None (neither pct nor amount usable) → UNVERIFIED
+    #   - violation OR pending_value → fall through to existing emit
     if not is_violation and not needs_contract_value:
+        # Compliant pass — extraction succeeded, threshold met,
+        # L24 verified upstream. Emit explicit COMPLIANT_FIRED row.
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"],
+            evidence_line_no_local=section["line_start_local"],
+            section_node_id=section["section_node_id"],
+            source_file=section["source_file"],
+            qdrant_similarity=round(similarity, 4),
+            passed_threshold=True,
+            value_extracted={"total_pct": total_pct,
+                             "stage1_pct": stage1_pct,
+                             "stage2_pct": stage2_pct,
+                             "two_stage": two_stage,
+                             "amount_cr": amount_cr,
+                             "implied_pct": implied_pct,
+                             "extraction_path": extraction_path,
+                             "rule_shape": rule["shape"]},
+            extra_props={"extraction_path": extraction_path,
+                         "rerank_chosen_index": chosen,
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "violation_reason": reason_label,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  "
+              f"reason={reason_label} at line {section['line_start_local']}")
         return 0
     if extraction_path is None:
-        # Neither percentage nor amount usable
+        # Neither percentage nor amount usable — emit UNVERIFIED
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="extraction_path_none",
+            what_was_searched=QUERY_TEXT,
+            retrieval_debug={"top1_score": (candidates[0]["similarity"]
+                                            if candidates else None),
+                             "candidates_returned": len(candidates),
+                             "section_filter": list(section_types),
+                             "total_pct": total_pct,
+                             "amount_cr": amount_cr,
+                             "implied_pct": implied_pct},
+            evidence_section_heading=section["heading"] if section else None,
+            evidence_line_no_local=(section["line_start_local"]
+                                    if section else None),
+        )
+        print(f"  → UNVERIFIED (extraction_path_none) {row['node_id']}")
         return 0
 
     # 10. Materialise finding (+ edge for true violations only)
@@ -806,6 +900,13 @@ def main() -> int:
         "evidence_verified":     ev_passed,
         "evidence_match_score":  ev_score,
         "evidence_match_method": ev_method,
+        # Bug C verdict tag. EMD violations are HARD_BLOCK (rule severity).
+        # PENDING_VALUE rows haven't compared against threshold yet —
+        # surface as UNVERIFIED with extraction_path_none audit.
+        "verdict":             ("HARD_BLOCK" if (is_violation and not needs_contract_value)
+                                else "UNVERIFIED"),
+        "failure_path":        (None if (is_violation and not needs_contract_value)
+                                else "extraction_path_none"),
         "status":              "PENDING_VALUE" if needs_contract_value else "OPEN",
         "defeated":            False,
     }

@@ -42,6 +42,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from builder.config import settings
+from modules.validation.verdict_emitter import emit_verdict_row, truncate_evidence_quote
 
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -925,6 +926,9 @@ def main() -> int:
             "evidence_verified":     False,
             "evidence_match_score":  unv_score,
             "evidence_match_method": unv_method,
+            # Bug C verdict tag — L24 evidence-guard failure path
+            "verdict":               "UNVERIFIED",
+            "failure_path":          "L24_evidence_guard",
             # L35 status / human-review markers
             "status":                "UNVERIFIED",
             "requires_human_review": True,
@@ -968,6 +972,11 @@ def main() -> int:
             "source_file":       finding_section["source_file"],
             "line_start_local":  finding_section["line_start_local"],
             "line_end_local":    finding_section["line_end_local"],
+            # Bug C verdict tag. PBG severity is HARD_BLOCK; PENDING_VALUE
+            # cases are still UNVERIFIED-shape (the threshold compare
+            # hasn't run yet).
+            "verdict":           "HARD_BLOCK" if not amount_pending_value else "UNVERIFIED",
+            "failure_path":      None if not amount_pending_value else "extraction_path_none",
             "status":            "OPEN" if not amount_pending_value else "PENDING_VALUE",
             "defeated":          False,
             **finding_props_extra,
@@ -1015,7 +1024,98 @@ def main() -> int:
         print(f"  → ValidationFinding {finding['node_id']}")
         print(f"  materialise wall:   {timings['materialise']*1000:.0f}ms  (path={path})")
     else:
-        print(f"  → no finding emitted (neither percentage nor amount path produced a result)")
+        # Bug C: replace the silent-pass / silent-no-extraction branch
+        # with explicit verdict emission. Reaches here iff:
+        #   - no violation fired (nothing_fires=True), AND
+        #   - the L35 UNVERIFIED-on-L24-fail branch above did NOT fire
+        # Three sub-cases:
+        #   (a) percentage-path compliant: found, pct ≥ threshold, L24 ok
+        #   (b) amount-path compliant: amount_found, implied_pct ≥
+        #       threshold, contract_value resolved, L24 ok
+        #   (c) nothing extracted: emit UNVERIFIED no_candidate
+        pct_compliant_pass = (
+            found and pct is not None and pct >= RULE_THRESHOLD_PCT
+            and pct_evidence_in_source and section is not None
+        )
+        amount_compliant_pass = (
+            amount_found and implied_pct is not None
+            and implied_pct >= RULE_THRESHOLD_PCT
+            and amt_evidence_in_source and amount_section is not None
+        )
+        if pct_compliant_pass:
+            sec = section
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=RULE_ID,
+                verdict="COMPLIANT_FIRED", severity=SEVERITY,
+                clause_id="CLAUSE-AP-CONTRACTOR-SECURITY-DEPOSIT-001",
+                evidence_quote=evidence,
+                evidence_section_heading=sec["heading"],
+                evidence_line_no_local=sec["line_start_local"],
+                section_node_id=sec["section_node_id"],
+                source_file=sec["source_file"],
+                qdrant_similarity=round(similarity, 4),
+                passed_threshold=True,
+                value_extracted={"path": "percentage", "pct": pct,
+                                 "threshold_pct": RULE_THRESHOLD_PCT},
+                extra_props={"extraction_path": "percentage",
+                             "rerank_chosen_index": chosen,
+                             "evidence_match_score": pct_evidence_score,
+                             "evidence_match_method": pct_evidence_method,
+                             "defeated": False},
+            )
+            print(f"  → COMPLIANT_FIRED (percentage path) {row['node_id']}  "
+                  f"pct={pct}% ≥ {RULE_THRESHOLD_PCT}% at line "
+                  f"{sec['line_start_local']}")
+        elif amount_compliant_pass:
+            sec = amount_section
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=RULE_ID,
+                verdict="COMPLIANT_FIRED", severity=SEVERITY,
+                clause_id="CLAUSE-AP-CONTRACTOR-SECURITY-DEPOSIT-001",
+                evidence_quote=amount_evidence,
+                evidence_section_heading=sec["heading"],
+                evidence_line_no_local=sec["line_start_local"],
+                section_node_id=sec["section_node_id"],
+                source_file=sec["source_file"],
+                qdrant_similarity=round(amount_similarity, 4),
+                passed_threshold=True,
+                value_extracted={"path": "amount", "amount_cr": amount_cr,
+                                 "implied_pct": implied_pct,
+                                 "contract_value_cr": contract_value_cr,
+                                 "threshold_pct": RULE_THRESHOLD_PCT},
+                extra_props={"extraction_path": "amount",
+                             "rerank_chosen_index": amount_chosen,
+                             "evidence_match_score": amt_evidence_score,
+                             "evidence_match_method": amt_evidence_method,
+                             "defeated": False},
+            )
+            print(f"  → COMPLIANT_FIRED (amount path) {row['node_id']}  "
+                  f"implied_pct={implied_pct}% ≥ {RULE_THRESHOLD_PCT}% at line "
+                  f"{sec['line_start_local']}")
+        else:
+            # No reliable extraction. Both paths returned nothing the
+            # validator can stand behind. UNVERIFIED with failure_path
+            # tells the officer + downstream queue why.
+            top1_score = (candidates[0]["similarity"]
+                          if candidates else None)
+            row = emit_verdict_row(
+                doc_id=DOC_ID, typology=TYPOLOGY, rule_id=RULE_ID,
+                verdict="UNVERIFIED", severity=SEVERITY,
+                failure_path="no_candidate",
+                what_was_searched=query_text,
+                retrieval_debug={
+                    "top1_score":          top1_score,
+                    "candidates_returned": len(candidates),
+                    "K":                   K,
+                    "section_filter":      list(PBG_SECTION_TYPES),
+                    "llm_pct_found":       found,
+                    "llm_amount_found":    amount_found,
+                },
+                extra_props={"defeated": False},
+            )
+            print(f"  → UNVERIFIED (no_candidate) {row['node_id']}  "
+                  f"top1_score={top1_score}; LLM found pct={found} "
+                  f"amount={amount_found}")
 
     # Summary
     print()

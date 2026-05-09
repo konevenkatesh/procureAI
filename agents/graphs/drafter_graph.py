@@ -798,6 +798,12 @@ def validator_node(state: DrafterState) -> dict:
 
     # Convert the report dict into the validation_findings list shape
     # the portal already renders (Gate-3 payload).
+    #
+    # Bug C: each finding now carries the explicit verdict + a
+    # mechanism_evidence string shaped to the verdict (quote+line for
+    # COMPLIANT_FIRED, failed_condition for SKIP, retrieval_debug for
+    # UNVERIFIED, expected/found for VIOLATION). `status` is preserved
+    # for portal back-compat.
     findings: list[dict] = []
     for typology, info in result["validation_report"].items():
         # Default expected values per typology — sourced from the same
@@ -811,19 +817,27 @@ def validator_node(state: DrafterState) -> dict:
             "Judicial-Preview-Bypass":    "AP Judicial Preview mandate (≥Rs.100cr)",
         }
         findings.append({
-            "typology":  typology,
-            "status":    info["status"],
-            "expected":  EXPECTED.get(typology, "regulatory framework"),
-            "actual":    info.get("detail", "")[:200],
-            "severity":  info.get("severity"),
-            "n_findings": info.get("n_findings", 0),
-            "n_edges":    info.get("n_edges", 0),
+            "typology":             typology,
+            "verdict":              info.get("verdict") or info.get("status"),
+            "status":               info.get("status"),     # back-compat
+            "expected":             EXPECTED.get(typology, "regulatory framework"),
+            "mechanism_evidence":   info.get("mechanism_evidence") or info.get("detail", ""),
+            "actual":               info.get("detail", "")[:240],   # legacy alias
+            "severity":             info.get("severity"),
+            "n_findings":           info.get("n_findings", 0),
+            "n_edges":              info.get("n_edges", 0),
+            "n_hard_block":         info.get("n_hard_block", 0),
+            "n_gap_violation":      info.get("n_gap_violation", 0),
+            "n_unverified":         info.get("n_unverified", 0),
+            "n_skip_not_applicable": info.get("n_skip_not_applicable", 0),
+            "n_compliant_fired":    info.get("n_compliant_fired", 0),
         })
 
-    n_hard = sum(1 for f in findings if f.get("severity") == "HARD_BLOCK"
-                 and f["status"] != "COMPLIANT")
-    n_warn = sum(1 for f in findings if f.get("severity") == "WARNING"
-                 and f["status"] != "COMPLIANT")
+    # Hard-blocks count: only verdict=HARD_BLOCK rows count. UNVERIFIED
+    # with severity=HARD_BLOCK is a retrieval gap, not a violation.
+    n_hard = sum(1 for f in findings if f.get("verdict") == "HARD_BLOCK")
+    n_warn = sum(1 for f in findings if f.get("verdict") == "GAP_VIOLATION"
+                 and f.get("severity") in ("WARNING", "ADVISORY"))
 
     timings = dict(state.get("timings_ms") or {})
     timings["validator"] = int((time.perf_counter() - t0) * 1000)

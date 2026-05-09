@@ -48,6 +48,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.llm_client       import call_llm
@@ -543,6 +546,18 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule, defeasibility_gap = select_validity_rule(facts)
     if rule is None:
+        # Bug C: every candidate condition_when False — SKIP_NOT_APPLICABLE
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+            extra_props={"defeasibility_gap": defeasibility_gap},
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # 2. Family + section_type filter (router)
@@ -619,11 +634,38 @@ def main() -> int:
     print(f"  evidence        : {evidence[:300]!r}")
 
     if chosen is None or not found:
-        print(f"\n  → no bid-validity candidate identified; no finding emitted")
+        print(f"\n  → no bid-validity candidate identified; emitting UNVERIFIED")
+        top1 = candidates[0]["similarity"] if candidates else None
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="no_candidate",
+            what_was_searched=QUERY_TEXT,
+            retrieval_debug={"top1_score": top1,
+                             "candidates_returned": len(candidates),
+                             "K": K, "section_filter": list(section_types),
+                             "llm_chose": chosen, "llm_found": found},
+        )
+        print(f"  → UNVERIFIED (no_candidate) {row['node_id']}")
         return 0
 
     if not isinstance(chosen, int) or not (0 <= chosen < len(candidates)):
-        print(f"  → chosen_index out of range; no finding emitted")
+        print(f"  → chosen_index out of range; emitting UNVERIFIED")
+        top1 = candidates[0]["similarity"] if candidates else None
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="UNVERIFIED",
+            failure_path="chosen_oor",
+            what_was_searched=QUERY_TEXT,
+            retrieval_debug={"top1_score": top1,
+                             "candidates_returned": len(candidates),
+                             "K": K, "section_filter": list(section_types),
+                             "llm_chose": chosen,
+                             "llm_chose_type": type(chosen).__name__},
+        )
+        print(f"  → UNVERIFIED (chosen_oor) {row['node_id']}  chosen={chosen!r}")
         return 0
 
     section = candidates[chosen]
@@ -686,6 +728,9 @@ def main() -> int:
             "evidence_verified":     ev_passed,
             "evidence_match_score":  ev_score,
             "evidence_match_method": ev_method,
+            # Bug C verdict tag — L24 evidence-guard failure path
+            "verdict":               "UNVERIFIED",
+            "failure_path":          "L24_evidence_guard",
             # L35 status / human-review markers
             "status":                "UNVERIFIED",
             "requires_human_review": True,
@@ -720,8 +765,35 @@ def main() -> int:
         print(f"  defeasibility_gap : {defeasibility_gap}")
 
     if not is_violation:
-        # Decision 5: only emit on shortfall. Compliant case is implicit
-        # "no finding row" — same shape as PBG/EMD compliance.
+        # Bug C: explicit COMPLIANT_FIRED row in place of the prior
+        # silent compliant-pass exit.
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"],
+            evidence_line_no_local=section["line_start_local"],
+            section_node_id=section["section_node_id"],
+            source_file=section["source_file"],
+            qdrant_similarity=round(similarity, 4),
+            passed_threshold=True,
+            value_extracted={"days_normalised": days_normalised,
+                             "validity_days": validity_days,
+                             "validity_months": validity_months,
+                             "validity_weeks": validity_weeks,
+                             "rule_threshold_days": rule["min_days"],
+                             "rule_threshold_basis": rule["threshold_basis"]},
+            extra_props={"rerank_chosen_index": chosen,
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "violation_reason": reason_label,
+                         "defeasibility_gap": defeasibility_gap,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  "
+              f"days={days_normalised} ≥ {rule['min_days']} at line "
+              f"{section['line_start_local']}")
         return 0
 
     # 10. Materialise finding + edge
@@ -776,6 +848,9 @@ def main() -> int:
             "evidence_verified":     ev_passed,
             "evidence_match_score":  ev_score,
             "evidence_match_method": ev_method,
+            # Bug C verdict tag — Bid-Validity violations are ADVISORY/WARNING
+            # (severity from rule), not HARD_BLOCK.
+            "verdict":             "GAP_VIOLATION",
             "status":              "OPEN",
             "defeated":            False,
         },

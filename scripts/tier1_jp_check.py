@@ -55,6 +55,9 @@ sys.path.insert(0, str(REPO))
 
 from builder.config import settings
 from modules.validator.condition_evaluator import evaluate as evaluate_when, Verdict
+from modules.validation.verdict_emitter import (
+    emit_verdict_row, compose_skip_trace, truncate_evidence_quote,
+)
 from modules.validation.evidence_guard   import verify_evidence_in_section
 from modules.validation.section_router   import family_for_doc_with_filter
 from modules.validation.text_utils       import smart_truncate
@@ -562,6 +565,25 @@ def main() -> int:
     facts = fetch_tender_facts(DOC_ID)
     rule  = select_jp_rule(facts)
     if rule is None:
+        # Bug C: SKIP_NOT_APPLICABLE — at <100cr ECV, AP-GO-006/007/008
+        # condition_when (`EstimatedValue>=1000000000`) returns False.
+        failed_str, skip_trace, skip_reason = compose_skip_trace(
+            RULE_CANDIDATES, facts)
+        # Override the human reason to spell out the threshold case
+        ev_cr = facts.get("_estimated_value_cr") or facts.get("EstimatedValue") or 0
+        if isinstance(ev_cr, (int, float)) and ev_cr > 0:
+            ev_disp = ev_cr if ev_cr > 1e6 else (ev_cr * 1e7)
+            ev_cr_disp = ev_disp / 1e7 if ev_disp >= 1e7 else ev_cr
+            skip_reason = (f"ECV {ev_cr_disp}cr below 100cr threshold — "
+                           f"AP Judicial Preview mandate does not apply")
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=None,
+            verdict="SKIP_NOT_APPLICABLE",
+            failed_condition=failed_str,
+            skip_reason_human=skip_reason,
+            skip_trace=skip_trace,
+        )
+        print(f"  → SKIP_NOT_APPLICABLE {row['node_id']}  ({skip_reason})")
         return 0
 
     # 2. Family + section_type filter (router)
@@ -716,6 +738,27 @@ def main() -> int:
     print(f"  reason_label      : {reason_label}")
 
     if is_compliant:
+        # Bug C: explicit COMPLIANT_FIRED row.
+        row = emit_verdict_row(
+            doc_id=DOC_ID, typology=TYPOLOGY, rule_id=rule["rule_id"],
+            severity=rule.get("severity"),
+            verdict="COMPLIANT_FIRED",
+            evidence_quote=evidence,
+            evidence_section_heading=section["heading"],
+            evidence_line_no_local=section["line_start_local"],
+            section_node_id=section["section_node_id"],
+            source_file=section["source_file"],
+            qdrant_similarity=round(similarity, 4),
+            passed_threshold=True,
+            value_extracted={"rule_shape": rule["shape"]},
+            extra_props={"rerank_chosen_index": chosen,
+                         "evidence_match_score": ev_score,
+                         "evidence_match_method": ev_method,
+                         "violation_reason": reason_label,
+                         "defeated": False},
+        )
+        print(f"  → COMPLIANT_FIRED {row['node_id']}  "
+              f"JP clause present at line {section['line_start_local']}")
         return 0
 
     # 9. Materialise finding
@@ -845,6 +888,14 @@ def main() -> int:
         # L27 audit
         "verdict_origin":              rule.get("verdict_origin"),
         "severity_origin":             rule.get("severity_origin"),
+        # Bug C verdict tag — UNVERIFIED if L24/grep gap; otherwise GAP_VIOLATION
+        "verdict":                    ("UNVERIFIED" if is_unverified
+                                       else "GAP_VIOLATION"),
+        "failure_path":               ("L24_evidence_guard"
+                                       if is_unverified and not grep_promoted_to_unverified
+                                       else ("retrieval_coverage_gap"
+                                             if grep_promoted_to_unverified
+                                             else None)),
         # L35 status / human-review markers
         "status":                     "UNVERIFIED" if is_unverified else "OPEN",
         "requires_human_review":      bool(is_unverified),

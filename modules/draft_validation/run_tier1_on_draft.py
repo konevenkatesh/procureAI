@@ -178,14 +178,33 @@ def _run_one_check(script_name: str, doc_id: str, *, timeout_s: int = 180) -> di
 # ── Result aggregation ────────────────────────────────────────────────
 
 def _aggregate_findings(doc_id: str, typologies: list[str]) -> dict[str, dict]:
-    """Query kg_nodes for ValidationFinding rows; classify each
-    typology as COMPLIANT / GAP_VIOLATION / UNVERIFIED."""
+    """Query kg_nodes for ValidationFinding rows; classify each typology
+    via the Bug-C verdict taxonomy (COMPLIANT_FIRED / SKIP_NOT_APPLICABLE
+    / UNVERIFIED / GAP_VIOLATION / HARD_BLOCK).
+
+    Reads `properties.verdict` first (Bug-C explicit verdicts). On
+    empty rows for a typology, emits VALIDATOR_NOT_MIGRATED — a
+    regression alarm, NOT a default to COMPLIANT. Pre-Bug-C the
+    aggregator collapsed every empty-rows verdict to COMPLIANT,
+    silently masking three different mechanisms. Post-Bug-C every
+    typology must have at least one row per run.
+    """
     rows = _rest_get("kg_nodes", {
         "doc_id":    f"eq.{doc_id}",
         "node_type": "eq.ValidationFinding",
         "select":    ("node_id,label,properties->>typology_code,"
                       "properties->>severity,properties->>status,"
-                      "properties->>violation_reason,properties->>evidence"),
+                      "properties->>verdict,"
+                      "properties->>violation_reason,"
+                      "properties->>evidence,"
+                      "properties->>evidence_quote,"
+                      "properties->>evidence_section_heading,"
+                      "properties->>evidence_line_no_local,"
+                      "properties->>failure_path,"
+                      "properties->>failed_condition,"
+                      "properties->>skip_reason_human,"
+                      "properties->>clause_id,"
+                      "properties->>source_file"),
     })
     findings_by_typology: dict[str, list[dict]] = {}
     for r in rows:
@@ -202,55 +221,114 @@ def _aggregate_findings(doc_id: str, typologies: list[str]) -> dict[str, dict]:
         t = e.get("typology") or "UNKNOWN"
         edges_by_typology[t] = edges_by_typology.get(t, 0) + 1
 
+    # Verdict severity rank for picking the headline row when multiple
+    # exist for the same typology. Higher = more important.
+    _RANK = {
+        "HARD_BLOCK":          5,
+        "GAP_VIOLATION":       4,
+        "UNVERIFIED":          3,
+        "SKIP_NOT_APPLICABLE": 2,
+        "COMPLIANT_FIRED":     1,
+    }
+
+    def _verdict_of(r: dict) -> str:
+        """Return Bug-C verdict from row, with fallback to legacy `status`
+        for the 73 corpus rows that pre-date Bug C."""
+        v = r.get("verdict")
+        if v:
+            return v
+        s = (r.get("status") or "").upper()
+        sev = (r.get("severity") or "").upper()
+        if s == "OPEN" and sev == "HARD_BLOCK":  return "HARD_BLOCK"
+        if s == "OPEN":                          return "GAP_VIOLATION"
+        if s == "UNVERIFIED":                    return "UNVERIFIED"
+        if s == "SKIP":                          return "SKIP_NOT_APPLICABLE"
+        if s == "COMPLIANT":                     return "COMPLIANT_FIRED"
+        return "UNVERIFIED"  # safest default
+
+    def _mechanism_evidence(r: dict, verdict: str) -> str:
+        """Compose a per-verdict mechanism-evidence blurb for the formatter."""
+        if verdict == "COMPLIANT_FIRED":
+            line = r.get("evidence_line_no_local")
+            quote = (r.get("evidence_quote") or r.get("evidence") or "")[:200]
+            heading = (r.get("evidence_section_heading") or "")[:80]
+            cid = r.get("clause_id") or ""
+            return (f"line {line} ({heading}): {quote}"
+                    + (f" · clause={cid}" if cid else ""))
+        if verdict == "SKIP_NOT_APPLICABLE":
+            reason = r.get("skip_reason_human") or ""
+            return reason[:240]
+        if verdict == "UNVERIFIED":
+            fp = r.get("failure_path") or "unspecified"
+            return f"failure_path={fp}"
+        if verdict in ("GAP_VIOLATION", "HARD_BLOCK"):
+            line = r.get("evidence_line_no_local")
+            quote = (r.get("evidence_quote") or r.get("evidence") or "")[:200]
+            reason = r.get("violation_reason") or ""
+            return (f"reason={reason}"
+                    + (f" · evidence@line {line}: {quote}" if quote else ""))
+        return ""
+
     report: dict[str, dict] = {}
     for typology in typologies:
         rows = findings_by_typology.get(typology, [])
         n_edges = edges_by_typology.get(typology, 0)
         if not rows:
+            # Bug C regression alarm: post-migration every validator
+            # MUST emit at least one row per run. Empty-rows here means
+            # a silent-exit path was missed in the migration.
             report[typology] = {
-                "status": "COMPLIANT",
-                "detail": "No finding row emitted — by-construction "
-                          "compliant or rule SKIPped on tender facts",
+                "status":   "VALIDATOR_NOT_MIGRATED",
+                "verdict":  "VALIDATOR_NOT_MIGRATED",
+                "detail":   (f"Validator for {typology} did not emit a row. "
+                             "This is a pre-Bug-C regression — flag for fix."),
                 "n_findings": 0, "n_edges": 0,
+                "mechanism_evidence": "",
             }
             continue
-        # Pick the most-severe row
-        any_unverified = any(r.get("status") == "UNVERIFIED" for r in rows)
-        any_open       = any(r.get("status") == "OPEN" for r in rows)
-        n_hb = sum(1 for r in rows if r.get("severity") == "HARD_BLOCK")
-        n_warn = sum(1 for r in rows if r.get("severity") == "WARNING")
-        if n_edges > 0 and any_open:
-            status = "GAP_VIOLATION"
-        elif any_unverified and not any_open:
-            status = "UNVERIFIED"
-        elif any_open:
-            status = "GAP_VIOLATION"
-        else:
-            status = "UNVERIFIED"
-        # Pick the strongest row for the detail blurb
-        rows_sorted = sorted(
-            rows, key=lambda r: (
-                {"HARD_BLOCK": 3, "WARNING": 2, "ADVISORY": 1}.get(r.get("severity") or "", 0),
-                {"OPEN": 2, "UNVERIFIED": 1}.get(r.get("status") or "", 0),
-            ), reverse=True,
+        # Sort rows by verdict severity rank — the highest-severity row
+        # is the headline verdict for the typology.
+        rows_with_verdict = [(r, _verdict_of(r)) for r in rows]
+        rows_with_verdict.sort(
+            key=lambda rv: _RANK.get(rv[1], 0), reverse=True,
         )
-        primary = rows_sorted[0]
-        evidence = (primary.get("evidence") or "")[:300]
-        detail = (
-            f"{primary.get('severity','')} · {primary.get('status','')} "
-            f"· reason={primary.get('violation_reason','')}"
-            + (f" · evidence={evidence}" if evidence else "")
-        )
+        primary, primary_verdict = rows_with_verdict[0]
+        n_hb   = sum(1 for r, v in rows_with_verdict if v == "HARD_BLOCK")
+        n_gap  = sum(1 for r, v in rows_with_verdict if v == "GAP_VIOLATION")
+        n_unv  = sum(1 for r, v in rows_with_verdict if v == "UNVERIFIED")
+        n_skip = sum(1 for r, v in rows_with_verdict if v == "SKIP_NOT_APPLICABLE")
+        n_comp = sum(1 for r, v in rows_with_verdict if v == "COMPLIANT_FIRED")
+        # `status` retained for back-compat with portal code that reads it
+        status_legacy = primary.get("status") or _STATUS_LEGACY_MAP.get(primary_verdict, "")
         report[typology] = {
-            "status":    status,
-            "detail":    detail,
-            "severity":  primary.get("severity"),
-            "n_findings": len(rows),
-            "n_edges":    n_edges,
-            "n_hard_block": n_hb,
-            "n_warning":    n_warn,
+            "verdict":             primary_verdict,
+            "status":              status_legacy,    # back-compat
+            "detail":              _mechanism_evidence(primary, primary_verdict),
+            "mechanism_evidence":  _mechanism_evidence(primary, primary_verdict),
+            "severity":            primary.get("severity"),
+            "n_findings":          len(rows),
+            "n_edges":              n_edges,
+            "n_hard_block":         n_hb,
+            "n_gap_violation":      n_gap,
+            "n_unverified":         n_unv,
+            "n_skip_not_applicable": n_skip,
+            "n_compliant_fired":    n_comp,
         }
     return report
+
+
+# Verdict → legacy `status` for portal back-compat (pre-Bug-C consumers
+# read .status; Bug-C consumers read .verdict). Mirror of the helper's
+# _STATUS_MAP — duplicated locally so the aggregator can stay self-
+# contained.
+_STATUS_LEGACY_MAP = {
+    "COMPLIANT_FIRED":      "COMPLIANT",
+    "SKIP_NOT_APPLICABLE":  "SKIP",
+    "UNVERIFIED":           "UNVERIFIED",
+    "GAP_VIOLATION":        "OPEN",
+    "HARD_BLOCK":           "OPEN",
+    "VALIDATOR_NOT_MIGRATED": "VALIDATOR_NOT_MIGRATED",
+}
 
 
 # ── Cleanup ───────────────────────────────────────────────────────────
