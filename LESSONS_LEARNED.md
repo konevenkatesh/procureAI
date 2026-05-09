@@ -1038,7 +1038,31 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
-## L55 — kg_builder Section Classifier Mistags Fixed-Skeleton Numeric Headings; Validator Section-Filter Widen as Tactical Fix
+## L56 — Methodology Violation: Validator-Widen Reverted; Drafter Is What's Wrong, Not Validators
+
+**Context:** L55 documented widening PBG and BV section_type filters to include `Forms` and `Datasheet` so they would catch the fixed-skeleton drafter's mistagged `### 42.1` headings and BDS rows. That commit (`0317bf4`) shipped and showed measured "improvement" on drafter regenerations (PBG flipped UNVERIFIED → COMPLIANT_FIRED on JA/HC/Kurnool drafter outputs).
+
+**The violation:** validators are calibrated against real AP corpus tenders — that's their *design baseline*. Real corpus PBG anchors live under `ITB / GCC / PCC / SCC / NIT` headings; that's why the filter was set that way. When drafter regenerations produced documents the validators couldn't verify, the right move was to fix the *drafter* so it produces structures consistent with the real-corpus pattern. Instead the widen modified the validators to forgive the drafter's structural drift. That's allowing mistakes — it weakens the validators against future real-corpus tenders that follow the original calibration, and erodes the platform's audit story (the validator is supposed to be the ground-truth grader, not a co-conspirator with the drafter).
+
+**Reverted in this commit:**
+- `scripts/tier1_pbg_check.py` — `PBG_SECTION_TYPES` restored to `['ITB','GCC','PCC','SCC','NIT']`
+- `scripts/tier1_bid_validity_check.py` — inline section-filter widen removed; BV uses the router's APCRDA_Works default `['ITB','NIT']` again
+- L55 stays as historical diagnosis (the kg_builder section-classifier mistag observation is still correct) but its framing of "validator-widen as tactical fix" is invalidated by this entry
+
+**What stays (these were correct fixes, not methodology violations):**
+- Bug A patch (`63d8e7f`) — drafter-side fix for clauses with all-MISSING rule_ids
+- Bug B (`c03d5f0`) — drafter-side fix for the NIT render path
+- Bug C migration (`edc68bd`) — validator *correctness* fix (explicit verdict emission per run); not a permissiveness change
+
+**Forward direction (do not propose yet — observation only):** the drafter must produce documents whose structure matches what kg_builder classifies the same way it classifies real-corpus tenders. Two specific structural mismatches identified during the L55 diagnostic:
+1. Fixed-skeleton ITB sub-section headings render as `### 42.1` with no parent-section context. Real corpus tenders use longer headings like `42. Performance Security` or `ITB 42 Performance Security` that the classifier reads as ITB. Drafter heading template needs to match.
+2. Fixed-skeleton BDS renders as a 27-line table where ITB 18.1, 19.1, 20.1, … are rows under one Section node `Section II - Bid Data Sheet (BDS)` typed `Datasheet`. Real corpus tenders break the BDS into per-clause Section nodes that line up with their referent ITB clause. Drafter BDS rendering needs to match — either subdivide at render time or produce explicit ITB-X.Y headings within the BDS table so the classifier picks them up.
+
+These are drafter-side fix candidates; not implementing tonight. The next move is establishing the validator-design baseline against real corpus before any drafter changes.
+
+---
+
+## L55 — kg_builder Section Classifier Mistags Fixed-Skeleton Numeric Headings; Validator Section-Filter Widen as Tactical Fix (REVERTED — see L56)
 
 **Context:** Bug C (explicit verdict emission across 6 Tier-1 validators) revealed 6/18 verdicts on Kurnool / JA / HC coming back UNVERIFIED `failure_path=no_candidate`. All six concentrated in PBG-Shortfall (×3) and Bid-Validity-Short (×3). Drafts demonstrably contained the verbatim anchors (`grep "10 per cent of the contract value"` returned 1 hit per draft; `grep "90 days"` returned several). Step-1 diagnostic — top-20 BGE-M3 retrieval + per-candidate LLM extractor on the Kurnool draft — established that the right anchor was **NOT IN TOP-20**, ruling out batch-rerank wrong-neighbor (H1), recall via top-K bump (H2), and extractor prompt failure (H3).
 

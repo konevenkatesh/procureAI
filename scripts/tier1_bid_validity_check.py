@@ -562,17 +562,6 @@ def main() -> int:
 
     # 2. Family + section_type filter (router)
     family, section_types = family_for_doc_with_filter(DOC_ID, TYPOLOGY)
-    # Widen filter inline (not in router) to capture fixed-skeleton
-    # Drafter output: BDS rows (where ITB 18.1 lives under fixed
-    # skeleton) get classified as section_type=`Datasheet`, and short
-    # numeric ITB sub-section headings (e.g. `### 18.1`) get tagged
-    # `Forms` by the kg_builder section classifier. Without these
-    # types in the filter, the actual bid-validity anchor is excluded
-    # from retrieval before BGE-M3 even sees it. LLM rerank's existing
-    # negative-selection rules (ignore Bid-Security validity, BG
-    # validity, contract period, DLP, warranty) handle precision over
-    # the wider pool. See LESSONS_LEARNED L55 for the strategic fix.
-    section_types = list(section_types) + ["Forms", "Datasheet"]
     print(f"\n── Document family / retrieval filter ──")
     print(f"  family         : {family}")
     print(f"  section_types  : {section_types}")
