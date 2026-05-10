@@ -686,10 +686,11 @@ def main() -> int:
     print(f"  shape  : multi-rule (4 sub-checks: MPG-148/-150/-293/-124)")
     print("=" * 76)
 
-    n_f, n_e = _delete_prior_tier1_mandatory(DOC_ID)
-    if n_f or n_e:
-        print(f"  cleared {n_f} prior Tier-1 Mandatory-Fields finding node(s) "
-              f"and {n_e} edge(s) before re-running")
+    # (b)-prime: prior-row delete is now scheduled by the
+    # main_with_crash_resilience wrapper (DeferredCleanup).
+    # It captures prior UUIDs at start-of-main and only
+    # commits the deletes if main() returns without raising —
+    # so a crashed validator no longer wipes its prior row.
 
     facts = fetch_tender_facts(DOC_ID)
     fired_rules = select_mandatory_field_rules(facts)
@@ -1292,4 +1293,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from modules.validation.verdict_emitter import (
+        main_with_crash_resilience,
+    )
+    raise SystemExit(main_with_crash_resilience(
+        main, doc_id=DOC_ID, typology=TYPOLOGY))

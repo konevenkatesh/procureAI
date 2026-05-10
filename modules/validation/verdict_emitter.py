@@ -81,6 +81,45 @@ Verdict semantics:
   through every validator that can emit it.
 
 ═══════════════════════════════════════════════════════════════════
+  CRASH RESILIENCE — DeferredCleanup + main_with_crash_resilience
+═══════════════════════════════════════════════════════════════════
+
+A crashed validator (uncaught exception, OpenRouter transient,
+subprocess SIGKILL etc.) used to produce an empty cell that the
+aggregator could not distinguish from a true VALIDATOR_NOT_MIGRATED
+catalogue gap. The aggregator now reads `subprocess_results`
+alongside the KG state and routes empty-rows-after-crash into
+UNVERIFIED with `failure_path=subprocess_crashed`. To make that
+route safe we need TWO things at the validator side:
+
+  1. The wrapper catches the exception, emits an UNVERIFIED
+     subprocess_crashed row carrying the crash class + message
+     in `evidence_quote`, and re-raises (preserving rc=1 as the
+     ops signal).
+
+  2. The validator MUST NOT eagerly delete the prior run's row
+     at start-of-main. If it did, a mid-run crash would leave the
+     cell empty (no prior row, no new row, no crash row either if
+     the wrapper's POST also failed) and silently regress the
+     headline. Instead the validator hands its prior-row UUIDs to
+     a DeferredCleanup that only commits on successful return.
+
+  scripts/tier1_xxx_check.py:
+      if __name__ == "__main__":
+          from modules.validation.verdict_emitter import (
+              main_with_crash_resilience,
+          )
+          raise SystemExit(main_with_crash_resilience(
+              main, doc_id=DOC_ID, typology=TYPOLOGY))
+
+Validators must drop the eager `_delete_prior_tier1_xxx(DOC_ID)`
+call from the start of main() — the wrapper schedules it via
+DeferredCleanup.commit() and only fires it on successful return.
+The `_delete_prior_tier1_xxx` helpers themselves are kept intact
+for back-compat with any out-of-band invocations and for the
+wrapper's deferred-cleanup path.
+
+═══════════════════════════════════════════════════════════════════
   CONTRACT: silent-COMPLIANT path for multi-rule validators
 ═══════════════════════════════════════════════════════════════════
 
@@ -381,3 +420,144 @@ def emit_verdict_row(
         properties=props,
         source_ref=f"tier1:{typology}:{rule_id or 'no_rule'}",
     )
+
+
+# ── Crash resilience ──────────────────────────────────────────────────
+
+class DeferredCleanup:
+    """Capture prior-run findings and edges for (doc_id, typology) at
+    start-of-main, but defer deletes until commit() is called. The
+    wrapper only calls commit() if main() returns without raising —
+    so a crashed validator does NOT delete its prior row.
+
+    Idempotent on repeated commit() calls (the inner lists are emptied
+    after the first commit).
+
+    Use exclusively via main_with_crash_resilience(); not part of the
+    validator's narrative code.
+    """
+
+    def __init__(self, doc_id: str, typology: str) -> None:
+        self.doc_id = doc_id
+        self.typology = typology
+        self._finding_ids: list[str] = []
+        self._edge_ids: list[str] = []
+        self._loaded = False
+
+    def capture(self) -> tuple[int, int]:
+        """Read prior finding + edge UUIDs into memory; return counts.
+        Does NOT delete anything. Safe to call once per wrapper run."""
+        try:
+            edges = requests.get(
+                f"{REST}/rest/v1/kg_edges",
+                params={
+                    "select":                "edge_id",
+                    "doc_id":                f"eq.{self.doc_id}",
+                    "edge_type":             "eq.VIOLATES_RULE",
+                    "properties->>typology": f"eq.{self.typology}",
+                    "properties->>tier":     "eq.1",
+                },
+                headers=H, timeout=15,
+            )
+            self._edge_ids = [e["edge_id"] for e in (edges.json() or [])]
+        except Exception:
+            self._edge_ids = []
+        try:
+            findings = requests.get(
+                f"{REST}/rest/v1/kg_nodes",
+                params={
+                    "select":                     "node_id",
+                    "doc_id":                     f"eq.{self.doc_id}",
+                    "node_type":                  "eq.ValidationFinding",
+                    "properties->>typology_code": f"eq.{self.typology}",
+                    "properties->>tier":          "eq.1",
+                },
+                headers=H, timeout=15,
+            )
+            self._finding_ids = [f["node_id"] for f in (findings.json() or [])]
+        except Exception:
+            self._finding_ids = []
+        self._loaded = True
+        return (len(self._finding_ids), len(self._edge_ids))
+
+    def commit(self) -> tuple[int, int]:
+        """Delete the captured edges + findings. Called by the wrapper
+        ONLY on successful main() return."""
+        n_e = 0
+        for eid in self._edge_ids:
+            try:
+                requests.delete(
+                    f"{REST}/rest/v1/kg_edges",
+                    params={"edge_id": f"eq.{eid}"},
+                    headers=H, timeout=15,
+                )
+                n_e += 1
+            except Exception:
+                pass
+        n_f = 0
+        for nid in self._finding_ids:
+            try:
+                requests.delete(
+                    f"{REST}/rest/v1/kg_nodes",
+                    params={"node_id": f"eq.{nid}"},
+                    headers=H, timeout=15,
+                )
+                n_f += 1
+            except Exception:
+                pass
+        # Clear so re-commit is a no-op
+        self._edge_ids = []
+        self._finding_ids = []
+        return (n_f, n_e)
+
+
+def main_with_crash_resilience(main_fn, *, doc_id: str,
+                               typology: str) -> int:
+    """Wrap a validator's main() so crashes commit a subprocess_crashed
+    UNVERIFIED row instead of leaving an empty cell.
+
+    Capture-then-defer:
+      1. Snapshot prior (finding, edge) UUIDs for (doc_id, typology).
+      2. Invoke main_fn().
+      3. On success: commit the snapshot deletes (idempotent re-run).
+         On exception: emit UNVERIFIED + failure_path=subprocess_crashed,
+         do NOT commit the snapshot deletes (prior row survives), and
+         re-raise so the parent process sees rc=1 (ops signal).
+    """
+    cleanup = DeferredCleanup(doc_id=doc_id, typology=typology)
+    n_f, n_e = cleanup.capture()
+    if n_f or n_e:
+        print(f"  deferred-cleanup: captured {n_f} prior finding(s) + "
+              f"{n_e} edge(s); will delete on success")
+    # Inject so main_fn (or any callee) can opt to use it explicitly.
+    # Validators that have been migrated off the eager-delete path do
+    # not need to reach for this; the wrapper handles capture+commit.
+    main_fn._deferred_cleanup = cleanup  # type: ignore[attr-defined]
+    try:
+        rc = main_fn()
+    except BaseException as exc:
+        # Crash path — emit UNVERIFIED subprocess_crashed row.
+        # Prior row stays intact (cleanup never commits).
+        crash_msg = f"{type(exc).__name__}: {exc}"
+        try:
+            emit_verdict_row(
+                doc_id=doc_id, typology=typology, rule_id=None,
+                verdict="UNVERIFIED",
+                failure_path="subprocess_crashed",
+                severity="ADVISORY",
+                evidence_quote=crash_msg[:200],
+                retrieval_debug={
+                    "exception_class": type(exc).__name__,
+                    "exception_message": str(exc)[:500],
+                },
+            )
+        except Exception as inner:
+            # If even the row-emit fails (network down, schema drift),
+            # print so the operator at least sees a trail.
+            print(f"  !! crash-resilience emit failed: "
+                  f"{type(inner).__name__}: {inner}")
+        # Re-raise so the parent subprocess.run() sees rc=1.
+        raise
+    # Success path — apply the deferred deletes.
+    cleanup.commit()
+    return rc if isinstance(rc, int) else 0

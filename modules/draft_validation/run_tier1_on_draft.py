@@ -201,7 +201,11 @@ def _run_one_check(script_name: str, doc_id: str, *, timeout_s: int = 180) -> di
 
 # ── Result aggregation ────────────────────────────────────────────────
 
-def _aggregate_findings(doc_id: str, typologies: list[str]) -> dict[str, dict]:
+def _aggregate_findings(
+    doc_id: str,
+    typologies: list[str],
+    subprocess_results: list[dict] | None = None,
+) -> dict[str, dict]:
     """Query kg_nodes for ValidationFinding rows; classify each typology
     via the Bug-C verdict taxonomy (COMPLIANT_FIRED / SKIP_NOT_APPLICABLE
     / UNVERIFIED / GAP_VIOLATION / HARD_BLOCK).
@@ -212,6 +216,27 @@ def _aggregate_findings(doc_id: str, typologies: list[str]) -> dict[str, dict]:
     aggregator collapsed every empty-rows verdict to COMPLIANT,
     silently masking three different mechanisms. Post-Bug-C every
     typology must have at least one row per run.
+
+    Empty-cell branching (Bug-C + (b)-prime crash resilience):
+
+      • If `subprocess_results` carries this typology with rc≠0
+        (subprocess crashed) AND no row arrived in the KG, emit a
+        synthetic UNVERIFIED row tagged `failure_path=subprocess_crashed`
+        and use it as the headline. The validator-side wrapper
+        (`main_with_crash_resilience`) normally commits this row
+        itself; the aggregator's emit is a fallback for the case
+        where the wrapper never ran (e.g. import-time exception or
+        SIGKILL before the except-block).
+
+      • Otherwise (rc=0 OR rc not provided AND no row): emit
+        VALIDATOR_NOT_MIGRATED. NOTE: this still lumps together
+        "script not in registry" (true catalogue gap) with
+        "rc=0 + in registry + no row" (silent_compliant_exit — a
+        validator that returned 0 without emitting any verdict
+        row). The latter is a real bug that this pass does not
+        close; tracked separately. If we observe rc=0 cells on
+        registered typologies post-(b)-prime, that's the signal
+        to add the silent_compliant_exit aggregator branch.
     """
     rows = _rest_get("kg_nodes", {
         "doc_id":    f"eq.{doc_id}",
@@ -293,14 +318,68 @@ def _aggregate_findings(doc_id: str, typologies: list[str]) -> dict[str, dict]:
                     + (f" · evidence@line {line}: {quote}" if quote else ""))
         return ""
 
+    # Index subprocess_results by typology for fast crash-classification.
+    crashed_by_typology: dict[str, dict] = {}
+    if subprocess_results:
+        for sr in subprocess_results:
+            t = sr.get("typology")
+            rc = sr.get("rc")
+            if t and rc is not None and rc != 0:
+                crashed_by_typology[t] = sr
+
     report: dict[str, dict] = {}
     for typology in typologies:
         rows = findings_by_typology.get(typology, [])
         n_edges = edges_by_typology.get(typology, 0)
         if not rows:
-            # Bug C regression alarm: post-migration every validator
-            # MUST emit at least one row per run. Empty-rows here means
-            # a silent-exit path was missed in the migration.
+            # (b)-prime crash resilience: distinguish a crashed
+            # subprocess (rc≠0) from a true catalogue gap.
+            crash_sr = crashed_by_typology.get(typology)
+            if crash_sr is not None:
+                # Validator's own wrapper should have committed an
+                # UNVERIFIED subprocess_crashed row; if we still see
+                # zero rows, emit one ourselves so the cell is never
+                # silently empty. (See aggregator docstring.)
+                stderr_tail = (crash_sr.get("stderr") or "")[-200:]
+                try:
+                    from modules.validation.verdict_emitter import (
+                        emit_verdict_row,
+                    )
+                    emit_verdict_row(
+                        doc_id=doc_id, typology=typology, rule_id=None,
+                        verdict="UNVERIFIED",
+                        failure_path="subprocess_crashed",
+                        severity="ADVISORY",
+                        evidence_quote=stderr_tail or
+                            f"subprocess rc={crash_sr.get('rc')}",
+                        retrieval_debug={
+                            "rc":        crash_sr.get("rc"),
+                            "elapsed_s": crash_sr.get("elapsed_s"),
+                            "source":    "aggregator_fallback",
+                        },
+                    )
+                except Exception:
+                    pass
+                report[typology] = {
+                    "status":   "UNVERIFIED",
+                    "verdict":  "UNVERIFIED",
+                    "severity": "ADVISORY",
+                    "detail":   (f"failure_path=subprocess_crashed "
+                                 f"(rc={crash_sr.get('rc')}, "
+                                 f"elapsed={crash_sr.get('elapsed_s')}s)"),
+                    "mechanism_evidence":
+                        f"failure_path=subprocess_crashed",
+                    "n_findings": 0, "n_edges": 0,
+                    "n_unverified": 1,
+                }
+                continue
+            # No crash signal — Bug C regression alarm: post-migration
+            # every registered validator MUST emit at least one row per
+            # run. Empty-rows here is either:
+            #   • a script not in DEFAULT_CHECKS (true catalogue gap), OR
+            #   • silent_compliant_exit (rc=0, in registry, but the
+            #     script returned 0 without emitting a row — a real bug
+            #     this pass does not close).
             report[typology] = {
                 "status":   "VALIDATOR_NOT_MIGRATED",
                 "verdict":  "VALIDATOR_NOT_MIGRATED",
@@ -502,10 +581,14 @@ def run_tier1_on_draft(
         rc = result.get("rc", "—")
         print(f"     rc={rc}  elapsed={result.get('elapsed_s')}s")
 
-    # 4. Aggregate findings into validation_report
+    # 4. Aggregate findings into validation_report. Pass
+    #    subprocess_results so the aggregator can distinguish a crashed
+    #    validator (rc≠0) from a true catalogue gap when zero rows
+    #    arrived.
     print(f"[run_tier1_on_draft] phase 4/4: aggregate KG findings")
     typologies = [t for _, t in selected_checks]
-    validation_report = _aggregate_findings(doc_id, typologies)
+    validation_report = _aggregate_findings(doc_id, typologies,
+                                            subprocess_results=subprocess_results)
 
     n_comp = sum(1 for v in validation_report.values() if v["status"] == "COMPLIANT")
     n_gap  = sum(1 for v in validation_report.values() if v["status"] == "GAP_VIOLATION")

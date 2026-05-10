@@ -602,10 +602,11 @@ def main() -> int:
     print(f"  model  : {LLM_MODEL}")
     print("=" * 76)
 
-    n_f, n_e = _delete_prior_tier1_dlp(DOC_ID)
-    if n_f or n_e:
-        print(f"  cleared {n_f} prior Tier-1 DLP finding node(s) and "
-              f"{n_e} edge(s) before re-running")
+    # (b)-prime: prior-row delete is now scheduled by the
+    # main_with_crash_resilience wrapper (DeferredCleanup).
+    # It captures prior UUIDs at start-of-main and only
+    # commits the deletes if main() returns without raising —
+    # so a crashed validator no longer wipes its prior row.
 
     # 1. Pick rule via condition_evaluator
     facts = fetch_tender_facts(DOC_ID)
@@ -1183,4 +1184,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from modules.validation.verdict_emitter import (
+        main_with_crash_resilience,
+    )
+    raise SystemExit(main_with_crash_resilience(
+        main, doc_id=DOC_ID, typology=TYPOLOGY))
