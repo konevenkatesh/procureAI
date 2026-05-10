@@ -66,17 +66,41 @@ QDRANT_URL  = os.environ.get("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLL = "tender_sections"
 
 
-# Default 6 typologies. The user spec says these are the "key" tier1
-# checks to run on a generated draft — they cover the BDS values the
-# Drafter writes deterministically.
+# Drafter pipeline coverage: 19 typologies post-Bug-C arc.
+#
+# Original 6 (commit edc68bd) cover the BDS values the Drafter writes
+# deterministically — PBG / EMD / BV / LD / MII / JP. The 13 added
+# below are drafter-relevant typologies migrated to the Bug C contract
+# during expansion Batches 1 + 2 (commits c968c61 + dcf7080).
+#
+# The 5 Batch-3 bidder-fact validators (Blacklist / Solvency /
+# Turnover / Class-Mismatch / ABC — commit 412081e) are intentionally
+# NOT wired here. They require bidder submission data which is
+# Module 4 Evaluator scope, not drafter scope.
 DEFAULT_CHECKS: list[tuple[str, str]] = [
     # (script_name, typology_code)
-    ("tier1_pbg_check.py",          "PBG-Shortfall"),
-    ("tier1_emd_check.py",          "EMD-Shortfall"),
-    ("tier1_bid_validity_check.py", "Bid-Validity-Short"),
-    ("tier1_ld_check.py",           "Missing-LD-Clause"),
-    ("tier1_mii_check.py",          "MakeInIndia-LCC-Missing"),
-    ("tier1_jp_check.py",           "Judicial-Preview-Bypass"),
+    # ── Original 6 (commit edc68bd) — BDS-deterministic ───────────
+    ("tier1_pbg_check.py",                  "PBG-Shortfall"),
+    ("tier1_emd_check.py",                  "EMD-Shortfall"),
+    ("tier1_bid_validity_check.py",         "Bid-Validity-Short"),
+    ("tier1_ld_check.py",                   "Missing-LD-Clause"),
+    ("tier1_mii_check.py",                  "MakeInIndia-LCC-Missing"),
+    ("tier1_jp_check.py",                   "Judicial-Preview-Bypass"),
+    # ── Batch 1 (commit c968c61) — drafter-relevant numeric/threshold
+    ("tier1_pvc_check.py",                  "Missing-PVC-Clause"),
+    ("tier1_ma_check.py",                   "Mobilisation-Advance-Excess"),
+    ("tier1_bg_validity_gap_check.py",      "BG-Validity-Gap"),
+    ("tier1_dlp_check.py",                  "DLP-Period-Short"),
+    ("tier1_force_majeure_check.py",        "Missing-Force-Majeure"),
+    ("tier1_mandatory_fields_check.py",     "Works-Universal-Mandatory-Fields"),
+    # ── Batch 2 (commit dcf7080) — drafter-relevant presence/structural
+    ("tier1_integrity_pact_check.py",       "Missing-Integrity-Pact"),
+    ("tier1_eproc_check.py",                "E-Procurement-Bypass"),
+    ("tier1_arbitration_check.py",          "Arbitration-Clause-Violation"),
+    ("tier1_geographic_restriction_check.py", "Geographic-Restriction"),
+    ("tier1_prebid_check.py",               "Pre-Bid-Process-Unclear"),
+    ("tier1_spec_tailoring_check.py",       "Spec-Tailoring"),
+    ("tier1_crn_check.py",                  "Criteria-Restriction-Narrow"),
 ]
 
 
