@@ -584,6 +584,9 @@
 <!-- {PCC_REF: GCC_51.1} -->
 **51.1.** The Performance Security shall be provided to the Employer no later than the date specified in the Letter of Acceptance and shall be issued in an amount specified in the PCC, by a Nationalized or Scheduled bank in India.
 
+<!-- {SOURCE: Bid Document of Judicial Academy.md line 5267 + High court bid document.md line 5027 (identical PCC-override of GCC 51.1) — verbatim lift, parameterised on pbg_pct only. Closes BG-Validity-Gap UNVERIFIED on drafter outputs by anchoring validity-duration prose in a GCC-classified section per BG_VALIDITY_SECTION_ROUTER["APCRDA_Works"] = ["GCC", "Forms"]. Note: real JA/HC keep this prose in PCC (SCC-classified); drafter's gcc_fixed.md filename default classifies the same prose as GCC at ingest. -->
+**51.2.** The contractor shall, for the performance of its obligations hereunder during the Construction Period, furnish the Performance Security for an amount equal to {{pbg_pct}} per cent of the bid amount/contract value in the shape of unconditional and irrevocable Bank Guarantee/ Insurance Surety Bond valid until 60 days after the completion of DLP period.
+
 
 ## 52. Day works DELETED
 

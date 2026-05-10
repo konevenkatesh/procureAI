@@ -166,7 +166,7 @@ Payment by the Bank will be subject, in all respects, to the terms and condition
 - **(a)** Price Bid : prepared in accordance with ITB 14; and any other document required in the BDS. (Scanned copy of the filled Price Bid form to be uploaded while quoting the percentage quote at the e-procurement portal)
 
 
-## 12. Letter of Bid and Schedules
+## 12. Letters of Bid and Schedules
 
 **12.1.** The Letter of Bid and other documents, shall be prepared using the relevant forms furnished in Section IV Bidding Forms. The forms must be completed without any alterations to the text, and no substitutes shall be accepted except as provided under ITB 20.2. All blank spaces shall be filled in with the information requested.
 
