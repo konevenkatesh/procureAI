@@ -151,6 +151,132 @@ def snapshot_sentinels() -> dict[str, int]:
     }
 
 
+# ── DOCX rendering from Markdown (M4.3) ──────────────────────────────
+
+def render_docx_from_md(content_md: str, out_path: Path, title: str) -> None:
+    """Render Communication's Markdown body to a DOCX file.
+
+    Simple structural conversion:
+      # heading → Heading 1
+      ## heading → Heading 2
+      ### heading → Heading 3
+      **bold** → bold run
+      *italic* → italic run
+      - / * bullet → List Bullet style
+      `code` → Courier New run
+      > quote → italic indented
+      --- → page-width line (rendered as empty paragraph)
+      otherwise → Normal paragraph
+    """
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import re
+
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(10)
+
+    # Title at top
+    t = doc.add_heading(title, level=0)
+    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    def add_runs(para, text):
+        """Parse inline markdown (bold/italic/code) into runs."""
+        # Pattern: matches **bold** or *italic* or `code`
+        pat = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
+        last_end = 0
+        for m in pat.finditer(text):
+            if m.start() > last_end:
+                para.add_run(text[last_end:m.start()])
+            token = m.group(0)
+            if token.startswith("**") and token.endswith("**"):
+                r = para.add_run(token[2:-2])
+                r.bold = True
+            elif token.startswith("`") and token.endswith("`"):
+                r = para.add_run(token[1:-1])
+                r.font.name = "Courier New"
+                r.font.size = Pt(9)
+            elif token.startswith("*") and token.endswith("*"):
+                r = para.add_run(token[1:-1])
+                r.italic = True
+            else:
+                para.add_run(token)
+            last_end = m.end()
+        if last_end < len(text):
+            para.add_run(text[last_end:])
+
+    for raw in content_md.split("\n"):
+        line = raw.rstrip()
+        if not line:
+            doc.add_paragraph("")
+            continue
+        if line.startswith("# "):
+            # Skip the # title at the top of the .md (already added as title)
+            continue
+        if line.startswith("## "):
+            doc.add_heading(line[3:], level=1)
+            continue
+        if line.startswith("### "):
+            doc.add_heading(line[4:], level=2)
+            continue
+        if line.strip() == "---":
+            p = doc.add_paragraph()
+            p.add_run("─" * 60).font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+            continue
+        if line.startswith("> "):
+            p = doc.add_paragraph(style="Intense Quote")
+            add_runs(p, line[2:])
+            continue
+        if re.match(r"^\s*[-*]\s", line):
+            content = re.sub(r"^\s*[-*]\s", "", line)
+            p = doc.add_paragraph(style="List Bullet")
+            add_runs(p, content)
+            continue
+        if re.match(r"^\s*\d+\.\s", line):
+            content = re.sub(r"^\s*\d+\.\s", "", line)
+            p = doc.add_paragraph(style="List Number")
+            add_runs(p, content)
+            continue
+        # Default paragraph
+        p = doc.add_paragraph()
+        add_runs(p, line)
+
+    doc.save(out_path)
+
+
+def render_docx_for_communication(node_id: str, content_md: str,
+                                   artifact_path_md: str,
+                                   title: str) -> str:
+    """Render DOCX next to the .md artifact and return DOCX path.
+
+    Updates Communication kg_node properties.artifact_path_docx via
+    fetch-modify-patch (Supabase JSONB needs full properties replacement
+    to merge correctly — PostgREST doesn't natively merge nested JSONB).
+    """
+    md_path = Path(artifact_path_md)
+    docx_path = md_path.with_suffix(".docx")
+    render_docx_from_md(content_md, docx_path, title)
+    # Fetch current properties
+    r = requests.get(f"{REST}/rest/v1/kg_nodes",
+                     params={"select": "properties", "node_id": f"eq.{node_id}"},
+                     headers=H, timeout=30).json()
+    if not r:
+        return str(docx_path)
+    props = r[0]["properties"] or {}
+    props["artifact_path_docx"] = str(docx_path)
+    # PATCH with full updated properties
+    requests.patch(
+        f"{REST}/rest/v1/kg_nodes",
+        params={"node_id": f"eq.{node_id}"},
+        headers={**H, "Content-Type": "application/json"},
+        json={"properties": props},
+        timeout=30,
+    )
+    return str(docx_path)
+
+
 def assert_sentinel_preserved(pre: dict, post: dict, excluded_keys: tuple = ("Communication",)):
     """Verify all Module 3 sentinels unchanged. Communication count is
     expected to grow; everything else must hold."""

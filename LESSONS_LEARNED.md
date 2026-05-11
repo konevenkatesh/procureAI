@@ -1149,6 +1149,87 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L86 — Module 4 M4.3 Audit Log Discipline + DOCX Rendering
+
+**Established in autonomous overnight workflow Sub-block 4** (May 2026). M4.3 closes the Communication artifact lifecycle: every Communication kg_node now has both a `.md` AND a `.docx` artifact path populated, and the reverse-drilldown audit-trail query helper is shipped.
+
+### Markdown-to-DOCX renderer in _common.py
+
+Single shared helper `render_docx_from_md(content_md, out_path, title)` parses inline Markdown into python-docx primitives:
+
+| Markdown | DOCX style |
+|---|---|
+| `# Title` | (skipped — title goes to the top-of-doc heading) |
+| `## H` / `### H` | Heading 1 / Heading 2 |
+| `**bold**` / `*italic*` / `` `code` `` | bold / italic / Courier New runs |
+| `- item` / `* item` | List Bullet style |
+| `1. item` | List Number style |
+| `> quote` | Intense Quote style |
+| `---` | horizontal rule (Unicode `─`) |
+| (otherwise) | Normal paragraph |
+
+~85 LOC. Reusable for any future Markdown-bearing kg_node type.
+
+### Persistence — JSONB merge via fetch-modify-patch
+
+PostgREST does not natively merge nested JSONB. Updating one field within `properties` requires fetching the full properties, mutating one key, and PATCH-ing the full properties back. Pattern:
+
+```python
+def render_docx_for_communication(node_id, content_md, artifact_path_md, title):
+    docx_path = Path(artifact_path_md).with_suffix(".docx")
+    render_docx_from_md(content_md, docx_path, title)
+    props = rest_get(...)[0]["properties"]
+    props["artifact_path_docx"] = str(docx_path)
+    rest_patch("kg_nodes", node_id, {"properties": props})
+```
+
+`render_docx_for_all_communications.py` runs this batch over all 12 Communication kg_nodes; idempotent re-run overwrites DOCX files + the kg_node field cleanly.
+
+### Reverse drilldown — query_communication_audit_trail.py
+
+Forward drilldown (Communication → source findings) is built into the standard fetch by `source_finding_node_ids[]`. The harder direction — given a finding, what Communications cite it? — is the **RTI-friendly query** ("show me every communication generated from this evidence"). PostgREST array-contains operator does the work:
+
+```python
+properties->source_finding_node_ids = cs.[<UUID>]
+```
+
+The `cs.` filter operates on JSONB arrays. Helper output for a HARD_BLOCK Personnel finding on B2×HC:
+```
+Source finding: BidEvaluationFinding (Personnel-Coverage, INELIGIBLE, MPW-041, HARD_BLOCK)
+1 Communication citing this finding:
+  DISQUALIFICATION × bid_synth_profile_b2 × tender_synth_hc
+  audit_id=2c156908d936d829
+  artifact=/tmp/m4_drafts/DISQUALIFICATION_b2_hc.md
+  other sources cited (besides this finding): 7
+```
+
+This is the audit-defensibility query a vigilance officer or RTI petitioner runs. It's the inverse of `source_finding_node_ids[]` and ships cheaply because the JSONB array operator is already indexable in PostgreSQL.
+
+### Final state after M4.3
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| Communication kg_nodes | 12 | 0 | 12 |
+| Communication.artifact_path_md populated | 12 | 0 | 12 |
+| Communication.artifact_path_docx populated | 0 | +12 | **12** |
+| /tmp/m4_drafts/ .md files | 12 | 0 | 12 |
+| /tmp/m4_drafts/ .docx files | 0 | +12 | **12** |
+| Module 3 sentinels | 154/351/49/27/3/6/3 | unchanged | clean ✓ |
+
+All 12 DOCX validate via python-docx; paragraph counts 74-99 per letter depending on type (DISQUAL is longest due to per-rule citation block).
+
+### Module 4 sub-block status post-M4.3
+
+- M4.1 ✓ Architecture spec
+- M4.2 ✓ 3 drafter pilots (DISQUAL + AWARD + ALB_JUSTIFICATION)
+- M4.3 ✓ DOCX rendering + audit trail query helper
+- M4.4 future: Telugu translation via Sarvam-M API + DPDP pseudonymisation
+- M4.5 future: approval workflow (Clerk → Dealing Officer → Department Head)
+- M4.6 future: remaining 6 communication types (CARTEL_REVIEW + FLAGGED + DOC_REVIEW + REGRET + BID_ACK + INTERNAL_ROUTING)
+- M4.7 future: actual sending (SMTP + SMS + portal API)
+
+---
+
 ## L85 — Module 4 M4.2 Drafter Pilots (DISQUALIFICATION + AWARD + ALB_JUSTIFICATION)
 
 **Established in autonomous overnight workflow Sub-block 3** (May 2026). First implementation sub-block of Module 4. 3 drafter pilots shipped per the M4.1 contract; 12 Communication kg_nodes emitted across 9 bidders × 3 tenders, with the predicted 6+3+3 distribution.
