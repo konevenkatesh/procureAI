@@ -1149,6 +1149,44 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L84 — Module 4 Communication Architecture Design Spec (M4.1)
+
+**Established in autonomous overnight workflow Sub-block 2** (May 2026). M4.1 is the design-only sub-block that defines the contract Module 4 implementation builds to. Pattern mirrors Ext-7 (B9 spec design) — write the contract first, build to satisfy second. 302 lines covering 10 sections (Context / Schema / 9 Types / Bilingual / Channel / Audit / Sender / DPDP / Predicted / Out-of-scope).
+
+### Why design-first for Module 4
+
+Module 3 was built validator-by-validator with the rule schema known upfront. Module 4 is different: there are **9 distinct communication types**, each with its own template, source-finding drilldown, recipient class, channel, and routing rules. Building drafter-by-drafter without a unified spec would produce drift — each drafter would invent its own field names, audit_id construction, source citation depth.
+
+The spec normalises:
+- **Single Communication kg_node type** with 14 standard properties (communication_type / recipient / channel / language / status / audit_id / source_finding_node_ids / content_en / etc.)
+- **Deterministic audit_id**: SHA256 of `f"{type}|{recipient_id}|{tender_id}|{sorted_finding_ids}"` — re-runs produce identical hashes; idempotent re-emission
+- **L80 composite-finding semantics carry through**: source_finding_node_ids[] is the same audit-chain pattern as Module 3 ComparativeStatement.audit_id
+- **DPDP pseudonymisation rule**: bidder PII never crosses the Sarvam-M API boundary; only template phraseology does
+
+### Predicted corpus emission
+
+Verified against current EligibilityMatrix + TenderRanking + BidAnomalyFinding state:
+
+| Type | Count | M4.2 pilot? |
+|---|---:|---|
+| DISQUALIFICATION | 6 (B2×3 + B3×3) | ✓ |
+| AWARD | 3 (B9×3 effective L1) | ✓ |
+| ALB_JUSTIFICATION | 3 (B8×3) | ✓ |
+| CARTEL_REVIEW | 3 (B6+B7 paired×3 vigilance) | deferred |
+| FLAGGED | 3 (B4×3 committee) | deferred |
+| DOC_REVIEW | 3 (B5×3) | deferred |
+| REGRET | 3 (B1×3, only QUALIFIED-not-anomaly) | deferred |
+| BID_ACK | 27 (one per BidSubmission) | deferred |
+| INTERNAL_ROUTING | 3 (per tender) | deferred |
+
+M4.2 ships 3 of 9 types = 12 of 54 total predicted communications. The remaining 6 types are incremental future M4.x sub-blocks.
+
+### Forward-applicable design discipline
+
+For any future multi-artifact module (e.g. Module 5 = Reviewer dashboard; Module 6 = Vigilance audit log): write the spec FIRST, in the L77 + L84 design-only pattern. Saves implementation rework when 9 types try to converge on a shared schema.
+
+---
+
 ## L83 — PDF Renderer Integration (L75 follow-up, reportlab)
 
 **Established in autonomous overnight workflow Sub-block 1** (May 2026, post-Ext-8). The L75 marker has been carrying since Module 3 core; finally landed via `reportlab` 4.5.0 (pure-Python, BSD-licensed). 3 PDFs now render alongside the existing Markdown + DOCX artifacts at `/tmp/comparative_statements/`, with `pdf_artifact_path` populated on each ComparativeStatement kg_node.
