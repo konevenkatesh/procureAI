@@ -1,6 +1,26 @@
 """
 scripts/tier1_turnover_check.py
 
+═══════════════════════════════════════════════════════════════════
+  Tier-1 Tender Document Content Validator
+═══════════════════════════════════════════════════════════════════
+This validator reads the TENDER DOCUMENT's PQ turnover requirement
+to confirm it does NOT exceed 2× annual contract value (CVC-028 cap)
+— i.e., the doc's PQ threshold doesn't restrict the bidder pool
+beyond regulation. It does NOT read bidder Statement I submissions —
+bidder turnover evaluation against the doc's PQ threshold belongs to
+the Tier-2 Evaluator counterpart `bid_turnover_check.py` (pending
+build in Module 3 Sub-block 3+).
+
+The typology name 'Turnover-Threshold-Excess' captures the doc-side
+restriction check: PQ turnover floor above the CVC cap = excess. The
+Tier-2 counterpart will check bidder's declared turnover against the
+doc's (regulated) PQ floor.
+
+Operates on corpus-only today. Already produces findings on the 6
+corpus AP Works/PPP docs.
+═══════════════════════════════════════════════════════════════════
+
 Tier-1 Turnover-Threshold-Excess check, BGE-M3 + LLM, NO regex.
 
 THRESHOLD shape with optional-clause semantics. Two PQ shapes coexist

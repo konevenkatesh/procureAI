@@ -1,6 +1,28 @@
 """
 scripts/tier1_abc_check.py
 
+═══════════════════════════════════════════════════════════════════
+  Tier-1 Tender Document Content Validator
+═══════════════════════════════════════════════════════════════════
+This validator reads the TENDER DOCUMENT's prescribed Available Bid
+Capacity formula to confirm it uses M=2 exact per AP-GO-062. It does
+NOT read bidder Statement X submissions — bidder's ABC calculation
+(does the bidder's submitted A/N/B numbers yield ABC > ECV?) belongs
+to the Tier-2 Evaluator counterpart `bid_abc_check.py` (pending
+build in Module 3 Sub-block 3+).
+
+The typology 'Available-Bid-Capacity-Error' captures the doc-side
+prescription error: if the doc prescribes M=3 instead of M=2, that's
+a 50%-lenient bidder-pool gate (the doc's formula admits less-
+capable bidders than regulation allows). Vizag + Kakinada both fail
+this check (M=3). The Tier-2 counterpart will check each bidder's
+submitted A/N/B values against the doc's (regulated) M=2 formula and
+declare QUALIFIED if bidder's ABC > ECV.
+
+Operates on corpus-only today. Already produces findings on the 6
+corpus AP Works/PPP docs.
+═══════════════════════════════════════════════════════════════════
+
 Tier-1 Available-Bid-Capacity-Error check, BGE-M3 + LLM, NO regex.
 
 THRESHOLD shape on the M coefficient of the AP-prescribed Available

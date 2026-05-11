@@ -1038,6 +1038,28 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L60 — Validator Taxonomy: Tier-1 (Tender Doc Content) vs Tier-2 (Bid Submission Evaluation)
+
+**Identified during Module 3 Sub-block 1 diagnose** (May 2026). The 5 "Batch-3 bidder-fact validators" (Blacklist-Not-Checked, Solvency-Stale, Turnover-Threshold-Excess, Eligibility-Class-Mismatch, Available-Bid-Capacity-Error) were framed in working context as consuming bidder submissions. Reading the docstrings showed otherwise: they read the **TENDER DOCUMENT** to verify it carries the right clauses (the doc MUST require bidders to declare blacklists; the doc MUST state the AP-GO-089 solvency framework; the doc's PQ turnover MUST be within CVC-028 cap; the doc's eligibility-class text MUST admit the right class band for the ECV; the doc's prescribed ABC formula MUST use M=2). They produce findings on corpus today (visible in the 154 ValidationFinding count across 6 corpus docs).
+
+**The framing error matters because it shaped Module 3 sub-block planning.** "Batch-3 validators are ready but blocked on bid data" was incorrect — they're not blocked, they already work corpus-side. What's actually pending is a **Tier-2 Evaluator validator class that doesn't exist yet**: per-bidder Statement-data checks that consume submitted bidder facts and evaluate them against the tender's (already-validated-correct) PQ thresholds + regulatory floors.
+
+**Distinction (post-L60):**
+- **Tier-1 Tender Document Content Validators** — current `scripts/tier1_*_check.py`. Read tender document. Check clause presence/correctness against regulatory rules. Operate on the published RFP. Already shipped (24 validators including the 5 Batch-3).
+- **Tier-2 Bid Evaluator Validators** — pending build in Module 3 Sub-blocks 3-6. Will be named `scripts/bid_*_check.py`. Read bidder Statement-data (I–X) from `fact_sheets` table + tender's PQ requirements from existing Tier-1 findings. Output per-bidder eligibility outcomes (QUALIFIED / INELIGIBLE / GAP-FLAGGED).
+
+**Taxonomy applied** (Sub-block 1.0 commit): each of the 5 Batch-3 validator docstrings now carries a Tier-1 clarification block at the top stating explicitly that it reads the tender doc, not bidder submissions, and naming the Tier-2 counterpart.
+
+**Forward-applicable:** when new validators are authored, the file naming convention should encode tier:
+- `scripts/tier1_<typology>_check.py` — tender document content
+- `scripts/bid_<typology>_check.py` — bidder submission evaluation
+
+The shape of the validators differs: Tier-1 reads document text + KG sections + Qdrant retrievals; Tier-2 reads structured facts (`fact_sheets.extracted_facts` jsonb) + tender's Tier-1 verdicts + regulatory rules. Different input contracts, different output shapes.
+
+**Not blocking** — discovery, not regression. The 5 Batch-3 validators are correct as built; only the framing was wrong.
+
+---
+
 ## L59 — Mandatory-Fields Per-Sub-Check UNVERIFIED Rows: Unset failure_path
 
 **Identified during Batch 1 of the validator-suite Bug C expansion** (commit `c968c61`). The Works-Universal-Mandatory-Fields validator emits per-sub-check rows through a single chokepoint helper `_materialise_finding(doc_id, props, label, …)`. Bug C's auto-injection in `_materialise_finding` correctly sets `verdict` per the severity-aware rule (HARD_BLOCK / GAP_VIOLATION / UNVERIFIED) based on the existing `props.status` and `props.severity` — but does NOT set `failure_path` on UNVERIFIED rows because the legacy props dicts pre-date the failure_path discriminator and don't carry the source signal needed to set it.

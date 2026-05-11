@@ -1,6 +1,20 @@
 """
 scripts/tier1_blacklist_check.py
 
+═══════════════════════════════════════════════════════════════════
+  Tier-1 Tender Document Content Validator
+═══════════════════════════════════════════════════════════════════
+This validator reads the TENDER DOCUMENT's required clauses (the doc
+MUST require bidders to declare blacklists OR commit the buyer to
+verifying against debarment lists). It does NOT read bidder
+submissions — bidder data evaluation belongs to the Tier-2 Evaluator
+counterpart `bid_blacklist_check.py` (pending build in Module 3
+Sub-block 3+).
+
+Operates on corpus-only today. Already produces findings on the 6
+corpus AP Works/PPP docs.
+═══════════════════════════════════════════════════════════════════
+
 Tier-1 Blacklist-Not-Checked check, BGE-M3 + LLM, NO regex.
 
 PRESENCE shape with L35 three-state contract (COMPLIANT / UNVERIFIED

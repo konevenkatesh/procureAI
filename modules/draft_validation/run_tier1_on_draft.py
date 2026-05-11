@@ -73,10 +73,23 @@ QDRANT_COLL = "tender_sections"
 # below are drafter-relevant typologies migrated to the Bug C contract
 # during expansion Batches 1 + 2 (commits c968c61 + dcf7080).
 #
-# The 5 Batch-3 bidder-fact validators (Blacklist / Solvency /
-# Turnover / Class-Mismatch / ABC — commit 412081e) are intentionally
-# NOT wired here. They require bidder submission data which is
-# Module 4 Evaluator scope, not drafter scope.
+# The 5 Batch-3 validators (Blacklist / Solvency / Turnover /
+# Class-Mismatch / ABC — commit 412081e) are intentionally NOT wired
+# here. Although their typology codes suggest bidder-facing checks,
+# they are actually Tier-1 Tender Document Content validators — they
+# read the tender doc to verify it carries the right clauses (e.g.,
+# the doc MUST require bidders to declare blacklists; the doc's PQ
+# turnover MUST be within CVC-028 cap). They operate on corpus
+# tenders today and produce findings on the 6 corpus docs. See L60
+# in LESSONS_LEARNED for the Tier-1 vs Tier-2 taxonomy distinction.
+#
+# The drafter pipeline gates these out because the drafter-generated
+# tenders are short-loop development artefacts and these 5 checks add
+# limited signal for the drafter feedback loop (they fire similarly
+# across drafter outputs that share the same skeleton). The Module 3
+# Evaluator (when built) will run the corresponding Tier-2 bid_*_check
+# validators against per-bidder Statement data, NOT these Tier-1
+# checks.
 DEFAULT_CHECKS: list[tuple[str, str]] = [
     # (script_name, typology_code)
     # ── Original 6 (commit edc68bd) — BDS-deterministic ───────────

@@ -1,6 +1,28 @@
 """
 scripts/tier1_class_mismatch_check.py
 
+═══════════════════════════════════════════════════════════════════
+  Tier-1 Tender Document Content Validator
+═══════════════════════════════════════════════════════════════════
+This validator reads the TENDER DOCUMENT's "Eligible Class of
+Bidders" text to confirm it admits ONLY contractors whose registered
+class can legally tender for the ECV band per AP-GO-092. It does NOT
+read bidder Form 1 registration data — bidder's class-vs-ECV
+eligibility belongs to the Tier-2 Evaluator counterpart
+`bid_class_check.py` (pending build in Module 3 Sub-block 3+).
+
+The typology 'Eligibility-Class-Mismatch' captures the doc-side
+mismatch: if the doc's lowest-admitted class has a monetary ceiling
+below the ECV, that's a HARD_BLOCK (the doc admits bidders whose
+registration class makes them legally ineligible at evaluation).
+The Tier-2 counterpart will compare each bidder's declared class
+against the doc's (regulated) eligibility floor.
+
+Operates on corpus-only today. Already produces findings on the 6
+corpus AP Works/PPP docs (e.g., Kakinada HARD_BLOCK for Class-I
+admission on ECV-152.78cr requiring Special).
+═══════════════════════════════════════════════════════════════════
+
 Tier-1 Eligibility-Class-Mismatch check, BGE-M3 + LLM, NO regex.
 
 THRESHOLD shape with optional-clause semantics + L36 grep fallback.

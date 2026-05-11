@@ -1,6 +1,26 @@
 """
 scripts/tier1_solvency_check.py
 
+═══════════════════════════════════════════════════════════════════
+  Tier-1 Tender Document Content Validator
+═══════════════════════════════════════════════════════════════════
+This validator reads the TENDER DOCUMENT to confirm it states the
+regulated solvency framework (Tahsildar OR Bank certificate, 1-year
+validity, fixed at 10% of class minimum per AP-GO-089). It does NOT
+read bidder Statement VIII submissions — bidder cert validity /
+threshold evaluation belongs to the Tier-2 Evaluator counterpart
+`bid_solvency_check.py` (pending build in Module 3 Sub-block 3+).
+
+The typology name 'Solvency-Stale' suggests an execution-stage
+staleness check, but the rules under this code are doc-content
+prescriptions (the doc must state the framework). Same shape as MII
+where the bidding doc must state the framework even though the order
+applies regardless of citation.
+
+Operates on corpus-only today. Already produces findings on the 6
+corpus AP Works/PPP docs.
+═══════════════════════════════════════════════════════════════════
+
 Tier-1 Solvency-Stale check, BGE-M3 + LLM, NO regex.
 
 PRESENCE shape with multi-field framework extraction. Per the read-
