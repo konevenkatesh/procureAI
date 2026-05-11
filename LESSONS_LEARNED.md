@@ -1149,6 +1149,72 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L72 — Synthetic Coverage Gap for "ALB-fires-but-L1-is-non-ALB" Path [QUEUED]
+
+**Surfaced during Sub-block 5 (TenderRanking aggregator)** (May 2026). The current corpus exercises only the `alb_action_required=True` path (B8 is L1 on all 3 tenders with -38% premium). The complementary path — `alb_action_required=False` BUT `alb_candidates` is non-empty (i.e. ALB-flag fires on a non-L1 bidder) — never fires.
+
+Add **B9 — Competing-Mid** at premium ~−8% to ~−10% (cheaper than B6/B7 but above ALB threshold even after B8 outlier is excluded). With B9 present:
+- L1 stays at B8 (−38%)
+- L2 flips to B9 (−8 to −10%)
+- ALB threshold accommodates B9's mid-tier position
+- Tests: ALB candidate set includes B8 only, but a wider mid-range distribution means B9 sits well above threshold even without B8's outlier pull
+
+A second forward-applicable variant: B10 — Anomalously-Low-But-Not-L1 (a bid below ALB threshold that isn't L1 because B8 sits even lower). Tests `alb_action_required=True` from L1=B8 AND `alb_candidates=[B8, B10]` for a multi-ALB-flag scenario.
+
+**Not blocking** Sub-block 5 verification — the current single-ALB path was the design target. Queue for landing before or after Sub-block 7 if demo timeline warrants ALB-path coverage expansion.
+
+---
+
+## L71 — TenderRanking Aggregator Pattern (Sub-block 5)
+
+**Established during Sub-block 5** (`scripts/run_tender_ranking.py`, May 2026). Second aggregator in the platform (after EligibilityMatrix Sub-block 4); pattern stabilizes for downstream Sub-block 6 (CrossBidAnomalyDetector) and Sub-block 7 (ComparativeStatementGenerator).
+
+### Filter-and-sort aggregator shape
+
+| Aspect | EligibilityMatrix (Sub-block 4) | TenderRanking (Sub-block 5) |
+|---|---|---|
+| Input grouping | (bidder, tender) — group by both | tender only — group by tender_id |
+| Filter | none (aggregate all 10 criteria) | `aggregate_verdict == QUALIFIED` |
+| Join | none (single-source: BidEvaluationFinding) | LetterOfBid by `bid_submission_id` for `bid_amount_cr` |
+| Sort | by typology_code (alphabetical) | by `bid_amount_cr` ASC |
+| Tie-break | n/a (1 finding per typology per pair) | `signature_date` ASC → `bid_submission_id` lexical, with `tie_break_applied` audit flag |
+| Per-row scope | one (bidder, tender) | one tender |
+| Output node_type | `EligibilityMatrix` | `TenderRanking` (new) |
+| Edges | none (drilldown via `finding_node_ids[]`) | none (drilldown via `ranking[].eligibility_matrix_node_id` + `bid_submission_id`) |
+| Wrapper | single batch `main_with_crash_resilience` | same — single batch |
+| Idempotency | `_delete_prior_*` by `source_ref` | same |
+| Sentinel pre/post | yes (RC=2 on drift) | same (now snapshots EligibilityMatrix too) |
+
+### Methodology choice as queryable field
+
+ALB threshold uses simple-average × 0.80 per CVC standard, but the methodology choice is sensitive to outlier presence (an abnormally-low bid pulls the average DOWN, narrowing the threshold-vs-bid gap). The finding records:
+- `alb_threshold_method` = `"simple_average_times_0.80"` (queryable string for future-method-comparison filtering)
+- `alb_methodology_note` = full transparency note documenting the simple-average artifact + alternative ECV-anchored method (ECV × 0.80) as a documented future option
+
+Forward-applicable to any aggregator with a parametric methodology choice: surface the method name as a structured field + the rationale/caveat as a prose field. Future audits can switch methodology without re-emitting historical findings; downstream tooling can filter on method choice to compare results across versions.
+
+### Drilldown chain (4 layers)
+
+```
+TenderRanking (per tender)
+  → ranking[].bid_submission_id        → BidSubmission node (per bid)
+  → ranking[].eligibility_matrix_node_id → EligibilityMatrix (per bidder-tender pair)
+  → finding_node_ids[]                 → 10 BidEvaluationFinding rows
+```
+
+Each layer denormalizes for read-optimized access at its own scope (tender / bid / aggregate / criterion). Downstream consumers (Sub-block 7 ComparativeStatementGenerator) walk this chain to reconstruct full citation context per bidder per criterion.
+
+### Pure-aggregator + sentinel discipline (carries L65 forward)
+
+EligibilityMatrix established the "pure aggregator + sentinel pre/post" pattern. TenderRanking inherits it without modification:
+- No edge emission (graph mutations belong to validators, not aggregators)
+- Sentinel snapshot pre captures all upstream node/edge counts the aggregator reads
+- Post-emission re-snapshot proves zero drift; RC=2 on drift fails the run
+- source_ref single-string filter for idempotent cleanup
+- Single batch `main_with_crash_resilience` wrapper (vs per-row in validators)
+
+---
+
 ## L70 — Cross-Validator Sentinel Pattern (post-overlap-fix audit)
 
 **Established during Sub-block 1.2 bid_blacklist_check fix** (May 2026). When fixing a validator design overlap (e.g. two validators both reacting to the same input field but at different rule severities), add an explicit cross-validator sentinel check that tests the previously-conflated decision region.
