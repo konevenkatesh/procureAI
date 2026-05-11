@@ -1087,6 +1087,29 @@ Distinct from `severity` (which comes from the rule). Tells downstream Eligibili
 - Tier-1: `scripts/tier1_<typology>_check.py`
 - Tier-2: `scripts/bid_<typology>_check.py` ← this pilot
 
+### L61 addendum-2 (Sub-block 3b Batch 2) — Composite multi-supplementary input contract
+
+A second composite pattern variant emerged in `bid_emd_validity_check` (Batch 2): two **per-bid supplementary nodes** combined, neither of which is the bidder entity (`BidderProfile`) nor a `fact_sheets` row.
+
+- **Source 1**: `kg_nodes.EMD_BG.properties` — per-bid supplementary node with BG financial metadata (issue/expiry dates, amount, unconditional flag, issuing bank).
+- **Source 2**: `kg_nodes.LetterOfBid.properties` — per-bid supplementary node with bid signature metadata (signature_date, bid_validity_days).
+
+The finding's `input_contract` is `"composite:EMD_BG+LetterOfBid"`, tagged with `input_contract_pattern="composite_multi_supplementary_per_bid"`.
+
+**Distinction from addendum-1 (`composite_entity_plus_statement`)**: addendum-1 joins entity-level (BidderProfile) with statement-level (fact_sheets); addendum-2 joins two per-bid supplementary nodes. Future Tier-2 validators reading from multiple supplementaries (e.g. EMD_BG + PricedBoQ for cover-bid signal detection, LetterOfBid + Schedule-of-Rates for rate-anomaly checks) should use the addendum-2 pattern tag.
+
+Both addendum variants share the same mandatory carry-through: each source citation, cross-source consistency check, both rule anchors (primary + secondary) cited with separate NL blocks.
+
+### L61 addendum-3 (Sub-block 3b Batch 2) — Recompute-from-array discipline
+
+Synthetic seed rows carry computed ground-truth flags (e.g. `meets_3_2_1_rule`, `qualifies`, `is_within_one_year`). A Tier-2 validator MUST recompute the verdict from the **raw input data** (the array, the date, the figure), not trust the seed's pre-computed boolean. Disagreements between recompute and seed are surfaced as `recompute_seed_agree=False` + `l64_seed_defect_surfaced=True` audit fields, with the validator returning `RC=2` so a wrapper loop stops on the defect.
+
+`bid_similar_works_check` exercises this — it ignores `meets_3_2_1_rule` and re-runs all 3 branches (3@40%, 2@50%, 1@80%) against the `similar_works[]` array. Disagreement on any of the 9 synthetic bids would have surfaced as a real L64 seed defect (zero defects found in Batch 2 — recompute agreed with seed across all 9, including the B1×HC boundary where the seed scales work values proportionally to ECV).
+
+### File naming convention reaffirmed (per L60)
+- Tier-1: `scripts/tier1_<typology>_check.py`
+- Tier-2: `scripts/bid_<typology>_check.py` ← this pilot
+
 ### L61 addendum (Sub-block 3b Batch 1) — Composite input contract pattern
 
 The pilot's single-source input contract (one `fact_sheets` row per finding) is the common case but not the only shape. `bid_blacklist_check` (Batch 1) introduced the **composite input contract**:
