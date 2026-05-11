@@ -1149,6 +1149,65 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L85 — Module 4 M4.2 Drafter Pilots (DISQUALIFICATION + AWARD + ALB_JUSTIFICATION)
+
+**Established in autonomous overnight workflow Sub-block 3** (May 2026). First implementation sub-block of Module 4. 3 drafter pilots shipped per the M4.1 contract; 12 Communication kg_nodes emitted across 9 bidders × 3 tenders, with the predicted 6+3+3 distribution.
+
+### Pattern recipe
+
+1. **Shared helpers in `scripts/m4_drafters/_common.py`** — REST GETs with retry, audit_id computation, BidderProfile cache, tender info lookup, idempotent cleanup, sentinel snapshot/assert.
+2. **One drafter per communication_type** — `draft_<type>.py`. Each defines `COMMUNICATION_TYPE` + `SOURCE_REF` constants + `compose_content_en()` template + `main()` that:
+   - Snapshots sentinels pre-emission
+   - Calls `delete_prior_communications(type, source_ref)` for idempotency
+   - Iterates source findings (EligibilityMatrix for DISQUAL; ComparativeStatement for AWARD; BidAnomalyFinding for ALB)
+   - Computes `audit_id` = SHA256(type|recipient|tender|sorted_finding_ids)[:16]
+   - Writes Markdown artifact to `/tmp/m4_drafts/<TYPE>_<bidder>_<tender>.md`
+   - Emits Communication kg_node with `source_finding_node_ids[]` for drilldown
+   - Asserts Module 3 sentinels unchanged post-emission
+
+### Source-finding citation depth per type
+
+| drafter | source kg_nodes per Communication |
+|---|---|
+| DISQUALIFICATION | EligibilityMatrix (1) + BidEvaluationFinding HARD_BLOCK subset (N) — typically 7–8 sources |
+| AWARD | ComparativeStatement (1) + TenderRanking (1) + BidEvaluationFinding QUALIFIED subset (13) — total 15 |
+| ALB_JUSTIFICATION | BidAnomalyFinding (1) + BidSubmission (1) + TenderRanking (1) — total 3 |
+
+Every claim in `content_en` ties to one of the cited node_ids. RTI / committee-scrutiny query: "What evidence backs this disqualification?" → resolve `source_finding_node_ids[]` → fetch nodes → read rule_id + decision_reason + evidence.
+
+### audit_id determinism verified
+
+Re-running the AWARD drafter produced **identical audit_ids** (d5f17dc7 / 6c992ea6 / 1b7c0a1d) across re-emit. The cleanup-then-re-emit pattern preserves audit integrity: same inputs → same hash → same Communication identity, even though the kg_node UUID changes per insert. Audit defensibility is via audit_id (deterministic), not node_id (insertion-randomised).
+
+### Sentinel preservation discipline
+
+Every drafter's `main()` snapshots Module 3 sentinels (`ValidationFinding / BidEvaluationFinding / BIDDER_VIOLATES_RULE / EligibilityMatrix / TenderRanking / BidAnomalyFinding / ComparativeStatement`) pre-emit, asserts identity post-emit, and excludes `Communication` count from the assertion (since that grows by design). Run-time drift detection ensures M4.2 drafters never accidentally mutate Module 3 state.
+
+### Drilldown test result on B2×HC DISQUALIFICATION
+
+```
+audit_id=2c156908d936d829
+n_hard_block_findings=7
+n_source_findings=8 (7 HARD_BLOCK + 1 EligibilityMatrix)
+Resolved all 8 source_finding_node_ids: BidEvaluationFinding × 7 + EligibilityMatrix × 1 ✓
+Recomputed audit_id (SHA256 of payload string) = stored audit_id ✓
+content_en = 5392 chars, references all 7 HARD_BLOCK rule_ids with decision_reasons
+```
+
+### Final state after M4.2
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| Communication kg_nodes | 0 | +12 (6 DISQUAL + 3 AWARD + 3 ALB) | 12 |
+| Markdown artifacts at /tmp/m4_drafts/ | 0 | +12 | 12 |
+| Module 3 sentinels (154/351/49/27/3/6/3) | clean | unchanged | clean ✓ |
+
+### Forward-applicable
+
+The 3 drafter pilots establish the pattern for the remaining 6 (CARTEL_REVIEW + FLAGGED + DOC_REVIEW + REGRET + BID_ACK + INTERNAL_ROUTING). Each future drafter is ~250-300 LOC: import `_common`, define template + source-iteration, mirror sentinel discipline. Roughly the same complexity as Module 3 Tier-2 validators — pattern is stable.
+
+---
+
 ## L84 — Module 4 Communication Architecture Design Spec (M4.1)
 
 **Established in autonomous overnight workflow Sub-block 2** (May 2026). M4.1 is the design-only sub-block that defines the contract Module 4 implementation builds to. Pattern mirrors Ext-7 (B9 spec design) — write the contract first, build to satisfy second. 302 lines covering 10 sections (Context / Schema / 9 Types / Bilingual / Channel / Audit / Sender / DPDP / Predicted / Out-of-scope).
