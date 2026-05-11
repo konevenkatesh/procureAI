@@ -1087,6 +1087,22 @@ Distinct from `severity` (which comes from the rule). Tells downstream Eligibili
 - Tier-1: `scripts/tier1_<typology>_check.py`
 - Tier-2: `scripts/bid_<typology>_check.py` ← this pilot
 
+### L61 addendum (Sub-block 3b Batch 1) — Composite input contract pattern
+
+The pilot's single-source input contract (one `fact_sheets` row per finding) is the common case but not the only shape. `bid_blacklist_check` (Batch 1) introduced the **composite input contract**:
+
+- **Source 1 (entity-level)**: `kg_nodes.BidderProfile.properties.blacklist_status` — a per-bidder attribute, not per-bid.
+- **Source 2 (statement-level)**: `fact_sheets.Statement-VII-Litigation` — `litigation_count` + `cases[]` array per bid.
+
+The finding's `input_contract` field captures this composite shape as the string `"composite:BidderProfile+fact_sheets.Statement-VII-Litigation"`, plus a new `input_contract_pattern` field tagged `"composite_entity_plus_statement"` for downstream aggregation (EligibilityMatrix can use this to group findings by input shape).
+
+Mandatory carry-through on composite validators:
+- Each source gets a separate citation block (`blacklist_status_source`, `fact_sheet_source_file`, etc.).
+- Cross-source consistency is checked and surfaced (`litigation_consistent` boolean) — drift between the two sources doesn't crash the validator but is flagged in the audit field, with the fact-sheet value preferred when they disagree.
+- Both rule anchors (primary + secondary) are recorded in the finding (`rule_id` + `secondary_rule_id`) with separate citation blocks for each (`rule_natural_language` + `secondary_rule_natural_language`, etc.).
+
+Forward-applicable to any Tier-2 validator needing entity-level + statement-level facts (e.g. future `bid_litigation_check` with multi-statement cross-ref; future `bid_equipment_check` reading per-equipment BidderProfile facts + Statement-V).
+
 ### Replicating to the 9 remaining Tier-2 validators (Sub-block 3b)
 
 Pattern is now stable. Each next Tier-2 validator needs only:
