@@ -231,7 +231,8 @@ def fetch_drafting_clauses() -> list[dict]:
         "clause_type": "eq.DRAFTING_CLAUSE",
         "select":      ("clause_id,title,text_english,parameters,"
                         "applicable_tender_types,mandatory,position_section,"
-                        "position_order,rule_ids,cross_references"),
+                        "position_order,rule_ids,cross_references,"
+                        "project_scope_filter"),
     })
 
 
@@ -364,6 +365,21 @@ def select_clauses(clauses: list[dict], facts: dict) -> list[dict]:
         if not att_match:
             out.append(dict(c, status="EXCLUDED",
                             _exclusion_reason=f"tender_type={tt!r} not in {att}",
+                            rule_verdicts={}, firing_rules=[]))
+            continue
+
+        # Phase 1 binary disable: clauses with non-null project_scope_filter
+        # are project-type-specific (Sewerage / WaterTreatment / Storage /
+        # Buildings* / RoadHighway / etc.) and disabled in the universal
+        # AP Works compliance scope. Phase 2 — when corpus expands across
+        # project types — will introduce a tender ProjectScope facet and
+        # match clause.project_scope_filter against tender.ProjectScope.
+        # See clause_templates.project_scope_filter column comment.
+        if c.get("project_scope_filter"):
+            out.append(dict(c, status="EXCLUDED",
+                            _exclusion_reason=(
+                                "project-specific clause disabled in "
+                                "Phase 1 scope (universal compliance only)"),
                             rule_verdicts={}, firing_rules=[]))
             continue
 
