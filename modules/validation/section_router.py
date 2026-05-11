@@ -85,14 +85,22 @@ EMD_SECTION_ROUTER: dict[str, list[str]] = {
 
 
 # Bid-Validity-Short — bid-validity periods live in the same broad
-# region as EMD (BDS / ITB), but PPP RFPs put it under NIT only
-# ("14. VALIDITY OF THE BIDS" pattern in NREDCAP RFPs). No need for
-# Forms (which carries bond templates, not the validity period).
+# region as EMD (BDS / ITB). The APCRDA_Works filter includes BDS-
+# classified Datasheet sections because the post-L57 drafter renders
+# the concrete validity-period value in the BDS clause-prose
+# ("## The clause shall be read as" → ITB 18.1 — 90 days …). Without
+# Datasheet in the filter, post-Bug-A line-shifts could move BV's NIT
+# body row out of the BGE-M3 top-K and leave the BDS clause-prose
+# unreachable (L57-latent retrieval gap exposed during Phase 1 verify).
+# PPP RFPs put it under NIT only ("14. VALIDITY OF THE BIDS" pattern
+# in NREDCAP RFPs). SBD_Format keeps the Vizag-style Evaluation+ITB
+# anchors. No need for Forms (which carries bond templates, not the
+# validity period).
 BID_VALIDITY_SECTION_ROUTER: dict[str, list[str]] = {
-    "APCRDA_Works":  ["ITB", "NIT"],
+    "APCRDA_Works":  ["ITB", "NIT", "Datasheet"],
     "SBD_Format":    ["Evaluation", "ITB"],
     "NREDCAP_PPP":   ["NIT"],
-    "default":       ["ITB", "NIT", "Evaluation"],
+    "default":       ["ITB", "NIT", "Evaluation", "Datasheet"],
 }
 
 
