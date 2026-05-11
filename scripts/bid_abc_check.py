@@ -47,9 +47,18 @@ TYPOLOGY = "Bidder-Capacity-Compliance"
 TIER = 2
 RULE_ID = "AP-GO-062"
 
-# AP-GO-062 baked-in coefficient (NOT parameterised)
+# AP-GO-062 baked-in coefficient (Ext-4 makes this method-aware: default
+# preserved on B1-B8 via abc_formula_M_method=AP_GO_062_M2 backfill)
 AP_GO_062_M_REQUIRED = 2
 ARITHMETIC_TOLERANCE_CR = 0.01
+
+# Ext-4: rule-source-aware M coefficient lookup. Read BidderProfile field
+# abc_formula_M_method; map to expected M. OTHER → GAP (manual review).
+M_METHOD_TO_REQUIRED: dict[str, int | None] = {
+    "AP_GO_062_M2": 2,
+    "MPW_M3":       3,
+    "OTHER":        None,
+}
 
 
 REST = settings.supabase_rest_url
@@ -193,8 +202,15 @@ def select_rule(tender_state, tender_type):
     }
 
 
-def compute_verdict(M, A, N, B, declared_ABC, ECV):
-    """Three independent failure-mode checks. Returns (verdict, calc_dict)."""
+def compute_verdict(M, A, N, B, declared_ABC, ECV, M_required=None):
+    """Three independent failure-mode checks. Returns (verdict, calc_dict).
+
+    Ext-4: M_required is now a parameter (was module-level constant).
+    Defaults to AP_GO_062_M_REQUIRED (2) when not supplied — preserves
+    backward compat for existing callers.
+    """
+    if M_required is None:
+        M_required = AP_GO_062_M_REQUIRED
     inputs_complete = all(x is not None for x in (M, A, N, B, declared_ABC, ECV))
     if not inputs_complete:
         return "GAP_INSUFFICIENT_DATA", {
@@ -206,16 +222,16 @@ def compute_verdict(M, A, N, B, declared_ABC, ECV):
                                 ("declared_ABC", declared_ABC), ("ECV", ECV)]
                                if v is None],
         }
-    # Recompute using bidder's declared M (NOT the rule's M=2) — this lets
+    # Recompute using bidder's declared M (NOT the required M) — this lets
     # us detect arithmetic errors independent of the M_violation check.
     recomputed = M * A * N - B
     arithmetic_delta = abs(declared_ABC - recomputed)
-    M_violation = (M != AP_GO_062_M_REQUIRED)
+    M_violation = (M != M_required)
     arithmetic_error = (arithmetic_delta > ARITHMETIC_TOLERANCE_CR)
     capacity_insufficient = (declared_ABC < ECV)
     failures = (M_violation or arithmetic_error or capacity_insufficient)
     return ("INELIGIBLE" if failures else "QUALIFIED"), {
-        "M_required":                AP_GO_062_M_REQUIRED,
+        "M_required":                M_required,
         "M_declared":                M,
         "M_violation":               M_violation,
         "recomputed_abc_cr":         round(recomputed, 4),
@@ -305,7 +321,17 @@ def main():
         print(f"  → SKIP_NOT_APPLICABLE {finding['node_id']}")
         return 0
 
-    verdict, calc = compute_verdict(M, A, N, B, declared_ABC, ECV)
+    # Ext-4: read BidderProfile abc_formula_M_method; map to required M.
+    # Default AP_GO_062_M2 preserves existing B1-B8 behavior.
+    M_method = bidder_props.get("abc_formula_M_method", "AP_GO_062_M2")
+    M_rule_source = bidder_props.get("abc_formula_rule_source", "AP-GO-062")
+    M_required = M_METHOD_TO_REQUIRED.get(M_method, AP_GO_062_M_REQUIRED)
+    print(f"  Ext-4 M_method: {M_method!r} → M_required={M_required} (rule_source={M_rule_source!r})")
+
+    verdict, calc = compute_verdict(M, A, N, B, declared_ABC, ECV, M_required=M_required)
+    # Surface Ext-4 metadata on calc dict for citation chain
+    calc["abc_formula_M_method"] = M_method
+    calc["abc_formula_rule_source"] = M_rule_source
     consequence = evaluation_consequence_for(verdict)
     print(f"\n── Decision ──")
     print(f"  M_violation           : {calc.get('M_violation')}")

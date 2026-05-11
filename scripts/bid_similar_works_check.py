@@ -213,17 +213,74 @@ def select_rule(tender_state, tender_type):
     }
 
 
+def _ext6_compliance(work: dict) -> tuple[bool, str]:
+    """Ext-6: Check counter-signature/TDS compliance per work entry.
+
+    Returns (is_compliant, reason).
+    Rules (from B9 spec Ext-6 contract):
+      GOVT/PSU client → requires counter_signature_status IN (EE_SIGNED, SE_SIGNED)
+      PRIVATE client → requires tds_certificate_node_id IS NOT NULL
+      MISSING/NOT_REQUIRED on GOVT+PSU → NON_COMPLIANT (excluded from 3/2/1)
+
+    Backward-compat default: if Ext-6 fields absent, assume legacy entry
+    is COMPLIANT (preserves B1-B8 behavior on un-backfilled rows).
+    """
+    if not isinstance(work, dict):
+        return False, "non_dict_entry"
+    client_type = work.get("client_type")
+    cs_status   = work.get("counter_signature_status")
+    tds_id      = work.get("tds_certificate_node_id")
+    if client_type is None and cs_status is None:
+        # Legacy entry without Ext-6 fields → compliant by default
+        return True, "legacy_no_ext6_fields_assumed_compliant"
+    if client_type in ("GOVT", "PSU"):
+        if cs_status in ("EE_SIGNED", "SE_SIGNED"):
+            return True, f"{client_type}_with_{cs_status}"
+        return False, f"{client_type}_missing_counter_signature_{cs_status!r}"
+    if client_type == "PRIVATE":
+        if tds_id is not None:
+            return True, "PRIVATE_with_tds_cert"
+        return False, "PRIVATE_missing_tds_certificate"
+    return False, f"unknown_client_type_{client_type!r}"
+
+
 def compute_verdict(similar_works, ecv_cr):
-    """Recompute 3/2/1 branches from similar_works[]. Returns (verdict, calc)."""
+    """Recompute 3/2/1 branches from similar_works[]. Returns (verdict, calc).
+
+    Ext-6: filter out non-compliant works (missing counter-signature for
+    GOVT/PSU, missing TDS for PRIVATE) BEFORE counting toward 3/2/1
+    branches. ext6_compliance_summary surfaces the breakdown for audit.
+    """
     if not isinstance(similar_works, list) or ecv_cr is None:
         return "GAP_INSUFFICIENT_DATA", {
             "branches": None, "satisfying_branch": None, "works_count": None,
+            "ext6_compliance_summary": None,
         }
+    # Ext-6: per-entry compliance evaluation (informational; works that
+    # fail compliance still appear in works_count but are excluded from
+    # branch eligibility)
+    ext6_summary = []
+    compliant_works: list[dict] = []
+    for i, w in enumerate(similar_works):
+        is_compliant, reason = _ext6_compliance(w)
+        ext6_summary.append({
+            "index":         i,
+            "work_name":     w.get("name") if isinstance(w, dict) else None,
+            "client":        w.get("client") if isinstance(w, dict) else None,
+            "client_type":   w.get("client_type") if isinstance(w, dict) else None,
+            "counter_signature_status": w.get("counter_signature_status") if isinstance(w, dict) else None,
+            "compliant":     is_compliant,
+            "reason":        reason,
+        })
+        if is_compliant:
+            compliant_works.append(w)
+
     branch_results = []
     satisfying_branch = None
     for n_required, pct in SIMILAR_WORKS_THRESHOLDS:
         threshold_cr = ecv_cr * pct
-        meeting = [w for w in similar_works
+        # Ext-6: count only compliant works toward branch eligibility
+        meeting = [w for w in compliant_works
                    if isinstance(w, dict) and (w.get("ecv_cr") or 0) >= threshold_cr]
         passed = len(meeting) >= n_required
         branch_results.append({
@@ -243,6 +300,8 @@ def compute_verdict(similar_works, ecv_cr):
         "branches": branch_results,
         "satisfying_branch": satisfying_branch,
         "works_count": len(similar_works),
+        "compliant_works_count": len(compliant_works),
+        "ext6_compliance_summary": ext6_summary,
     }
     return ("QUALIFIED" if satisfying_branch else "INELIGIBLE"), calc
 

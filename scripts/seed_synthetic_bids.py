@@ -142,6 +142,13 @@ TENDERS = {
 #   past_blacklist_events[], past_tender_participation[], past_anomaly_flags[],
 #   authorized_signatory_name, authorized_signatory_role, communication_address
 
+# Ext-5 Solvency variance — methodology note (applied to all BidderProfiles)
+EXT5_SOLVENCY_METHODOLOGY_NOTE = (
+    "12-month window per AP-GO-089 Section 4(b); "
+    "cert issued by Tahsildar per state default"
+)
+
+
 # Ext-3 Dual Turnover Criterion — methodology note (applied to all BidderProfiles)
 EXT3_TURNOVER_METHODOLOGY_NOTE = (
     "Ext-3 Dual Turnover Criterion: construction_turnover_5yr_avg_cr is the "
@@ -174,6 +181,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=250.0,   # Ext-3 alias (preferred)
         financial_turnover_3yr_avg_cr=175.0,      # Ext-3 NEW
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=145.0,
         existing_commitments_cr=180.0,
         abc_M_multiplier=2,
@@ -228,6 +242,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=80.0,    # Ext-3
         financial_turnover_3yr_avg_cr=56.0,       # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=45.0,
         existing_commitments_cr=60.0,
         abc_M_multiplier=2,
@@ -280,6 +301,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=30.0,     # Ext-3
         financial_turnover_3yr_avg_cr=21.0,        # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=18.0,
         existing_commitments_cr=42.0,
         abc_M_multiplier=3,
@@ -342,6 +370,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=290.0,  # Ext-3
         financial_turnover_3yr_avg_cr=203.0,     # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=160.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,
@@ -395,6 +430,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=250.0,  # Ext-3
         financial_turnover_3yr_avg_cr=175.0,     # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=150.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -448,6 +490,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=260.0,  # Ext-3
         financial_turnover_3yr_avg_cr=182.0,     # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=130.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -502,6 +551,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=270.0,  # Ext-3
         financial_turnover_3yr_avg_cr=189.0,     # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=135.0,
         existing_commitments_cr=115.0,
         abc_M_multiplier=2,
@@ -556,6 +612,13 @@ PROFILES = {
         construction_turnover_5yr_avg_cr=280.0,  # Ext-3
         financial_turnover_3yr_avg_cr=196.0,     # Ext-3
         turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
+        # Ext-4 ABC formula M-coefficient method (forward-compat for B9)
+        abc_formula_M_method="AP_GO_062_M2",
+        abc_formula_rule_source="AP-GO-062",
+        # Ext-5 Solvency cert validity window
+        solvency_cert_validity_window_months=12,
+        solvency_cert_source_rule="AP_GO_089_12MO",
+        solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
         max_completed_works_value_cr=120.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,
@@ -675,6 +738,15 @@ def build_statement_ii(profile: dict, tender: dict) -> dict:
     else:    # zero_works
         works = []
         meets = False
+    # Ext-6 Counter-signature backfill: every existing work is GOVT-client
+    # (APIIC / APCRDA / AP-HCJ / APPHC are all government bodies) with
+    # EE-counter-signed completion certificates. Backfill applied per-entry
+    # for forward-compat; B9 in Ext-8 may seed mixed GOVT/PSU/PRIVATE shapes.
+    for w in works:
+        w.setdefault("client_type", "GOVT")
+        w.setdefault("counter_signature_status", "EE_SIGNED")
+        w.setdefault("tds_certificate_node_id", None)
+        w.setdefault("supporting_completion_certificate_node_id", None)
     return dict(
         bidder_name=profile["company_name"],
         tender_id=tender["tender_id"],

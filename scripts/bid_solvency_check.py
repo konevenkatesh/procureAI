@@ -228,36 +228,44 @@ def select_rule(tender_state: str, tender_type: str | None) -> dict | None:
 # ── Verdict logic ─────────────────────────────────────────────────────
 
 def compute_verdict(validity_months_ago, declared_solvency_cr,
-                    required_solvency_cr) -> tuple[str, dict]:
+                    required_solvency_cr, validity_window_months=None) -> tuple[str, dict]:
+    """Ext-5: validity_window_months is now a parameter (was module-level constant).
+    Defaults to SOLVENCY_VALIDITY_CAP_MONTHS (12) when not supplied — preserves
+    backward compat for existing callers."""
+    if validity_window_months is None:
+        validity_window_months = SOLVENCY_VALIDITY_CAP_MONTHS
     if (validity_months_ago is None or declared_solvency_cr is None
             or required_solvency_cr is None):
         return "GAP_INSUFFICIENT_DATA", {
             "validity_months_ago":  validity_months_ago,
+            "validity_window_months": validity_window_months,
             "declared_solvency_cr": declared_solvency_cr,
             "required_solvency_cr": required_solvency_cr,
             "stale":                None,
             "insufficient":         None,
             "amount_delta_cr":      None,
         }
-    stale = validity_months_ago > SOLVENCY_VALIDITY_CAP_MONTHS
+    stale = validity_months_ago > validity_window_months
     insufficient = declared_solvency_cr < required_solvency_cr
     amount_delta = declared_solvency_cr - required_solvency_cr
     if stale or insufficient:
         return "INELIGIBLE", {
-            "validity_months_ago":  validity_months_ago,
-            "declared_solvency_cr": declared_solvency_cr,
-            "required_solvency_cr": required_solvency_cr,
-            "stale":                stale,
-            "insufficient":         insufficient,
-            "amount_delta_cr":      round(amount_delta, 4),
+            "validity_months_ago":     validity_months_ago,
+            "validity_window_months":  validity_window_months,
+            "declared_solvency_cr":    declared_solvency_cr,
+            "required_solvency_cr":    required_solvency_cr,
+            "stale":                   stale,
+            "insufficient":            insufficient,
+            "amount_delta_cr":         round(amount_delta, 4),
         }
     return "QUALIFIED", {
-        "validity_months_ago":  validity_months_ago,
-        "declared_solvency_cr": declared_solvency_cr,
-        "required_solvency_cr": required_solvency_cr,
-        "stale":                False,
-        "insufficient":         False,
-        "amount_delta_cr":      round(amount_delta, 4),
+        "validity_months_ago":     validity_months_ago,
+        "validity_window_months":  validity_window_months,
+        "declared_solvency_cr":    declared_solvency_cr,
+        "required_solvency_cr":    required_solvency_cr,
+        "stale":                   False,
+        "insufficient":            False,
+        "amount_delta_cr":         round(amount_delta, 4),
     }
 
 
@@ -347,8 +355,19 @@ def main() -> int:
         print(f"  → {verdict}  ({finding['node_id']})")
         return 0
 
+    # Ext-5: read configurable validity window from BidderProfile.
+    # Default 12mo preserves existing B1-B8 behavior.
+    validity_window = bidder_props.get("solvency_cert_validity_window_months",
+                                        SOLVENCY_VALIDITY_CAP_MONTHS)
+    source_rule = bidder_props.get("solvency_cert_source_rule", "AP_GO_089_12MO")
+    print(f"  Ext-5: validity_window={validity_window}mo (source_rule={source_rule!r})")
+
     verdict, calc = compute_verdict(validity_months_ago, declared_solvency_cr,
-                                    required_solvency_cr)
+                                    required_solvency_cr,
+                                    validity_window_months=validity_window)
+    # Surface Ext-5 metadata on calc for citation chain
+    calc["solvency_cert_source_rule"] = source_rule
+    calc["solvency_cert_validity_window_months"] = validity_window
     consequence = evaluation_consequence_for(verdict)
     print(f"\n── Decision ──")
     print(f"  stale             : {calc['stale']}")
