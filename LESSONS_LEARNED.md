@@ -1149,6 +1149,116 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L81 — Module 3 Extensions JV-Aware Validator Pattern (Ext-1 JV/Consortium)
+
+**Established during Ext-1** (`scripts/bid_jv_consortium_check.py`, May 2026). First Tier-2 validator with **3-path architecture** discriminated on the new `bidder_type` field (Ext-1 schema), and the first that performs a **cross-profile lookup** at evaluation time (validator joins Lead Partner + N Partner `BidderProfile` rows in addition to the bidding entity's own profile). Sets the template for Ext-8 B9 (synthetic JV bidder) and for any future multi-entity bid-evaluation criterion.
+
+### 3-path architecture
+
+```
+compute_verdict(bidder_props, tender_props,
+                lead_partner_props=None,
+                partner_props_list=None) -> (verdict, calc)
+```
+
+| bidder_type | path | verdict | finding emitted |
+|---|---|---|---|
+| `SOLE_BIDDER` | early-return | QUALIFIED-NOT_APPLICABLE | yes (audit row) |
+| `JV` / `CONSORTIUM` | run 8 sub-checks via cross-profile lookup | QUALIFIED or INELIGIBLE-HARD_BLOCK | yes (composite per L80) |
+| `JV_PARTNER` | data-integrity catch | GAP-DATA_INTEGRITY (WARNING) | yes (audit row) |
+| anything else | fallback | GAP_INSUFFICIENT_DATA | yes (audit row) |
+
+Cross-profile lookup is **only** taken on the JV/CONSORTIUM path. SOLE_BIDDER and JV_PARTNER short-circuit before any partner lookup, keeping the validator wall ≈3.5–6s for the 24 B1-B8 SOLE_BIDDER bids and avoiding 8+ extra REST calls per bid that would be wasted.
+
+### Why NOT_APPLICABLE returns QUALIFIED, not SKIP
+
+A SOLE_BIDDER bid is not "skipped" — it has been evaluated and found compliant with the rule (because the rule says "JV must satisfy 8 sub-checks" and a non-JV bidder is vacuously compliant). The 4-state Tier-2 verdict vocab (QUALIFIED / INELIGIBLE / GAP / SKIP) reserves `SKIP_NOT_APPLICABLE` for the rule-doesn't-fire case (e.g. PPP tender hitting an AP-Works-only rule). Here the rule **fires** for all AP Works/EPC bids; what differs is the per-sub-check verdict, where SOLE_BIDDER auto-passes with `compliance=NOT_APPLICABLE_SOLE_BIDDER`. EligibilityMatrix counts it as the 13th compliant criterion, NOT as a skipped one.
+
+This is the L80 composite-finding pattern at scale: 8 sub-checks for JV, 1 sub-check (`JV_PERMIT_CHECK = NOT_APPLICABLE_SOLE_BIDDER`) for SOLE_BIDDER, all expressed through the same `jv_evaluation_summary[]` field.
+
+### Cross-profile lookup architecture
+
+```python
+# in main(), JV/CONSORTIUM path only:
+lead_partner_props = load_bidder_profile(bidder_props["lead_partner_id"])["properties"]
+partner_props_list = load_partner_profiles(bidder_props["partner_ids"])
+
+verdict, calc = compute_verdict(bidder_props, tender_props,
+                                 lead_partner_props=lead_partner_props,
+                                 partner_props_list=partner_props_list)
+```
+
+The validator does N+1 REST GETs (1 for the JV entity, 1 for Lead, N for Partners). For B9 with 3 partners that's 4 round-trips — acceptable for nightly batch eval, not a hot path. Future optimisation: a single `node_id IN (...)` query could collapse these into one call but isn't worth it for batch sizes ≤ 30.
+
+`compute_verdict` accepts both as **optional** parameters with default `None` — keeps SOLE_BIDDER / JV_PARTNER paths trivially unit-testable without DB or partner stubs (Approach E, L79).
+
+### 8 sub-checks per AP standard tender Clauses 1.6.4 + 1.12 (Form-14)
+
+| # | sub-check | source field | failure → |
+|---|---|---|---|
+| 1 | `JV_PERMIT_TENDER_TYPE` | tender_props.tender_type ∈ {Works, EPC} | HARD_BLOCK |
+| 2 | `JV_AGREEMENT_VALIDITY` | bidder.jv_agreement_validity_until ≥ tender.submission_date | HARD_BLOCK |
+| 3 | `LEAD_PARTNER_IDENTIFIED` | bidder.lead_partner_id resolves to BidderProfile with bidder_type=JV_PARTNER | HARD_BLOCK |
+| 4 | `JOINT_AND_SEVERAL_LIABILITY` | bidder.liability_terms == JOINT_AND_SEVERAL | HARD_BLOCK |
+| 5 | `LEAD_PARTNER_FINANCIAL` | lead.financial_turnover_3yr_avg_cr ≥ tender.financial_pq_floor_cr (Lead-alone, NOT collective) | HARD_BLOCK |
+| 6 | `POA_FORM_15_VALID` | bidder.poa_status == VALID (reused from Ext-2 schema) | HARD_BLOCK |
+| 7 | `PARTNER_COUNT` | 2 ≤ len(bidder.partner_ids) ≤ 3 per AP norm | HARD_BLOCK |
+| 8 | `PARTNERS_BLACKLIST_CLEAN` | no partner has past_blacklist_events with current_status=ACTIVE | HARD_BLOCK |
+
+Sub-check 5 is the architecturally interesting one: AP norm requires the **Lead Partner's solo financial turnover** ≥ tender floor, NOT the JV's collective turnover. This is precisely why cross-profile lookup is necessary — the validator can't satisfy sub-check 5 from the bidding-entity profile alone. Ext-3's renamed `financial_turnover_3yr_avg_cr` field is consumed here for the first time outside the Ext-3 validator. Sub-check 6 reuses Ext-2's `poa_status` field — both Ext schemas now compose into a richer JV check.
+
+### Primary + secondary citation chain depth
+
+When no existing rule in the `rules` table cleanly matches a multi-citation criterion (six rules contribute partial NL: MPW-044, AP-GO-002, MPW25-119/120/121, CVC-139), seed a new aggregating rule **AP-PROC-JV-CONSORTIUM-V1** carrying the synthesis natural language (8 sub-checks enumerated), then enumerate the six contributing rules as `secondary_rule_ids` in every finding for full audit-chain transparency.
+
+```python
+RULE_ID = "AP-PROC-JV-CONSORTIUM-V1"  # primary anchor
+SECONDARY_RULE_IDS = ["MPW-044", "AP-GO-002", "MPW25-119",
+                      "MPW25-120", "MPW25-121", "CVC-139"]
+```
+
+This is the **rule-seed-and-flag pattern** extended (originally L80 Ext-2; now Ext-1 demonstrates secondary citation depth — Ext-2 had no secondaries). Forward-applicable to any future criterion synthesised from multiple existing rules.
+
+### 6-test Approach E unit-test coverage
+
+The DB exercise of the JV path is **deferred to Ext-8** (no JV/CONSORTIUM bidders exist in the 24 B1-B8 corpus today). To prevent the JV branch from rotting silently between Ext-1 ship and Ext-8 seed, six Approach E unit tests cover **all four paths**:
+
+| # | input | expected verdict | covers |
+|---|---|---|---|
+| 1 | bidder_type=SOLE_BIDDER | QUALIFIED-NOT_APPLICABLE | Path 1 |
+| 2 | bidder_type=JV, all 8 sub-checks pass | QUALIFIED, 8/8 | Path 2 happy |
+| 3 | bidder_type=JV, liability_terms=OTHER | INELIGIBLE-HARD_BLOCK (sc4 fail) | Path 2 single-sub-check failure |
+| 4 | bidder_type=JV, Lead 3yr=50cr vs floor=109.55cr | INELIGIBLE-HARD_BLOCK (sc5 fail) | Path 2 cross-profile financial |
+| 5 | bidder_type=CONSORTIUM, partner_count=1 | INELIGIBLE-HARD_BLOCK (sc7 fail) | Path 2 count boundary |
+| 6 | bidder_type=JV_PARTNER | GAP-DATA_INTEGRITY | Path 3 |
+
+All 6 tests run without a DB (cross-profile lookup is via the optional `lead_partner_props` / `partner_props_list` params; tests construct stubs). Time to run < 1 second. **Pre-smoke pattern stays correct without Ext-8 seed in place.**
+
+### Final DB state after Ext-1
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| rules table (AP-PROC-JV-CONSORTIUM-V1) | 0 | +1 | 1 |
+| BidderProfile rows (6 Ext-1 fields backfilled) | 0 | +8 | 8 (all SOLE_BIDDER) |
+| ValidationFinding (sentinel) | 154 | 0 | 154 ✓ |
+| BidEvaluationFinding | 288 | +24 (all QUALIFIED-NOT_APPLICABLE) | 312 (= 24 × 13 criteria) |
+| BIDDER_VIOLATES_RULE | 49 | 0 (SOLE_BIDDER QUALIFIED is silent) | 49 |
+| EligibilityMatrix | 24 | re-aggregated | 24 (criteria_total 12 → 13) |
+| TenderRanking | 3 | re-aggregated | 3 |
+| BidAnomalyFinding | 6 | skipped | 6 |
+| ComparativeStatement | 3 | re-rendered | 3 (13-row tables, new audit_ids) |
+
+All 24 bids correctly path to SOLE_BIDDER → QUALIFIED-NOT_APPLICABLE. The 4 aggregate states (QUALIFIED / FLAGGED_FOR_COMMITTEE_REVIEW / MARK_FOR_DOCUMENTATION_REVIEW / DISQUALIFIED) remain exercised at 12/3/3/6 because Ext-1 added no INELIGIBLE outcomes on B1-B8.
+
+### Deferred to Ext-8
+
+- B9 synthetic JV BidderProfile (1 JV entity + 2 JV_PARTNER profiles for Lead + Member)
+- JV path full corpus run (24 → 27 bids if B9 × 3 tenders)
+- Sub-check 5 (Lead-alone financial) live demonstration: B9 Lead at ₹260cr, HC floor at ₹109.55cr → PASS; would FAIL if Lead were below floor
+- L81 supplement: any Ext-8 surprises (e.g. partner profile referential gaps, JSONB array shape gotchas) when JV path actually runs against DB
+
+---
+
 ## L80 — Module 3 Extensions Composite-Finding Pattern (Ext-2 Compliance Documents)
 
 **Established during Ext-2** (`scripts/bid_compliance_documents_check.py`, May 2026). When a single criterion has **N sub-aspects that must ALL pass** (8 mandatory compliance documents; future: JV multi-criterion checks), emit ONE composite BidEvaluationFinding per (bidder, tender) carrying per-sub-aspect breakdown in `calc` dict + composite verdict via MAX-severity aggregation rule.
