@@ -1149,6 +1149,81 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L66 — Synthetic-Seed Coverage Gap for 4-State Aggregate Vocabulary
+
+**Surfaced during Sub-block 4 (EligibilityMatrix aggregator)**. The aggregator implements a 4-state aggregate verdict vocabulary with `HARD_BLOCK > WARNING > GAP > QUALIFIED` precedence:
+- QUALIFIED
+- FLAGGED_FOR_COMMITTEE_REVIEW (WARNING-INELIGIBLE present, no HARD_BLOCK)
+- MARK_FOR_DOCUMENTATION_REVIEW (GAP_INSUFFICIENT_DATA present, no HARD_BLOCK or WARNING)
+- DISQUALIFIED
+
+On the current synthetic corpus (3 bidders × 3 tenders × 10 criteria = 90 findings), only 2 of 4 states fire:
+- QUALIFIED ×3 (B1 across all tenders)
+- DISQUALIFIED ×6 (B2 + B3 across all tenders — both bidders carry HARD_BLOCK criterion failures)
+- FLAGGED_FOR_COMMITTEE_REVIEW ×0 — every bid carrying a WARNING (B3's litigation per AP-GO-066) ALSO has multiple HARD_BLOCK failures, so HARD_BLOCK precedence pushes to DISQUALIFIED.
+- MARK_FOR_DOCUMENTATION_REVIEW ×0 — zero GAP_INSUFFICIENT_DATA findings across the 90.
+
+**Forward-applicable**: the aggregator codes all 4 states, so real corpus bids will exercise them automatically. Until then, the FLAGGED and MARK_FOR_DOCUMENTATION_REVIEW branches are tested only via aggregator unit logic, not end-to-end synthetic data.
+
+**Queue item**: extend `scripts/seed_synthetic_bids.py` to add 2 more bidder profiles that exercise the missing branches:
+- **B4 — Borderline**: clean across all rule-strict criteria EXCEPT carries a single active govt litigation case (Statement-VII). Will FLAGGED_FOR_COMMITTEE_REVIEW (WARNING-only outcome).
+- **B5 — Incomplete**: clean across all rule-strict criteria EXCEPT one Statement is missing or has null fact fields. Will MARK_FOR_DOCUMENTATION_REVIEW (GAP-only outcome).
+
+After seeding, re-run all 10 Tier-2 validators against the new bids (B4 + B5 → 6 new bids × 10 validators = 60 new findings) + EligibilityMatrix aggregator (12 EligibilityMatrix rows total, exercising all 4 aggregate states). ~1–2 hours; can land before or after Sub-block 7.
+
+Why surfacing this now matters: an undiscovered branch in the aggregator could harbor a logic bug that only manifests in production. The synthetic data should exercise every documented state transition before the aggregator ships to a real tender.
+
+---
+
+## L65 — EligibilityMatrix Aggregator Pattern (Sub-block 4)
+
+**Established during Sub-block 4** (`scripts/run_eligibility_matrix.py`, May 2026). First aggregator in the platform; pattern stabilizes for downstream Sub-block 5 (L1/L2 ranking), Sub-block 6 (CrossBidAnomalyDetector), and Sub-block 7 (ComparativeStatementGenerator).
+
+### Aggregator architectural pattern
+
+| Aspect | Tier-1 validator | Tier-2 validator | Aggregator (NEW) |
+|---|---|---|---|
+| Input | Tender markdown via Qdrant | Structured fact_sheets / kg_nodes | Already-emitted Tier-2 findings (`BidEvaluationFinding`) |
+| Per-row scope | one (doc, typology) | one (bid, typology) | one (bidder, tender) — aggregating N criteria |
+| Output node_type | ValidationFinding | BidEvaluationFinding | **EligibilityMatrix** (new, accepted as plain TEXT — no CHECK constraint) |
+| Edge emission | VIOLATES_RULE on negative outcomes | BIDDER_VIOLATES_RULE on negative outcomes | **None** (pure aggregator; drilldown via array, not graph) |
+| Idempotence | `_delete_prior_*` by (doc_id, typology, tier) | `_delete_prior_tier2_*` by (bid_id, typology, tier) | `_delete_prior_*_rows()` by `source_ref` (single string match) |
+| Crash resilience | per-doc wrapper invocation | per-bid wrapper invocation | **Single batch-run wrapper** (synthetic `doc_id="<aggregator_v1>"`) |
+| Citation chain | inline in finding props | inline in finding props | `finding_node_ids[]` array + `finding_typology_to_node_id` lookup dict (drilldown to the underlying Tier-2 findings, which already carry full citations) |
+
+### Pure-aggregator design rationale
+
+The aggregator emits **no edges**. Every fact it carries is derivable from the underlying findings; adding `VIOLATES_RULE`-style edges from the matrix would duplicate the existing BIDDER_VIOLATES_RULE graph that the 10 Tier-2 validators already maintain. The drilldown contract is:
+
+1. Consumer reads `EligibilityMatrix.finding_typology_to_node_id[typology]` → O(1) `finding_node_id`
+2. Consumer queries `kg_nodes` by that `node_id` → underlying `BidEvaluationFinding` with full citation chain (bidder + fact source + tender + rule + reasoning)
+3. Consumer optionally queries `kg_edges` filtered by `properties->>finding_node_id` → attached `BIDDER_VIOLATES_RULE` edge (if INELIGIBLE)
+
+This is one O(1) hash lookup + one PostgREST GET per criterion — fast enough for a 10-criterion drilldown to feel instant in the Sub-block 7 evaluation-committee report UI.
+
+### source_ref discipline for idempotency
+
+Aggregator rows are tagged with `source_ref="<sub_block_N>:<aggregator_name>_v<n>"`. Idempotent cleanup filters on this single string, avoiding the multi-key (doc_id, typology, tier) filter that Tier-1/Tier-2 validators use. Simpler shape — aggregator rows are batch-emitted and batch-removed; no per-row keying needed.
+
+### Sentinel snapshot pre/post
+
+Aggregators must not modify upstream tables. Pre/post sentinel counts (ValidationFinding / BidEvaluationFinding / BIDDER_VIOLATES_RULE) are captured at start and compared at end; any drift returns RC=2 and fails the run. Standard contract for any read-only aggregator.
+
+### Verdict precedence as a deterministic ladder
+
+The 4-state aggregate vocabulary follows a strict precedence ladder: `HARD_BLOCK > WARNING > GAP > QUALIFIED`. The implementation uses three early-return checks (`has_hard_block`, `has_warning`, `has_gap`) before defaulting to QUALIFIED. SKIP_NOT_APPLICABLE outcomes are neutral; they're surfaced in `skip_criteria[]` for audit completeness but don't affect verdict computation.
+
+### Aggregator vs validator naming convention
+
+Forward-applicable naming for the platform:
+- `scripts/tier1_<typology>_check.py` — Tier-1 tender document content validator
+- `scripts/bid_<typology>_check.py` — Tier-2 bid submission evaluator
+- `scripts/run_<aggregator_name>.py` — aggregator (no per-row CLI arg; batch mode)
+
+The `run_` prefix differentiates batch aggregators from per-doc/per-bid validators that take a CLI arg.
+
+---
+
 ## L60 — Validator Taxonomy: Tier-1 (Tender Doc Content) vs Tier-2 (Bid Submission Evaluation)
 
 **Identified during Module 3 Sub-block 1 diagnose** (May 2026). The 5 "Batch-3 bidder-fact validators" (Blacklist-Not-Checked, Solvency-Stale, Turnover-Threshold-Excess, Eligibility-Class-Mismatch, Available-Bid-Capacity-Error) were framed in working context as consuming bidder submissions. Reading the docstrings showed otherwise: they read the **TENDER DOCUMENT** to verify it carries the right clauses (the doc MUST require bidders to declare blacklists; the doc MUST state the AP-GO-089 solvency framework; the doc's PQ turnover MUST be within CVC-028 cap; the doc's eligibility-class text MUST admit the right class band for the ECV; the doc's prescribed ABC formula MUST use M=2). They produce findings on corpus today (visible in the 154 ValidationFinding count across 6 corpus docs).
