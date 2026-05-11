@@ -1149,6 +1149,76 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L78 — Module 3 Extensions Pilot Pattern (Ext-3 Dual Turnover)
+
+**Established during Ext-3** (`scripts/bid_financial_turnover_check.py` + schema migration + seed-script edits, May 2026). First implementation Extension; establishes the pattern Ext-4 through Ext-6 will replicate.
+
+### Pattern components
+
+**1. Schema migration via JSONB in-place UPDATE (no DDL)**
+
+`kg_nodes.properties` is JSONB → field additions are zero-migration. For 8 BidderProfile rows: PATCH each `properties` JSON with renamed/added fields. Idempotent: re-run checks before adding. Pattern carries forward to Ext-4/5/6.
+
+**2. Tender criterion data location — Path γ (mirror existing)**
+
+Synthetic tenders have NO TenderDocument kg_nodes (only TenderRanking / ComparativeStatement / BidAnomalyFinding reference `tender_synth_*` doc_ids). Tender PQ data lives in:
+- `fact_sheets.Statement-<N>.extracted_facts.<criterion>_pq_floor_cr` (per bid; defensive cross-check)
+- In-script `SYNTHETIC_TENDER_CATALOG` dict (per validator)
+
+Ext-3 mirrors the existing pattern: BOTH locations get the new `financial_pq_floor_cr` field. The validator reads both and asserts `*_consistent` audit flag. Same path applies for Ext-4/5/6 when adding new tender-side criterion values.
+
+**3. Validator architecture — Path A (new file)**
+
+For each Extension that introduces a NEW criterion (vs modifying an existing one), write a NEW validator script. Reasons:
+- Per-criterion BidEvaluationFinding granularity → audit-clear which criterion failed
+- Aligns with B9 spec's "10 + 6 = 16 outcome" framing (Ext-3 makes it 11 + 5 = 16)
+- New file is ~250-450 LOC, mostly boilerplate mirroring the closest existing validator (e.g. `bid_financial_turnover_check` mirrors `bid_turnover_check`)
+- Cleaner verdict reasoning + filter-by-typology queries vs Path B's composite finding shape
+
+Path B (extend existing internally) is reserved for cases where the criterion is genuinely a sub-aspect of an existing check (e.g. Ext-4 ABC M-coefficient variant might still emit ONE Bidder-Capacity-Compliance finding with method-aware logic; Ext-5 solvency window variant likewise).
+
+**4. Cascade aggregator re-runs — selective**
+
+After validator commit emits new BidEvaluationFinding rows:
+- **EligibilityMatrix**: ALWAYS re-run (finding counts change; aggregate verdicts may not, but `criteria_total` and `finding_node_ids[]` arrays must update)
+- **TenderRanking**: re-run if QUALIFIED bidder set changes (it didn't in Ext-3); otherwise skip
+- **CrossBidAnomalyDetector**: re-run if pair-detection inputs change (BidderProfile cartel signals, EMD bank, LetterOfBid premium). Skip if untouched
+- **ComparativeStatementGenerator**: ALWAYS re-run (per-bidder criteria table grows; audit_id changes from new finding UUIDs in hash)
+
+Ext-3 cascade: EligibilityMatrix + TenderRanking + ComparativeStatement re-run; CrossBidAnomalyDetector skipped (no input change).
+
+**5. Audit-pedantic catches surfaced in diagnose**
+
+Ext-3 diagnose surfaced two catches before apply:
+- **CVC-028 rule literal text disagrees with pilot validator's field interpretation** — CVC-028's NL literally says "3-year financial turnover" but `bid_turnover_check` reads `average_5yr_turnover_cr` and treats it as construction. Pilot design mismatch, not bug. Ext-3 cleanly resolves WITHOUT rewriting pilot: keep `bid_turnover_check` on CVC-028 (operationally Construction 5yr); new `bid_financial_turnover_check` anchors on **MPG-255** (literal "average annual financial turnover... last three years"). Clean separation by rule choice.
+- **TenderDocument kg_nodes don't exist for synthetic tenders** — directive's "3 Tender kg_nodes" was a false premise. Resolved via Path γ (mirror existing fact_sheets + in-script catalog).
+
+**6. Realism caveat surfaced in `methodology_note` field**
+
+For synthetic demo, `financial_3yr_cr = 0.70 × construction_5yr_cr` per directive. In reality, pure-construction firms typically have `financial ≥ construction` (construction IS the main revenue line). The 70% ratio is a seed design choice that demonstrates Ext-3 discrimination without disrupting aggregate verdicts. Documented in `turnover_methodology_note` (BidderProfile field) for audit-defensibility.
+
+Pattern carries forward: when seed design choices deviate from real-world ratios for demo-discrimination purposes, surface the deviation in a `*_methodology_note` field, not just a code comment. Audit-defensible.
+
+### Cumulative outcome arithmetic verification
+
+Ext-7 spec predicted "10 Tier-2 + 6 Extensions = 16 outcomes". Ext-3 shifts the count: now **11 Tier-2 validators + 5 remaining Extensions = 16**. Spec's accounting holds (Extensions ADD validators, not modify-in-place — Path A discipline). Each subsequent Extension that chooses Path A increments the existing-count; each Path B keeps it stable.
+
+### Final DB state after Ext-3 (pilot extension)
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| ValidationFinding (sentinel) | 154 | 0 | 154 ✓ |
+| BidEvaluationFinding | 240 | +24 (20 QUALIFIED + 4 INELIGIBLE) | 264 |
+| BIDDER_VIOLATES_RULE | 45 | +4 (B2-HC + B3×3) | 49 |
+| EligibilityMatrix | 24 | re-aggregated | 24 (criteria_total now 11; verdicts unchanged) |
+| TenderRanking | 3 | re-aggregated | 3 (effective L1 unchanged) |
+| BidAnomalyFinding | 6 | skipped | 6 |
+| ComparativeStatement | 3 | re-rendered | 3 (new audit_ids: f8c5aea9 / e22452e5 / ...) |
+
+Zero aggregate verdict transitions (B3 was already DISQUALIFIED on all 3; B2 was already DISQUALIFIED on HC). The new findings ADD HARD_BLOCK depth to already-DISQUALIFIED bidders rather than changing aggregate outcomes.
+
+---
+
 ## L77 — Module 3 Extensions Design Specification Pattern (Ext-7)
 
 **Established during Ext-7** (`docs/extensions/B9_demobidder_spec.md`, May 2026). When multiple implementation sub-blocks share a common target (B9 DemoBidder demonstrating all 6 Module 3 Extensions), a design-only sub-block can precede the implementation sub-blocks and act as the contract they build to satisfy.

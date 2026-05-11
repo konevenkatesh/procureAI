@@ -88,8 +88,10 @@ TENDERS = {
         duration_months=18,
         nit_no="100/PROC/APIIC/1/2026",
         required_class="Special",   # ECV >10cr → Special class needed
-        pq_turnover_floor_cr=121.7,   # 2× annual contract value
+        pq_turnover_floor_cr=121.7,   # 2× annual contract value (CONSTRUCTION 5yr)
         pq_similar_works_threshold_pct=80,
+        # Ext-3: financial 3yr PQ floor at 30% × ECV per CVC-028 minimum
+        financial_pq_floor_cr=25.5,
     ),
     "ja": dict(
         tender_id="tender_synth_ja",
@@ -98,8 +100,10 @@ TENDERS = {
         duration_months=24,
         nit_no="130/MAU61-USI0HB(BG)/7/2026",
         required_class="Special",
-        pq_turnover_floor_cr=83.7,    # 2× (125.5/3)
+        pq_turnover_floor_cr=83.7,    # 2× (125.5/3) (CONSTRUCTION 5yr)
         pq_similar_works_threshold_pct=80,
+        # Ext-3:
+        financial_pq_floor_cr=37.65,
     ),
     "hc": dict(
         tender_id="tender_synth_hc",
@@ -108,8 +112,10 @@ TENDERS = {
         duration_months=24,
         nit_no="HC/APCRDA/2026/PROC/001",
         required_class="Special",
-        pq_turnover_floor_cr=243.4,   # 2× (365.16/3)
+        pq_turnover_floor_cr=243.4,   # 2× (365.16/3) (CONSTRUCTION 5yr)
         pq_similar_works_threshold_pct=80,
+        # Ext-3:
+        financial_pq_floor_cr=109.55,
     ),
 }
 
@@ -136,6 +142,20 @@ TENDERS = {
 #   past_blacklist_events[], past_tender_participation[], past_anomaly_flags[],
 #   authorized_signatory_name, authorized_signatory_role, communication_address
 
+# Ext-3 Dual Turnover Criterion — methodology note (applied to all BidderProfiles)
+EXT3_TURNOVER_METHODOLOGY_NOTE = (
+    "Ext-3 Dual Turnover Criterion: construction_turnover_5yr_avg_cr is the "
+    "civil-engineering-only revenue from Section A of P&L (5-year average per "
+    "AP-GO-059 / MPW-039 construction-experience framing). "
+    "financial_turnover_3yr_avg_cr is the operational income from audited "
+    "balance sheets per IT Act Sec 44AB (3-year average per MPG-255 / CVC-028 "
+    "Financial Standing criterion). For synthetic demo seed, financial set at "
+    "70% of construction — this ratio is realistic for diversified contractors "
+    "but pure-construction firms typically have financial >= construction. "
+    "Audit-flagged here for downstream reviewer visibility."
+)
+
+
 PROFILES = {
     "b1": dict(
         profile_id="bid_synth_profile_b1",
@@ -151,6 +171,9 @@ PROFILES = {
         years_in_business=22,
         # Drives Statement I, II, V, VI, VIII, X
         average_5yr_turnover_cr=250.0,
+        construction_turnover_5yr_avg_cr=250.0,   # Ext-3 alias (preferred)
+        financial_turnover_3yr_avg_cr=175.0,      # Ext-3 NEW
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=145.0,
         existing_commitments_cr=180.0,
         abc_M_multiplier=2,
@@ -202,6 +225,9 @@ PROFILES = {
         primary_business="Building construction (mid-tier)",
         years_in_business=12,
         average_5yr_turnover_cr=80.0,
+        construction_turnover_5yr_avg_cr=80.0,    # Ext-3
+        financial_turnover_3yr_avg_cr=56.0,       # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=45.0,
         existing_commitments_cr=60.0,
         abc_M_multiplier=2,
@@ -251,6 +277,9 @@ PROFILES = {
         primary_business="Civil construction",
         years_in_business=8,
         average_5yr_turnover_cr=30.0,
+        construction_turnover_5yr_avg_cr=30.0,     # Ext-3
+        financial_turnover_3yr_avg_cr=21.0,        # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=18.0,
         existing_commitments_cr=42.0,
         abc_M_multiplier=3,
@@ -310,6 +339,9 @@ PROFILES = {
         primary_business="Civil + infrastructure construction",
         years_in_business=15,
         average_5yr_turnover_cr=290.0,          # clears HC PQ floor 243.4
+        construction_turnover_5yr_avg_cr=290.0,  # Ext-3
+        financial_turnover_3yr_avg_cr=203.0,     # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=160.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,
@@ -360,6 +392,9 @@ PROFILES = {
         primary_business="Civil + structural construction",
         years_in_business=12,
         average_5yr_turnover_cr=250.0,          # clears HC 243.4
+        construction_turnover_5yr_avg_cr=250.0,  # Ext-3
+        financial_turnover_3yr_avg_cr=175.0,     # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=150.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -410,6 +445,9 @@ PROFILES = {
         primary_business="Civil construction (commercial buildings)",
         years_in_business=11,
         average_5yr_turnover_cr=260.0,
+        construction_turnover_5yr_avg_cr=260.0,  # Ext-3
+        financial_turnover_3yr_avg_cr=182.0,     # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=130.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -461,6 +499,9 @@ PROFILES = {
         primary_business="Civil construction (commercial buildings)",
         years_in_business=10,
         average_5yr_turnover_cr=270.0,
+        construction_turnover_5yr_avg_cr=270.0,  # Ext-3
+        financial_turnover_3yr_avg_cr=189.0,     # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=135.0,
         existing_commitments_cr=115.0,
         abc_M_multiplier=2,
@@ -512,6 +553,9 @@ PROFILES = {
         primary_business="Civil construction (mixed)",
         years_in_business=9,
         average_5yr_turnover_cr=280.0,
+        construction_turnover_5yr_avg_cr=280.0,  # Ext-3
+        financial_turnover_3yr_avg_cr=196.0,     # Ext-3
+        turnover_methodology_note=EXT3_TURNOVER_METHODOLOGY_NOTE,  # Ext-3
         max_completed_works_value_cr=120.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,
@@ -573,6 +617,10 @@ def build_statement_i(profile: dict, tender: dict) -> dict:
                          if i < 4 else "(provisional, audit in progress)"),
         ))
     qualified = avg >= tender["pq_turnover_floor_cr"]
+    # Ext-3 dual turnover
+    fin = profile.get("financial_turnover_3yr_avg_cr")
+    fin_floor = tender.get("financial_pq_floor_cr")
+    fin_qualified = (fin is not None and fin_floor is not None and fin >= fin_floor)
     return dict(
         bidder_name=profile["company_name"],
         bidder_pan=profile["pan"],
@@ -582,6 +630,10 @@ def build_statement_i(profile: dict, tender: dict) -> dict:
         average_5yr_cr=avg,
         pq_floor_cr=tender["pq_turnover_floor_cr"],
         meets_pq_threshold=qualified,
+        # Ext-3 dual turnover fields
+        financial_3yr_cr=fin,
+        financial_pq_floor_cr=fin_floor,
+        meets_financial_pq_threshold=fin_qualified,
         _designed_to_trip=(
             "QUALIFIED (turnover ≥ PQ floor)" if qualified else
             f"INELIGIBLE — turnover {avg}cr < PQ floor {tender['pq_turnover_floor_cr']}cr "
