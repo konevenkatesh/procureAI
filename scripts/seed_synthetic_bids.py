@@ -188,6 +188,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=145.0,
         existing_commitments_cr=180.0,
         abc_M_multiplier=2,
@@ -249,6 +264,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=45.0,
         existing_commitments_cr=60.0,
         abc_M_multiplier=2,
@@ -308,6 +338,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=18.0,
         existing_commitments_cr=42.0,
         abc_M_multiplier=3,
@@ -377,6 +422,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=160.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,
@@ -437,6 +497,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=150.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -497,6 +572,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=130.0,
         existing_commitments_cr=110.0,
         abc_M_multiplier=2,
@@ -558,6 +648,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=135.0,
         existing_commitments_cr=115.0,
         abc_M_multiplier=2,
@@ -619,6 +724,21 @@ PROFILES = {
         solvency_cert_validity_window_months=12,
         solvency_cert_source_rule="AP_GO_089_12MO",
         solvency_methodology_note=EXT5_SOLVENCY_METHODOLOGY_NOTE,
+        # Ext-2 Compliance documents (8 mandatory per AP-PROC-COMPLIANCE-DOCS-V1)
+        company_reg_cert_status="VALID",
+        company_reg_cert_node_id=None,
+        pan_cert_status="VALID",
+        gst_cert_status="VALID",
+        epf_esi_cert_status="VALID",
+        # epf_esi_cert_value should be per-bidder unique; substituted at insert
+        # time using profile_id, but the dict carries a fallback constant
+        epf_esi_cert_value="EPF/AP/synthetic/2026/001234",
+        form_12_declaration_status="SIGNED",
+        poa_status="NOT_REQUIRED",   # B1-B8 all SOLE_BIDDER; B9 will set VALID
+        tender_fee_receipt_status="VALID",
+        tender_fee_amount_cr=0.10,
+        dsc_status="VALID",
+        dsc_expiry_date="2027-06-30",
         max_completed_works_value_cr=120.0,
         existing_commitments_cr=100.0,
         abc_M_multiplier=2,

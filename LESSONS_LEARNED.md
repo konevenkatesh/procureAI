@@ -1149,6 +1149,101 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L80 — Module 3 Extensions Composite-Finding Pattern (Ext-2 Compliance Documents)
+
+**Established during Ext-2** (`scripts/bid_compliance_documents_check.py`, May 2026). When a single criterion has **N sub-aspects that must ALL pass** (8 mandatory compliance documents; future: JV multi-criterion checks), emit ONE composite BidEvaluationFinding per (bidder, tender) carrying per-sub-aspect breakdown in `calc` dict + composite verdict via MAX-severity aggregation rule.
+
+### Composite shape
+
+```python
+finding.properties = {
+    # ... standard citation chain ...
+    "compliance_summary": [             # per-sub-aspect breakdown
+        {"label": "Company Registration Certificate", "field": "company_reg_cert_status",
+         "status": "VALID", "compliance": "COMPLIANT"},
+        {"label": "PAN Card", ...},
+        # ... 6 more entries ...
+    ],
+    "compliant_count":         8,       # how many sub-aspects passed
+    "doc_count_total":         8,       # how many total
+    "hard_block_documents":   [],       # MISSING/DEFECTIVE/null sub-aspects
+    "remediable_documents":   [],       # EXPIRED sub-aspects
+    "verdict":                "QUALIFIED",
+    "decision_reason":        "qualified_all_8_compliance_docs_valid",
+}
+```
+
+### MAX-severity composite aggregation
+
+| sub-aspect statuses present | aggregate verdict | evaluation_consequence |
+|---|---|---|
+| ALL COMPLIANT (VALID / SIGNED / NOT_REQUIRED) | QUALIFIED | ADVISORY |
+| Any MISSING / DEFECTIVE / null | INELIGIBLE | HARD_BLOCK (dominates) |
+| Any EXPIRED, no HARD_BLOCK | INELIGIBLE | WARNING (remediable) |
+
+Composite reason names the violating sub-aspects: `ineligible_hard_block_docs_missing_or_defective:Power of Attorney|Tender Fee Receipt`.
+
+### Why composite over N findings
+
+Alternative would be 8 separate BidEvaluationFinding rows per (bidder, tender) — one per document. Rejected because:
+
+1. **Aggregator explosion**: 8 × 24 = 192 new BidEvaluationFinding rows just for Ext-2 (vs 24 composite). EligibilityMatrix.criteria_total would grow 11 → 19 instead of 11 → 12. ComparativeStatement per-bidder tables grow proportionally.
+2. **Audit-aggregator noise**: each individual document finding has identical citation chain (same bidder, tender, rule) — high redundancy.
+3. **Verdict precedence semantics lost**: 8 separate findings would require external logic to aggregate "any HARD_BLOCK = block, any REMEDIABLE = warning" — composite finding bakes the rule in.
+
+**Composite preserves drilldown granularity** via `compliance_summary[]` array. Sub-block 7 ComparativeStatement renders the 12th criterion as ONE row, with the 8-document breakdown visible in the underlying finding's drilldown.
+
+### When to use composite vs separate findings
+
+Use **composite** when:
+- N sub-aspects are EVALUATED TOGETHER as a single regulatory criterion (e.g. "all 8 documents must be present per AP standard tender clause 1.6.2")
+- Failure precedence rules apply across sub-aspects (HARD_BLOCK dominates REMEDIABLE)
+- Sub-aspects share identity (same bidder, same tender, same rule)
+
+Use **separate findings** when:
+- Sub-aspects anchor on different rules (e.g. existing 10 Tier-2 validators each have their own rule)
+- Independent verdict reasoning per sub-aspect makes sense for downstream tooling
+- Drilldown wants per-sub-aspect node_ids for direct citation chain
+
+### Rule-seed-and-flag pattern (Ext-2 secondary lesson)
+
+Diagnose surfaced a rule anchor gap: no existing rule in the `rules` table cleanly matched the 8-document checklist for AP Works tenders.
+- MPS-124 had right NL but `Services-only` condition_when
+- AP-GO-110 had right scope but unrelated NL (COT website)
+- GVSCCL-019 had right scope but ADVISORY severity + GST-only NL
+
+**Solution**: seed a new rule `AP-PROC-COMPLIANCE-DOCS-V1` with appropriate `condition_when`, HARD_BLOCK severity, and NL enumerating all 8 documents per AP standard tender clause 1.6.2.
+
+**Schema gotcha caught at apply time**: `rules` table has NOT NULL constraint on `source_doc` (and several other columns implied by the schema). Initial seed INSERT failed with 23502 NOT NULL violation. Resolved by populating: `source_doc`, `source_clause`, `category`, `verification_method`, `valid_from`, `extracted_from`, `extraction_confidence`, `human_status`, `human_note`, `generates_clause` (False), `defeated_by` ([]).
+
+Forward-applicable: when seeding new rules via REST, fetch an existing rule via `SELECT *` first to discover the complete column set + NOT NULL columns before insertion.
+
+### Cascade recovery — partial-state restoration discipline
+
+EligibilityMatrix re-run hit a transient `OSError(22, 'Invalid argument')` mid-emit, leaving partial state (9 EligibilityMatrix rows instead of 24) + 2 ValidationFinding subprocess_crashed rows from the wrapper. Recovery:
+
+1. Wait 10s for connection state to clear
+2. Re-run EligibilityMatrix (idempotent — `_delete_prior_eligibility_matrix_rows()` cleans partial 9 + re-emits 24)
+3. Crash-resilience `DeferredCleanup.commit()` on successful retry deletes the prior crash rows → sentinel ValidationFinding restored 156 → 154 automatically
+4. Re-run downstream aggregators that consumed the partial state (TenderRanking + ComparativeStatement)
+
+The deferred-cleanup pattern (L65 + Module 3 core b-prime work) handles this cleanly without manual sentinel intervention — confirmed in Ext-2 cascade recovery.
+
+### Final DB state after Ext-2
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| rules table (AP-PROC-COMPLIANCE-DOCS-V1) | 0 | +1 | 1 |
+| ValidationFinding (sentinel) | 154 | 0 (after crash recovery) | 154 ✓ |
+| BidEvaluationFinding | 264 | +24 (all QUALIFIED) | 288 |
+| BIDDER_VIOLATES_RULE | 49 | 0 (no INELIGIBLE on B1-B8 compliance) | 49 |
+| EligibilityMatrix | 24 | re-aggregated | 24 (criteria_total 11→12) |
+| TenderRanking | 3 | re-aggregated | 3 |
+| BidAnomalyFinding | 6 | skipped | 6 |
+| ComparativeStatement | 3 | re-rendered | 3 (12-row tables, new audit_ids) |
+
+---
+
 ## L79 — Module 3 Extensions Batch Pattern (Ext-4+5+6 Forward-Compat)
 
 **Established during Ext-4+5+6 Batch** (May 2026; single commit). First batch of Path B Extensions — extends 3 existing validators (`bid_abc_check`, `bid_solvency_check`, `bid_similar_works_check`) with schema-aware logic while preserving outputs for the existing 264 BidEvaluationFinding rows. Mirror of Sub-block 3b Batch pattern from Module 3 core: pilot establishes pattern (Ext-3 / Sub-block 3a), batch applies pattern in bulk (Ext-4+5+6 / Sub-block 3b Batches).
