@@ -1149,6 +1149,79 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L74 — Synthetic Seed: Bank-Branch Diversity for Cartel-Signal Discrimination [QUEUED]
+
+**Surfaced during Sub-block 6 (CrossBidAnomalyDetector)** (May 2026). The COMMON_BANK_BRANCH cartel signal fires on **all 6 QUALIFIED bidder pairs per tender** in the current corpus (21 of 24 bids share `State Bank of India, Vijayawada Main Branch`). It contributes to confidence aggregation but is not discriminating — only the aggregation rule (`signal_count ≥ 2 OR HIGH severity`) prevents it from generating false-positive cartel flags.
+
+**Queue item**: extend `scripts/seed_synthetic_bids.py` to diversify bank branches across bidders, e.g.:
+- B1 → SBI Vijayawada Branch
+- B2 → Canara Bank Tirupati
+- B4 → HDFC Vijayawada
+- B5 → Bank of Baroda Visakhapatnam
+- B6+B7 → Co-operative Bank of Guntur (cartel pair share)
+- B8 → SBI Mumbai (unrelated)
+
+Once seeded, COMMON_BANK_BRANCH becomes a differentiating signal: only B6+B7 would share a bank (already share address + signatory + sequential bids). Detector logic stays unchanged; new seed exposes that COMMON_BANK_BRANCH adds independent discrimination beyond shared-address.
+
+**Not blocking** Sub-block 6 — the cartel-pair detection works correctly on the current corpus because B6+B7's other 3 signals dominate. Queue for landing alongside or after L72 (the ALB-fires-but-L1-is-non-ALB extension).
+
+---
+
+## L73 — Cross-Bid Anomaly Detector Pattern (Sub-block 6)
+
+**Established during Sub-block 6** (`scripts/run_cross_bid_anomaly_detector.py`, May 2026). Third aggregator in the platform; introduces multi-signal aggregation with severity weighting and cross-tender consistency as a confidence multiplier — patterns that generalize to future anomaly detectors (BID_ROTATION, IDENTICAL_DOCUMENT_ARTIFACTS, COMMON_SUBCONTRACTOR).
+
+### Multi-signal aggregation shape
+
+| dimension | EligibilityMatrix (L65) | TenderRanking (L71) | CrossBidAnomalyDetector (NEW) |
+|---|---|---|---|
+| Input scope | per (bidder, tender) | per tender | per (tender, bidder-pair) AND per (tender, ALB-candidate) |
+| Decision shape | precedence ladder (4-state) | filter + sort | signal aggregation (count + severity) |
+| Output node_type | EligibilityMatrix | TenderRanking | **BidAnomalyFinding** |
+| Severity model | per-rule (HARD_BLOCK > WARNING > GAP > QUALIFIED) | binary (ALB / not) | per-signal LOW/MEDIUM/HIGH; aggregate = MAX |
+| Confidence | n/a | n/a | **HIGH if signal_count ≥ 4; MEDIUM 2-3; LOW 1** |
+| Cross-tender consistency | per-bidder (implicit across EligibilityMatrix rows) | per-bidder ALB-count cross-tender | **Explicit `cross_tender_consistency` + `cross_tender_appearances` fields on every finding** |
+
+### Methodology fields as queryable audit handles
+
+Each finding carries:
+- `methodology_version` (string — e.g. "v1") for filterable historical-vs-current comparison
+- `methodology_note` (prose) describing thresholds + caveats
+- `thresholds` (dict) with all numeric/string thresholds used (e.g. `sequential_premium_delta_max_pct`, `flag_rule`, `confidence_ladder`)
+
+This means future threshold tuning (e.g. tightening `SEQUENTIAL_PREMIUM_DELTA_MAX_PCT` from 0.10% to 0.05%) doesn't require re-emitting historical findings — downstream tooling can filter by `methodology_version` to compare versions side-by-side. Pattern carried forward from L71 (alb_threshold_method on TenderRanking).
+
+### 4-layer drilldown chain (extended from L71's 4 layers to 5+)
+
+```
+BidAnomalyFinding
+  → bid_submission_ids[]           → BidSubmission nodes (per implicated bid)
+  → bidder_profile_node_ids[]      → BidderProfile (per implicated bidder; address/signatory evidence)
+  → tender_ranking_node_id         → TenderRanking (ranking + ALB context)
+  → eligibility_matrix_node_ids[]  → EligibilityMatrix (per (bidder, tender); aggregate verdict)
+                                       → finding_node_ids[] → 10 BidEvaluationFinding rows
+```
+
+5 distinct drilldown targets per anomaly. Downstream consumers (Sub-block 7) walk the chain to reconstruct full citation: evaluation-committee report shows the anomaly → the bidders → their address+signatory match → their bid rankings → their full Tier-2 verdict trail.
+
+### Signal evidence + citation_source per signal
+
+Each signal in the `signals[]` array carries its own `severity`, `evidence` (the specific facts that triggered detection — e.g. *"Both bidders' communication_address = '4-7-89, Industrial Estate, Guntur-522001'"*), and `citation_source` (the regulatory anchor — e.g. *"CVC OM No 8(1)(h)/98(1) — Vigilance Aspects in Procurement"*). This per-signal granularity lets evaluation-committee reports cite the exact governance authority backing each piece of cartel evidence.
+
+### Honest-disclosure pattern for noisy signals
+
+When a signal's discrimination is limited by current corpus shape (e.g. COMMON_BANK_BRANCH firing on all 6 pairs because 21 of 24 bids share the same bank), record the noise in `methodology_note` rather than dropping the signal. The aggregation rule (`signal_count ≥ 2 OR HIGH severity`) absorbs the noise without false positives, and the signal becomes discriminating as soon as seed diversity expands (L74 queue). Forward-applicable to any aggregator with thresholds tuned for sparse-data corpora.
+
+### Pure-aggregator + sentinel discipline carries L65/L71 forward
+
+CrossBidAnomalyDetector inherits the established aggregator contract without modification:
+- No edge emission (drilldown via arrays on finding properties)
+- Single batch `main_with_crash_resilience` wrapper with synthetic `doc_id="cross_bid_anomaly_detector_v1"`
+- `source_ref` single-string filter for idempotent cleanup
+- Sentinel snapshot pre/post enforces read-only contract (RC=2 on drift); snapshot now extends to 5 upstream types (validators, edges, EligibilityMatrix, TenderRanking, plus BidAnomalyFinding itself in the post-snapshot)
+
+---
+
 ## L72 — Synthetic Coverage Gap for "ALB-fires-but-L1-is-non-ALB" Path [QUEUED]
 
 **Surfaced during Sub-block 5 (TenderRanking aggregator)** (May 2026). The current corpus exercises only the `alb_action_required=True` path (B8 is L1 on all 3 tenders with -38% premium). The complementary path — `alb_action_required=False` BUT `alb_candidates` is non-empty (i.e. ALB-flag fires on a non-L1 bidder) — never fires.
