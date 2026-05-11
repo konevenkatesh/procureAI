@@ -1149,6 +1149,65 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L76 — Environment-Discovery Discipline in Diagnose Step
+
+**Surfaced during Sub-block 7 (ComparativeStatementGenerator)** (May 2026). The directive referenced `/mnt/skills/public/docx/SKILL.md` and `/mnt/skills/public/pdf/SKILL.md` — the **Anthropic Code Cloud** convention. The current environment is **local macOS** (verified via `/tmp → /private/tmp` symlink); neither path exists, and no MCP skill tools for docx/pdf are surfaced.
+
+This pattern repeats: directives written from one environment's assumptions don't transfer cleanly to another. Catching the gap in **diagnose** (before apply) is cheap; catching it during render-pipeline implementation is expensive (broken code, partial output, re-work).
+
+### Diagnose-step environment probes — checklist for any directive referencing a toolchain
+
+Before drafting the apply plan, run these probes:
+
+1. **File paths**: `ls -la <referenced_path>` for any concrete path the directive mentions (skills, mount points, project roots).
+2. **CLI tools**: `which <tool>` for any external binary (pandoc, weasyprint, wkhtmltopdf, libreoffice, ffmpeg, etc.).
+3. **Python packages**: `python3 -c "import <pkg>; print(<pkg>.__version__)"` for any rendering / parsing dep.
+4. **MCP tools**: scan the deferred-tool list in the system reminder for `mcp__skills_*` or similar registered services.
+5. **Filesystem write access**: `[ -w /tmp ] && echo "writable"` for any output directory.
+
+Surface ALL gaps in the diagnose-propose, with **2-3 alternative paths** (e.g. install dep / use what's available / defer feature). The user chooses; apply step never has to scramble around a missing tool.
+
+### Sub-block 7 reference example
+
+The diagnose surfaced:
+- `/mnt/skills/public/{docx,pdf}/SKILL.md` → not present
+- `python-docx 1.2.0` → ✓ installed
+- `reportlab / weasyprint / pandoc / wkhtmltopdf / libreoffice` → ✗ none installed
+
+Three paths offered: (A) Markdown + DOCX only, defer PDF; (B) `pip install reportlab`; (C) `pip install weasyprint + brew system deps`. User chose A. PDF queued as L75 follow-up. **Zero broken-code time during apply** because the gap was caught upstream.
+
+Pattern carries forward to any future sub-block that references external rendering, conversion, or MCP-skill toolchains. Bake the probe checklist into the diagnose-step boilerplate.
+
+---
+
+## L75 — PDF Renderer Integration [QUEUED]
+
+**Surfaced during Sub-block 7 (ComparativeStatementGenerator)** (May 2026). Sub-block 7 Path A shipped Markdown + DOCX evaluation-committee reports; PDF rendering deferred because the local macOS environment has no PDF toolchain (no pandoc / weasyprint / wkhtmltopdf / libreoffice / reportlab).
+
+### Choice for follow-up: reportlab vs weasyprint
+
+| | **reportlab** | **weasyprint** |
+|---|---|---|
+| install | `pip install reportlab` (pure Python, BSD) | `pip install weasyprint` + `brew install pango cairo` |
+| layout API | reportlab.Platypus — verbose, programmatic (~200-300 LOC for the 7-part report) | HTML + CSS template — declarative, ~80-100 LOC + a CSS file |
+| fidelity | good for tables + text + images; less precise for complex layouts | print-grade CSS rendering (positioning, gradients, paged media) |
+| portability | runs anywhere Python runs | system-dep sensitivity (pango/cairo version matters) |
+| size on disk | small (~5MB) | large (~30MB with deps) |
+| recommended for procureAI | **YES** — pure-Python aligns with the rest of the codebase, no system deps | maybe later for highly-styled marketing PDFs |
+
+**Recommendation**: `pip install reportlab` + ~250 LOC reportlab.Platypus rendering function added to `run_comparative_statement_generator.py`. Pattern mirrors `render_docx()` — build a list of flowables (Paragraph, Table, PageBreak), then `SimpleDocTemplate.build()`. Shipped as an L75 follow-up commit (~1 day).
+
+### What's already in place that L75 should preserve
+
+- `pdf_artifact_path` field on ComparativeStatement node (currently `null`)
+- `pdf_artifact_status` field (currently `"deferred_no_renderer_in_env"`)
+- `pdf_followup_options` field (currently `["reportlab","weasyprint"]`)
+- The Markdown intermediate (always works as a reference for the PDF renderer)
+
+L75 commit: install reportlab, add `render_pdf()` function, save to `/tmp/comparative_statements/<tender>.pdf`, populate `pdf_artifact_path`, set `pdf_artifact_status="rendered_v1_reportlab"`.
+
+---
+
 ## L74 — Synthetic Seed: Bank-Branch Diversity for Cartel-Signal Discrimination [QUEUED]
 
 **Surfaced during Sub-block 6 (CrossBidAnomalyDetector)** (May 2026). The COMMON_BANK_BRANCH cartel signal fires on **all 6 QUALIFIED bidder pairs per tender** in the current corpus (21 of 24 bids share `State Bank of India, Vijayawada Main Branch`). It contributes to confidence aggregation but is not discriminating — only the aggregation rule (`signal_count ≥ 2 OR HIGH severity`) prevents it from generating false-positive cartel flags.
