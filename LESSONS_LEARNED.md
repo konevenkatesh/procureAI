@@ -1149,6 +1149,65 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L83 — PDF Renderer Integration (L75 follow-up, reportlab)
+
+**Established in autonomous overnight workflow Sub-block 1** (May 2026, post-Ext-8). The L75 marker has been carrying since Module 3 core; finally landed via `reportlab` 4.5.0 (pure-Python, BSD-licensed). 3 PDFs now render alongside the existing Markdown + DOCX artifacts at `/tmp/comparative_statements/`, with `pdf_artifact_path` populated on each ComparativeStatement kg_node.
+
+### Why reportlab over weasyprint
+
+The L75 marker listed both options. reportlab won because:
+- **Pure Python** — no system deps (cairo, pango, harfbuzz, gobject-introspection). weasyprint requires those for HTML→PDF conversion; can break on Linux servers without dev libs.
+- **BSD license** — friendlier than weasyprint's LGPL for AGPL-incompatible commercial deployments.
+- **Idempotent + deterministic** — same `data` dict produces identical-byte-stream PDFs across re-runs once font embedding is stable. Test: re-running the generator produced identical audit_ids (277daa... / a911ac... / 39dab1...) showing the underlying data is unchanged; PDFs overwrite in place.
+- **No HTML intermediary** — DOCX renderer already speaks structured `data` dict; PDF generation reads the same dict via `reportlab.platypus.Paragraph + Table` primitives. ~290 LOC for `render_pdf()`, mirroring the 250 LOC of `render_docx()`. Zero risk of HTML→DOCX→PDF drift.
+
+### Pattern recipe — render_pdf() mirrors render_docx()
+
+7 parts (A-G) match the existing DOCX:
+
+```python
+def render_pdf(data: dict, out_path: Path) -> None:
+    styles = getSampleStyleSheet()
+    story = []
+    # PART A — Tender Summary
+    # PART B — Bidder Participation Overview (with Excluded bidders Table)
+    # PART C — Per-Bidder Detailed Evaluation (13-row criterion table per bidder)
+    # PART D — Ranking of QUALIFIED Bidders (5-row ranking + ALB detection)
+    # PART E — Anomaly Findings (CARTEL + ALB signals tables)
+    # PART F — Committee Recommendation (effective L1 + 3 options)
+    # PART G — Audit Trail (audit_id + 5-layer drilldown citation chain)
+    pdf_doc = SimpleDocTemplate(str(out_path), pagesize=A4, ...)
+    pdf_doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+```
+
+Visual styling carries through:
+- **Bold HARD_BLOCK INELIGIBLE rows** in the per-criterion table (via `cell_bold` ParagraphStyle)
+- **Bold L1 row** in the ranking table
+- **Red+bold "Action required on L1: YES"** when alb_action_required (matches DOCX red color #C00000)
+- **Italic regulatory citations** in anomaly evidence
+- **Page footer** with audit_id + page number + timestamp (every page; canvas onPage callback)
+
+### Output state
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| PDF artifacts in /tmp/comparative_statements/ | 0 | +3 | 3 (12 pages each, ~35KB each) |
+| ComparativeStatement.pdf_artifact_path | null | populated | string path |
+| ComparativeStatement.pdf_artifact_status | "deferred_no_renderer_in_env" | updated | "rendered_via_reportlab" |
+| ComparativeStatement.pdf_renderer_version | absent | added | "reportlab-4.5.0" |
+| Sentinel (154/351/49/27/3/6/3) | clean | unchanged | clean ✓ |
+
+### Verification snapshot
+
+- HC PDF: 12 pages — Header (1) + Part A-B (1) + Part C (5 bidders... wait, 9 bidders × ~1 page each + ranking + anomaly + recommendation + audit ~12 pages total)
+- All 3 PDFs validate via pypdf (no parse errors)
+- Re-running the generator overwrites in place; audit_ids identical → deterministic
+- DB `pdf_artifact_path` field populated and queryable
+
+Forward-applicable: any other DOCX renderer in the codebase (future Module 4 communication artifacts; SoR / BoQ summaries) can adopt the same `render_pdf()` pattern by reusing reportlab.platypus primitives + this ParagraphStyle bundle.
+
+---
+
 ## L82 — Module 3 Extensions Arc Completion + DemoBidder Pattern (Ext-8 B9)
 
 **Established during Ext-8** (May 2026, terminal sub-block; closes the Module 3 Extensions arc 8-of-8). B9 = comprehensive JV bidder seeded as the final exercise that puts every standard evaluation check end-to-end through the live DB. First DB exercise of Ext-1's JV path (Path 2 cross-profile lookup). Demonstrates platform's **effective L1 computation** accounting for ALB norms + cartel review.

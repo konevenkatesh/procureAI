@@ -691,6 +691,342 @@ def render_docx(data: dict, out_path: Path) -> None:
     doc.save(out_path)
 
 
+def render_pdf(data: dict, out_path: Path) -> None:
+    """L75: Render the report as a PDF via reportlab.platypus.
+
+    Mirrors render_docx() structure (Parts A-G). Pure-Python, no system
+    deps beyond reportlab (BSD license). Idempotent — re-run overwrites
+    the file at out_path.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak,
+        KeepTogether,
+    )
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "TitleCenter", parent=styles["Title"], alignment=TA_CENTER, fontSize=18,
+        spaceAfter=8, textColor=colors.HexColor("#1F3864"),
+    )
+    h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=14,
+                        spaceBefore=12, spaceAfter=6,
+                        textColor=colors.HexColor("#1F3864"))
+    h2 = ParagraphStyle("H2", parent=styles["Heading2"], fontSize=11,
+                        spaceBefore=8, spaceAfter=4,
+                        textColor=colors.HexColor("#2E75B6"))
+    body = ParagraphStyle("Body", parent=styles["BodyText"], fontSize=9,
+                          spaceAfter=2, leading=11)
+    bold = ParagraphStyle("Bold", parent=body, fontName="Helvetica-Bold")
+    italic = ParagraphStyle("Italic", parent=body, fontName="Helvetica-Oblique")
+    mono = ParagraphStyle("Mono", parent=body, fontName="Courier",
+                          fontSize=8, leading=10)
+    bullet = ParagraphStyle("Bullet", parent=body, leftIndent=12,
+                            bulletIndent=2, fontSize=9)
+    redbold = ParagraphStyle("RedBold", parent=bold,
+                             textColor=colors.HexColor("#C00000"))
+    cell = ParagraphStyle("Cell", parent=body, fontSize=8, leading=10)
+    cell_bold = ParagraphStyle("CellBold", parent=cell, fontName="Helvetica-Bold")
+
+    story: list = []
+    t = data["tender"]
+
+    # === Header ===
+    story.append(Paragraph("Comparative Statement of Bids", title_style))
+    story.append(Paragraph(f"<b>Tender:</b> {t['tender_name']}", body))
+    story.append(Paragraph(f"NIT No.: {t['tender_nit_no']}", body))
+    story.append(Paragraph(f"Estimated Contract Value: ₹{t['tender_ecv_cr']:.2f} crore", body))
+    story.append(Paragraph(f"Tender Method: {t['tender_method']} (lowest bid wins among QUALIFIED)", body))
+    story.append(Paragraph(f"Report generated: {data['report_generated_at']}", body))
+    story.append(Paragraph(f"<b>Audit ID:</b> <font face='Courier'>{data['audit_id']}</font>", body))
+    story.append(Spacer(1, 6))
+
+    # === PART A ===
+    story.append(Paragraph("Part A — Tender Summary", h1))
+    story.append(Paragraph(f"• Tender ID (internal): {t['tender_id']}", bullet))
+    story.append(Paragraph(f"• Estimated Contract Value (ECV): ₹{t['tender_ecv_cr']:.2f} crore", bullet))
+    story.append(Paragraph(f"• Tender method: {t['tender_method']}", bullet))
+
+    # === PART B ===
+    story.append(Paragraph("Part B — Bidder Participation Overview", h1))
+    counts = data["participation_counts"]
+    story.append(Paragraph(f"<b>Total bidders received: {counts['total']}</b>", body))
+    story.append(Paragraph(f"• QUALIFIED: {counts['qualified']}", bullet))
+    story.append(Paragraph(f"• FLAGGED for committee review: {counts['flagged']}", bullet))
+    story.append(Paragraph(f"• MARKED for documentation review: {counts['mark_for_doc']}", bullet))
+    story.append(Paragraph(f"• DISQUALIFIED: {counts['disqualified']}", bullet))
+
+    if data["excluded_summaries"]:
+        story.append(Paragraph("Excluded bidders", h2))
+        rows = [[Paragraph("<b>Bidder</b>", cell_bold),
+                 Paragraph("<b>Aggregate verdict</b>", cell_bold),
+                 Paragraph("<b>Exclusion summary</b>", cell_bold),
+                 Paragraph("<b>EligibilityMatrix node_id</b>", cell_bold)]]
+        for ex in data["excluded_summaries"]:
+            rows.append([
+                Paragraph(ex["bidder_name"], cell),
+                Paragraph(AGGREGATE_LABEL.get(ex["aggregate_verdict"], ex["aggregate_verdict"]), cell),
+                Paragraph(ex["exclusion_summary"], cell),
+                Paragraph(f"<font face='Courier' size='6'>{ex['eligibility_matrix_node_id']}</font>", cell),
+            ])
+        tbl = Table(rows, colWidths=[40*mm, 35*mm, 60*mm, 45*mm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#D9E2F3")),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#8FAADC")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 3),
+            ("RIGHTPADDING", (0,0), (-1,-1), 3),
+        ]))
+        story.append(tbl)
+
+    # === PART C ===
+    story.append(PageBreak())
+    story.append(Paragraph("Part C — Per-Bidder Detailed Evaluation", h1))
+    for bidder_data in data["per_bidder_evaluations"]:
+        prof = bidder_data["profile"]
+        em = bidder_data["em_props"]
+        story.append(Paragraph(prof.get("company_name", prof.get("profile_id")), h2))
+        story.append(Paragraph(f"• Contractor class: {prof.get('contractor_class', '?')}", bullet))
+        story.append(Paragraph(f"• Registration: {prof.get('registration_certificate_no', '?')} "
+                               f"(state: {prof.get('registration_state', '?')})", bullet))
+        story.append(Paragraph(f"• PAN / GSTIN: {prof.get('pan', '?')} / {prof.get('gstin', '?')}", bullet))
+        story.append(Paragraph(f"• Communication: {prof.get('communication_address', '?')}", bullet))
+        story.append(Paragraph(
+            f"• Authorized signatory: {prof.get('authorized_signatory_name', '?')} "
+            f"({prof.get('authorized_signatory_role', '?')})", bullet))
+        verdict_label = AGGREGATE_LABEL.get(em.get("aggregate_verdict"), em.get("aggregate_verdict"))
+        story.append(Paragraph(
+            f"<b>Aggregate verdict: {verdict_label}</b> "
+            f"({em.get('count_qualified', 0)} QUALIFIED + "
+            f"{em.get('count_ineligible_hard_block', 0)} HARD_BLOCK + "
+            f"{em.get('count_ineligible_warning', 0)} WARNING + "
+            f"{em.get('count_gap', 0)} GAP)", body))
+        story.append(Paragraph(f"<i>{em.get('aggregate_reasoning', '')}</i>", italic))
+
+        # Per-criterion table
+        rows = [[Paragraph("<b>#</b>", cell_bold),
+                 Paragraph("<b>Criterion</b>", cell_bold),
+                 Paragraph("<b>Verdict</b>", cell_bold),
+                 Paragraph("<b>Decision reason</b>", cell_bold),
+                 Paragraph("<b>Rule</b>", cell_bold)]]
+        for i, f in enumerate(bidder_data["findings"], 1):
+            fp = f.get("properties") or {}
+            v = fp.get("verdict") or "?"
+            cons = fp.get("evaluation_consequence") or ""
+            is_hardblock = (cons == "HARD_BLOCK" and v == "INELIGIBLE")
+            cs = cell_bold if is_hardblock else cell
+            rows.append([
+                Paragraph(str(i), cs),
+                Paragraph(fp.get("typology_code", "?"), cs),
+                Paragraph(VERDICT_LABEL.get(v, v), cs),
+                Paragraph((fp.get("decision_reason") or "")[:180], cs),
+                Paragraph(fp.get("rule_id", "?"), cs),
+            ])
+        tbl = Table(rows, colWidths=[8*mm, 50*mm, 25*mm, 70*mm, 27*mm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#D9E2F3")),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#8FAADC")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 3),
+            ("RIGHTPADDING", (0,0), (-1,-1), 3),
+        ]))
+        story.append(tbl)
+        story.append(Spacer(1, 6))
+
+    # === PART D ===
+    story.append(PageBreak())
+    story.append(Paragraph("Part D — Ranking of QUALIFIED Bidders", h1))
+    tr_props = data["tender_ranking_props"]
+    rows = [[Paragraph("<b>Rank</b>", cell_bold),
+             Paragraph("<b>Bidder</b>", cell_bold),
+             Paragraph("<b>Bid (₹cr)</b>", cell_bold),
+             Paragraph("<b>Premium %</b>", cell_bold),
+             Paragraph("<b>ALB?</b>", cell_bold),
+             Paragraph("<b>Distance from L1</b>", cell_bold)]]
+    for r in tr_props.get("ranking") or []:
+        is_l1 = (r["rank_position"] == "L1")
+        cs = cell_bold if is_l1 else cell
+        d_cr = r.get("distance_from_l1_cr", 0.0) or 0.0
+        d_pct = r.get("distance_from_l1_pct", 0.0) or 0.0
+        distance = "—" if is_l1 else f"+₹{d_cr:.2f}cr ({d_pct:.2f}%)"
+        rows.append([
+            Paragraph(r["rank_position"], cs),
+            Paragraph(r["bidder_name"], cs),
+            Paragraph(f"{r['bid_amount_cr']:.2f}", cs),
+            Paragraph(f"{r['premium_pct']:.2f}", cs),
+            Paragraph("⚠ YES" if r.get("alb_flag") else "—", cs),
+            Paragraph(distance, cs),
+        ])
+    tbl = Table(rows, colWidths=[14*mm, 65*mm, 22*mm, 22*mm, 14*mm, 40*mm])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#D9E2F3")),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#8FAADC")),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("LEFTPADDING", (0,0), (-1,-1), 3),
+        ("RIGHTPADDING", (0,0), (-1,-1), 3),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("ALB (Abnormally Low Bid) Detection", h2))
+    story.append(Paragraph(f"• Methodology: {tr_props.get('alb_threshold_method', '?')}", bullet))
+    story.append(Paragraph(
+        f"• Average of qualified bids: ₹{tr_props.get('average_qualified_bid_cr', 0.0):.2f}cr", bullet))
+    story.append(Paragraph(
+        f"• ALB threshold: ₹{tr_props.get('alb_threshold_cr', 0.0):.2f}cr "
+        f"(average × {tr_props.get('alb_multiplier', 0.80)})", bullet))
+    story.append(Paragraph(f"• ALB candidates: {tr_props.get('alb_candidates') or '(none)'}", bullet))
+    if tr_props.get("alb_action_required"):
+        story.append(Paragraph(
+            "<b>• Action required on L1: YES — L1 is ALB candidate</b>", redbold))
+    else:
+        story.append(Paragraph("• Action required on L1: No", bullet))
+    if tr_props.get("alb_methodology_note"):
+        story.append(Paragraph(f"<i>Methodology note: {tr_props['alb_methodology_note'][:500]}</i>", italic))
+    if tr_props.get("l1_l2_gap_cr") is not None:
+        story.append(Paragraph(
+            f"<b>L1 → L2 gap: ₹{tr_props['l1_l2_gap_cr']:.2f}cr "
+            f"({tr_props.get('l1_l2_gap_pct', 0.0):.2f}%)</b>", body))
+
+    # === PART E ===
+    story.append(PageBreak())
+    story.append(Paragraph("Part E — Anomaly Findings", h1))
+    if not data["anomaly_findings"]:
+        story.append(Paragraph(
+            "No anomaly findings emitted by CrossBidAnomalyDetector for this tender.", body))
+    for af in data["anomaly_findings"]:
+        afp = af.get("properties") or {}
+        cls = afp.get("anomaly_class", "?")
+        story.append(Paragraph(cls, h2))
+        story.append(Paragraph(f"• Severity: {afp.get('aggregate_severity', '?')}", bullet))
+        story.append(Paragraph(f"• Confidence: {afp.get('detection_confidence', '?')}", bullet))
+        story.append(Paragraph(
+            f"• Primary bidders implicated: "
+            f"{', '.join(afp.get('primary_bidder_names') or [])}", bullet))
+        story.append(Paragraph(
+            f"• Cross-tender consistency: {afp.get('cross_tender_consistency')} "
+            f"({afp.get('cross_tender_appearances', 0)} of 3 tenders)", bullet))
+        story.append(Paragraph(
+            f"<b>Decision reason:</b> {afp.get('decision_reason', '')}", body))
+        story.append(Paragraph("<b>Signal evidence:</b>", body))
+        sig_rows = [[Paragraph("<b>Signal type</b>", cell_bold),
+                     Paragraph("<b>Severity</b>", cell_bold),
+                     Paragraph("<b>Evidence</b>", cell_bold),
+                     Paragraph("<b>Citation</b>", cell_bold)]]
+        for s in afp.get("signals") or []:
+            sig_rows.append([
+                Paragraph(s.get("signal_type", "?"), cell),
+                Paragraph(s.get("severity", "?"), cell),
+                Paragraph((s.get("evidence") or "")[:280], cell),
+                Paragraph(f"<i>{(s.get('citation_source') or '')[:200]}</i>", cell),
+            ])
+        tbl = Table(sig_rows, colWidths=[28*mm, 18*mm, 80*mm, 50*mm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#D9E2F3")),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#8FAADC")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 3),
+            ("RIGHTPADDING", (0,0), (-1,-1), 3),
+        ]))
+        story.append(tbl)
+        story.append(Paragraph(
+            f"<b>Recommendation:</b> {afp.get('recommendation', '')}", body))
+        story.append(Paragraph(
+            f"<i>Drilldown — BidAnomalyFinding node: {af.get('node_id')}</i>", italic))
+        story.append(Spacer(1, 6))
+
+    # === PART F ===
+    story.append(PageBreak())
+    story.append(Paragraph("Part F — Committee Recommendation", h1))
+    eff = data["effective_l1"]
+    if eff["entry"] is None:
+        story.append(Paragraph(
+            "<b>⚠ NO EFFECTIVE L1: every QUALIFIED bidder was rejected via "
+            "ALB-rejection or cartel-suspect flagging. Recommend re-tender.</b>",
+            redbold))
+    else:
+        e = eff["entry"]
+        story.append(Paragraph(
+            f"<b>Effective L1 (post-anomaly adjustment): {e['bidder_name']} "
+            f"at ₹{e['bid_amount_cr']:.2f}cr ({e['premium_pct']:.2f}% premium)</b>", body))
+    story.append(Paragraph(f"<i>Rationale: {eff['rationale']}</i>", italic))
+
+    story.append(Paragraph("Three recommended options (committee to choose):", h2))
+    for opt in data["recommendation_options"]:
+        text = f"<b>Option ({opt['option']}): {opt['label']}</b>" if opt.get("preferred") \
+            else f"Option ({opt['option']}): {opt['label']}"
+        if opt.get("preferred"):
+            text += " ← <b>RECOMMENDED</b>"
+        story.append(Paragraph(f"• {text}", bullet))
+
+    story.append(Paragraph("Committee Decision", h2))
+    story.append(Paragraph("_______________________________________________________", body))
+    story.append(Paragraph("_______________________________________________________", body))
+    story.append(Paragraph("Authorised Signatory (Committee Chair): _______________  Date: __________", body))
+
+    # === PART G ===
+    story.append(PageBreak())
+    story.append(Paragraph("Part G — Audit Trail", h1))
+    audit = data["audit"]
+    story.append(Paragraph(f"<b>Audit ID:</b> <font face='Courier'>{data['audit_id']}</font>", body))
+    story.append(Paragraph(
+        "(SHA256 of sorted finding node_ids; deterministic across re-runs of identical inputs)",
+        italic))
+    story.append(Paragraph(
+        f"<b>Findings consumed (total):</b> {audit['findings_consumed_count']}", body))
+    fb = audit["findings_consumed_breakdown"]
+    story.append(Paragraph(f"• BidEvaluationFinding rows: {fb['BidEvaluationFinding']}", bullet))
+    story.append(Paragraph(f"• EligibilityMatrix rows: {fb['EligibilityMatrix']}", bullet))
+    story.append(Paragraph(f"• TenderRanking rows: {fb['TenderRanking']}", bullet))
+    story.append(Paragraph(f"• BidAnomalyFinding rows: {fb['BidAnomalyFinding']}", bullet))
+    story.append(Paragraph(f"<i>Rules cited: {', '.join(audit['rules_cited'])}</i>", italic))
+
+    story.append(Paragraph(
+        f"<i>TenderRanking node_id: {data['drilldown']['tender_ranking_node_id']}</i>", italic))
+    story.append(Paragraph(
+        f"<i>EligibilityMatrix node_ids: "
+        f"{', '.join(data['drilldown']['eligibility_matrix_node_ids'])}</i>", italic))
+    story.append(Paragraph(
+        f"<i>BidAnomalyFinding node_ids: "
+        f"{', '.join(data['drilldown']['anomaly_finding_node_ids'])}</i>", italic))
+
+    story.append(Paragraph(
+        f"<i>Report template version: {REPORT_TEMPLATE_VERSION} | "
+        f"Generator: {SOURCE_REF}</i>", italic))
+    story.append(Paragraph(
+        "<i>All claims in this report trace to a kg_node UUID. The 5-layer "
+        "drilldown chain (ComparativeStatement → BidAnomalyFinding / "
+        "TenderRanking / EligibilityMatrix → BidEvaluationFinding → "
+        "BidSubmission / BidderProfile → fact_sheets) enables full "
+        "citation verification by querying the listed node_ids directly.</i>",
+        italic))
+
+    # Footer with audit_id on every page
+    def _footer(canvas, doc_):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#666666"))
+        footer_text = (f"Audit ID: {data['audit_id']}  |  "
+                       f"Page {doc_.page}  |  "
+                       f"Generated: {data['report_generated_at']}")
+        canvas.drawString(15*mm, 10*mm, footer_text)
+        canvas.restoreState()
+
+    pdf_doc = SimpleDocTemplate(
+        str(out_path), pagesize=A4,
+        leftMargin=15*mm, rightMargin=15*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
+        title=f"Comparative Statement — {t['tender_name']}",
+        author="ProcureAI Module 3 (Tier-7 ComparativeStatementGenerator)",
+        subject=f"Audit ID {data['audit_id']}",
+    )
+    pdf_doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+
+
 # ── Idempotent cleanup ────────────────────────────────────────────────
 
 def _delete_prior_comparative_statements() -> int:
@@ -933,14 +1269,17 @@ def main() -> int:
         # audit_id computed from finding_ids_for_audit
         report_data["audit_id"] = compute_audit_id(finding_ids_for_audit)
 
-        # Render artifacts
+        # Render artifacts (Markdown + DOCX + PDF via L75 reportlab integration)
         md_text  = render_markdown(report_data)
         md_path  = ARTIFACT_DIR / f"{tid}.md"
         docx_path = ARTIFACT_DIR / f"{tid}.docx"
+        pdf_path = ARTIFACT_DIR / f"{tid}.pdf"
         md_path.write_text(md_text, encoding="utf-8")
         render_docx(report_data, docx_path)
+        render_pdf(report_data, pdf_path)
         print(f"  → md   : {md_path}  ({md_path.stat().st_size} bytes)")
         print(f"  → docx : {docx_path}  ({docx_path.stat().st_size} bytes)")
+        print(f"  → pdf  : {pdf_path}  ({pdf_path.stat().st_size} bytes)")
 
         # Emit ComparativeStatement kg_node
         eff_id = eff_entry["bidder_profile_id"] if eff_entry else None
@@ -1017,12 +1356,12 @@ def main() -> int:
             "eligibility_matrix_node_ids": [e["node_id"] for e in ems_this],
             "anomaly_finding_node_ids":    [a["node_id"] for a in afs_this],
 
-            # Artifacts (Path A — Markdown + DOCX; PDF deferred to L75)
+            # Artifacts (L75 complete — Markdown + DOCX + PDF via reportlab)
             "md_artifact_path":      str(md_path),
             "docx_artifact_path":    str(docx_path),
-            "pdf_artifact_path":     None,
-            "pdf_artifact_status":   "deferred_no_renderer_in_env",
-            "pdf_followup_options":  ["reportlab", "weasyprint"],
+            "pdf_artifact_path":     str(pdf_path),
+            "pdf_artifact_status":   "rendered_via_reportlab",
+            "pdf_renderer_version":  "reportlab-4.5.0",
 
             # Metadata
             "extracted_by":            SOURCE_REF,
