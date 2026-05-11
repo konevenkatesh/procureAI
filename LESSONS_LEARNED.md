@@ -1100,6 +1100,16 @@ The finding's `input_contract` is `"composite:EMD_BG+LetterOfBid"`, tagged with 
 
 Both addendum variants share the same mandatory carry-through: each source citation, cross-source consistency check, both rule anchors (primary + secondary) cited with separate NL blocks.
 
+### L61 addendum-3 extension (Sub-block 3b Batch 3) — Rule-strict verdict over seed framing
+
+The recompute discipline (addendum-3) extends beyond numerical recompute from arrays to **rule-derived verdict over seed labels**. When the synthetic seed's narrative framing diverges from the rule's strict text, the validator's verdict follows the rule. The seed's softer framing is preserved in the `ground_truth_label` audit field for reviewer visibility, but does NOT override the verdict.
+
+Reference cases from Batch 3:
+- **B2 equipment**: seed `_designed_to_trip` says *"PARTIAL — mix of owned/leased acceptable"*. MPW-042 NL explicitly permits leased items as "assured access". Validator emits **QUALIFIED** (rule-strict) with `seed_completeness_softer_than_rule=True` flag. The "PARTIAL" framing is committee-discretion language; the rule itself is permissive.
+- **B2 personnel**: seed `_designed_to_trip` says *"PARTIAL (4/6) — gap in key personnel; may be acceptable if filled post-award"*. MPW-041 NL requires personnel meeting qualifications **at bid time**, no post-award filling allowed. Validator emits **INELIGIBLE** (rule-strict). The "may be acceptable" framing is committee discretion; the rule itself is strict.
+
+Pattern: rule NL > seed labels, always. EligibilityMatrix downstream sees the rule-strict verdict; reviewers see the seed's softer label in audit fields and can override via committee process if appropriate.
+
 ### L61 addendum-3 (Sub-block 3b Batch 2) — Recompute-from-array discipline
 
 Synthetic seed rows carry computed ground-truth flags (e.g. `meets_3_2_1_rule`, `qualifies`, `is_within_one_year`). A Tier-2 validator MUST recompute the verdict from the **raw input data** (the array, the date, the figure), not trust the seed's pre-computed boolean. Disagreements between recompute and seed are surfaced as `recompute_seed_agree=False` + `l64_seed_defect_surfaced=True` audit fields, with the validator returning `RC=2` so a wrapper loop stops on the defect.
