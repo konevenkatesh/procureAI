@@ -1149,6 +1149,49 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L77 — Module 3 Extensions Design Specification Pattern (Ext-7)
+
+**Established during Ext-7** (`docs/extensions/B9_demobidder_spec.md`, May 2026). When multiple implementation sub-blocks share a common target (B9 DemoBidder demonstrating all 6 Module 3 Extensions), a design-only sub-block can precede the implementation sub-blocks and act as the contract they build to satisfy.
+
+### Pattern
+
+1. **Design-only sub-block first.** Writes a spec document. Zero data layer changes; zero validator code; zero seed-script edits. Just a Markdown file (or set of files) under `docs/<series>/`.
+2. **The spec is the contract.** Each subsequent implementation sub-block (Ext-1 through Ext-6 in this case) builds to satisfy specific sections of the spec. Predicted verdicts in the spec become the verification criteria for each implementation's PR.
+3. **A final integration sub-block** (Ext-8) consumes the spec — seeds B9 + runs the full pipeline + verifies the predicted matrix.
+
+### When to use
+
+- 2+ implementation sub-blocks share a common target entity (B9 here; could be a particular dataset, a workflow scenario, an integration partner)
+- The target entity is non-trivial to specify (B9 has ~66 BidderProfile fields + 3 partner sub-profiles + 30 fact_sheets across 3 tenders + predicted verdicts on 16 evaluation outcomes per tender)
+- Skipping the design step would force each implementation sub-block to invent its B9 contract independently — introducing drift
+
+### When NOT to use
+
+- Single implementation sub-block — over-engineering; just diagnose-propose-apply the work directly
+- Trivial target (a simple flag toggle, a single field add) — spec adds latency without insight
+
+### 4 design discipline examples (cumulative pattern recognition across Module 3)
+
+The design-only sub-block crystallizes the discipline pattern that diagnose-propose has demonstrated repeatedly across Module 3:
+
+1. **Cross-validator overlap check** (Sub-block 1.2 diagnose) — bid_blacklist_check's `active_govt_cases` secondary signal was hijacking AP-GO-066 (bid_litigation) territory at AP-GO-096 severity. Caught when extending seed to add B4 (clean blacklist + 1 litigation) exposed the overlap. Fixed in same commit per L70 cross-validator sentinel pattern.
+
+2. **Citation accuracy verification** (Batch 1 diagnose) — directive referenced `AP-GO-181` for blacklist debarment 5-year lookback; that rule_id is actually about store-verification timing. The 5-year lookback lives in MPW-045. Caught by reading the actual rule's `natural_language` in the rules table before adopting it.
+
+3. **Environment discovery** (Sub-block 7 diagnose, L76) — directive referenced `/mnt/skills/public/{docx,pdf}/SKILL.md` (Anthropic Code Cloud convention); current environment is local macOS with neither path nor MCP skill tools. Caught by probing `ls`, `which`, `python3 -c "import …"` BEFORE referencing rendering pipelines in apply.
+
+4. **Boundary math verification against actual constraint values** (Ext-7 diagnose, this sub-block) — directive specified B9 Lead Partner `construction_turnover_5yr_avg_cr = 200cr`. The HC tender's PQ turnover floor is ₹243.4cr. 200 < 243.4 → B9 would FAIL HC turnover check. Caught by checking actual TenderRanking properties for HC's PQ floor before drafting B9's value. Corrected to ₹260cr in the spec.
+
+### The underlying discipline
+
+**Predict before apply. Verify predictions against actual state during diagnose. Fix at design-time rather than discovering during implementation.**
+
+Each of the 4 examples above would have cost between 30 minutes (citation fix) and several hours (validator rewrite + re-run of 240 validations) if caught only during apply. Catching them in diagnose costs 5–15 minutes of additional query work — a 5×–20× cost reduction per catch.
+
+This pattern carries forward to any future design-led sub-block series.
+
+---
+
 ## L76 — Environment-Discovery Discipline in Diagnose Step
 
 **Surfaced during Sub-block 7 (ComparativeStatementGenerator)** (May 2026). The directive referenced `/mnt/skills/public/docx/SKILL.md` and `/mnt/skills/public/pdf/SKILL.md` — the **Anthropic Code Cloud** convention. The current environment is **local macOS** (verified via `/tmp → /private/tmp` symlink); neither path exists, and no MCP skill tools for docx/pdf are surfaced.
