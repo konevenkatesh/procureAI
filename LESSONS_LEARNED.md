@@ -1149,6 +1149,102 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L82 — Module 3 Extensions Arc Completion + DemoBidder Pattern (Ext-8 B9)
+
+**Established during Ext-8** (May 2026, terminal sub-block; closes the Module 3 Extensions arc 8-of-8). B9 = comprehensive JV bidder seeded as the final exercise that puts every standard evaluation check end-to-end through the live DB. First DB exercise of Ext-1's JV path (Path 2 cross-profile lookup). Demonstrates platform's **effective L1 computation** accounting for ALB norms + cartel review.
+
+### Incremental seed > full re-seed (preservation discipline)
+
+The Sub-block 1.1 `seed_synthetic_bids.py:_delete_prior()` wipes ALL `bid_synth_*` rows. A full re-seed for Ext-8 would have:
+- Deleted 8 BidderProfile + 24 BidSubmission + 72 supplementary + 237 fact_sheets
+- **Invalidated all 312 BidEvaluationFindings** (they reference soon-deleted node_ids)
+- Forced a 27 × 13 = 351-call full pipeline re-run (~17 minutes wall-clock)
+
+**Pattern**: write `/tmp/ext8_seed_b9.py` standalone that imports `PROFILES`, `TENDERS`, `STATEMENT_BUILDERS`, `_insert_node`, `_insert_edge`, `_insert_fact_sheet` from the seed module and adds ONLY B9 + partners + B9 bids without calling `_delete_prior`. Existing 312 findings stay intact; only B9's 39 new findings need emitting. Total wall-clock for Ext-8 ≈ 5 minutes (40s seed + 39 validator runs × ~5s + 4 aggregators × 12-45s).
+
+For source-of-truth on future fresh re-runs: add B9 + 3 partners to `seed_synthetic_bids.py:PROFILES` with `_skip_bidsubmission=True` on JV_PARTNERs + a 1-line check in `main()` loop. So `_delete_prior()` followed by full re-seed produces the right 12-profile / 27-bid / 267-fact_sheet state.
+
+### Partner-before-entity insert ordering (resolvability)
+
+Ext-1's `bid_jv_consortium_check` does cross-profile lookup at validator runtime: it fetches `lead_partner_id`'s profile + each `partner_ids[]`'s profile via separate REST calls. If the JV entity were inserted BEFORE its partners, an immediate post-seed validator run could (in principle) hit a race condition where the partner lookups return empty.
+
+In practice, Supabase REST is synchronous + the inserts complete before the validator runs, so the race is theoretical. But the **insert order discipline** is documented for any future cross-profile-lookup validator: **always insert dependencies first**. The `/tmp/ext8_seed_b9.py` insert sequence:
+
+```
+Phase 1: 3 JV_PARTNER profiles  (b9_lead, b9_p2, b9_p3)
+Phase 2: B9 JV entity            (references b9_lead, partner_ids)
+Phase 3: B9 BidSubmissions + fact_sheets + supplementary + edges
+```
+
+### Ext-1 JV path DB-first-exercise — 8/8 sub-checks COMPLIANT
+
+The pre-smoke Approach E tests at Ext-1 shipped time validated all 4 paths in isolation; Ext-8 was the first DB exercise of Path 2 (JV with cross-profile lookup). Outcome on B9×HC (deepest predicted QUALIFIED):
+
+| # | sub-check | input | result |
+|---|---|---|---|
+| 1 | JV_PERMIT_TENDER_TYPE | `Works` ∈ {Works, EPC} | COMPLIANT |
+| 2 | JV_AGREEMENT_VALIDITY | `2027-12-31` ≥ `2026-05-10` | COMPLIANT |
+| 3 | LEAD_PARTNER_IDENTIFIED | `b9_lead` resolves to `JV_PARTNER` ✓ | COMPLIANT |
+| 4 | JOINT_AND_SEVERAL_LIABILITY | `JOINT_AND_SEVERAL` | COMPLIANT |
+| 5 | **LEAD_PARTNER_FINANCIAL** | **Lead 230cr ≥ HC floor 109.55cr** (margin 120.45cr) | COMPLIANT |
+| 6 | POA_FORM_15_VALID | `VALID` | COMPLIANT |
+| 7 | PARTNER_COUNT | `3` ∈ [2, 3] | COMPLIANT |
+| 8 | PARTNERS_BLACKLIST_CLEAN | 3 partners all `past_blacklist_events=[]` | COMPLIANT |
+
+Sub-check 5 is the architecturally distinctive one — AP norm requires the **Lead's solo financial turnover** ≥ tender floor (not the JV's collective turnover). Cross-profile lookup made this possible. **First demonstration of Lead-Partner-alone financial criterion in DB.**
+
+All 3 B9 bids (Kurnool / JA / HC) produced 8/8 sub-checks COMPLIANT → QUALIFIED → no BIDDER_VIOLATES_RULE edge. Zero surprises vs the 6 Approach E unit tests at Ext-1 ship.
+
+### Effective L1 transition: B1 → B9 on all 3 tenders
+
+Pre-Ext-8 effective L1 was B1 (premium −5%, the cleanest of 8 QUALIFIED bidders after B8 ALB-rejected). Post-Ext-8 with B9 added at premium −6%, the raw ranking becomes:
+
+```
+L1 raw  B8 (−38%)  ALB-rejected (alb_action_required=True)
+L2 raw  B9 (−6%)   ← effective L1 ✓
+L3 raw  B1 (−5%)
+L4 raw  B6 (−3.10%) cartel-referred (with B7)
+L5 raw  B7 (−3.05%) cartel-referred (with B6)
+```
+
+ComparativeStatement Sub-block 7 effective-L1 skip chain:
+1. raw L1 B8 → in alb_candidates AND alb_action_required → **skip ALB**
+2. raw L2 B9 → not in alb_candidates, not in cartel_referred → **effective L1 = B9** ✓
+
+Demo-visible payoff: "platform performs comprehensive standard evaluation; B9 — the well-organized JV with all documents in order and lead-partner-alone financial credentials clearing the regulatory floor — emerges as effective L1 after raw L1 (B8 ALB) is rejected and cartel-pair (B6+B7) is referred per CVC anti-collusion norms."
+
+### B9 doesn't trip cartel signals — discrimination design works
+
+Pre-Ext-8 design (per L67 + Ext-7 spec §4) gave B9 four distinguishing properties to keep it clear of CARTEL_SUSPECT signals:
+- Signatory: `Mr. C. Comprehensive` — unique 'C.' initial across all 9 bidders (B1=K., B2=R., B3=P., B4=A., B5=V., B6=S., B7=T., B8=L.)
+- EMD bank-branch: `State Bank of India, Visakhapatnam Main Branch` — distinct from B6/B7's `State Bank of India, Vijayawada Main Branch`
+- Communication address: `Plot 27, MVP Colony, Visakhapatnam-530017` — zero overlap with B1-B8 addresses
+- Premium delta: −6% — closest to B1 −5% with diff 1% (CARTEL signal threshold is 0.10%)
+
+CrossBidAnomalyDetector re-run with 5 QUALIFIED bidders × 3 tenders = `C(5,2)` × 3 = 30 pair evaluations. Result: 6 BidAnomalyFinding rows **unchanged** (3 CARTEL B6+B7 + 3 ALB B8). **B9 emits zero signals against any other bidder.** Design works.
+
+### Final state — Module 3 Extensions arc complete
+
+| metric | pre-Ext-8 | delta | final |
+|---|---:|---:|---:|
+| BidderProfile | 8 | +4 (1 JV + 3 JV_PARTNER) | 12 |
+| BidSubmission | 24 | +3 (B9 only) | 27 |
+| LetterOfBid / EMD_BG / PricedBoQ | 24 each | +3 each | 27 each |
+| fact_sheets | 237 | +30 | 267 |
+| BidEvaluationFinding | 312 | +39 (all QUALIFIED) | 351 |
+| BIDDER_VIOLATES_RULE | 49 | 0 | 49 |
+| EligibilityMatrix | 24 | +3 (B9×3 all QUALIFIED) | 27 (dist: 15/3/3/6) |
+| TenderRanking | 3 | re-emit | 3 (5-entry ranking[]; effective_L1 = B9) |
+| BidAnomalyFinding | 6 | re-emit unchanged | 6 (B9 not implicated) |
+| ComparativeStatement | 3 | re-render | 3 (13×9 per-bidder table, 5-row ranking, B9 in recommendation) |
+| **ValidationFinding (sentinel)** | **154** | **0** | **154 ✓** |
+
+**Arc stats:** 8 sub-blocks (Ext-1 through Ext-8), 6 new validators/extensions (1 new Path A + 5 forward-compat Path B), 4 rule seeds (AP-PROC-COMPLIANCE-DOCS-V1 + AP-PROC-JV-CONSORTIUM-V1 + MPG-255 anchor + 6 secondary citations), ~25 new BidderProfile fields, 9 bidders evaluated, 3 demo-visible DOCX reports.
+
+**Lessons L65–L82** (18 entries) document the arc: composite-finding pattern, cross-profile lookup, rule-seed-and-flag, cascade recovery discipline, JV-aware validator pattern, incremental seed > full re-seed for terminal sub-blocks.
+
+---
+
 ## L81 — Module 3 Extensions JV-Aware Validator Pattern (Ext-1 JV/Consortium)
 
 **Established during Ext-1** (`scripts/bid_jv_consortium_check.py`, May 2026). First Tier-2 validator with **3-path architecture** discriminated on the new `bidder_type` field (Ext-1 schema), and the first that performs a **cross-profile lookup** at evaluation time (validator joins Lead Partner + N Partner `BidderProfile` rows in addition to the bidding entity's own profile). Sets the template for Ext-8 B9 (synthetic JV bidder) and for any future multi-entity bid-evaluation criterion.
