@@ -1038,6 +1038,68 @@ The structural problem: the global L36/L40 grep fallback chain (L40, L41) only f
 
 ---
 
+## L61 — Tier-2 Validator Architecture Pattern (bid_*_check.py)
+
+**Established during Module 3 Sub-block 3a pilot** (`scripts/bid_turnover_check.py`, May 2026). First Tier-2 Bid Submission Evaluator built. Pattern proven across 9 synthetic bids (3 bidders × 3 tenders) with 100% ground-truth match (3 QUALIFIED + 6 INELIGIBLE per predicted matrix; boundary close-calls B1×HC ratio 1.027 / B2×JA ratio 0.956 both correct under strict `>=` comparator).
+
+### Architectural pattern
+
+| Aspect | Tier-1 (`scripts/tier1_*_check.py`) | Tier-2 (`scripts/bid_*_check.py`) |
+|---|---|---|
+| Input | Unstructured tender markdown via Qdrant | Structured `fact_sheets.extracted_facts` jsonb |
+| Retrieval | BGE-M3 embed + Qdrant top-K + LLM rerank | Direct row fetch by `(doc_id, fact_group)` |
+| Hallucination guard | L24 evidence_guard verifying LLM quotes | Inert — no LLM in path |
+| Coverage fallback | L36 grep across full section filter | Inert — input is already canonical |
+| Rule pick | `condition_evaluator.evaluate` + L27 UNKNOWN→ADVISORY downgrade | **Same** (reused unchanged) |
+| Idempotence | `_delete_prior_tier1_*` filtering on ValidationFinding + VIOLATES_RULE + tier=1 | `_delete_prior_tier2_*` filtering on BidEvaluationFinding + BIDDER_VIOLATES_RULE + tier=2 |
+| Output node | `ValidationFinding` | **`BidEvaluationFinding`** (new node_type, accepted as plain TEXT — no CHECK constraint) |
+| Output edge | `VIOLATES_RULE` Section→RuleNode (silent on COMPLIANT_FIRED) | **`BIDDER_VIOLATES_RULE`** BidSubmission→RuleNode (silent on QUALIFIED) |
+| Verdict vocab | `COMPLIANT_FIRED` / `GAP_VIOLATION` / `HARD_BLOCK` / `UNVERIFIED` / `SKIP_NOT_APPLICABLE` | `QUALIFIED` / `INELIGIBLE` / `GAP_INSUFFICIENT_DATA` / `SKIP_NOT_APPLICABLE` |
+| Crash resilience | `main_with_crash_resilience(main, doc_id, typology)` | **Same** (wrapper's DeferredCleanup captures 0 tier-1 rows for the new typology, harmless; Tier-2 rows are cleaned in `main()`) |
+
+### Citation chain (mandatory on every BidEvaluationFinding)
+
+Five domains, each with both an identity field and a source pointer:
+
+1. **Bidder** — `bidder_profile_id`, `bidder_profile_node_id`, `bidder_name`, `bidder_pan`, `bidder_contractor_class`
+2. **Bidder fact** — `fact_sheet_id`, `fact_sheet_fact_group`, `fact_sheet_source_file`, `fact_sheet_extracted_by`, plus the extracted value(s) (`bidder_avg_5yr_turnover_cr`, `bidder_fy_data[]`)
+3. **Tender** — `tender_id`, `tender_nit_no`, `tender_title`, `tender_estimated_value_cr`, `tender_tenure_years`
+4. **Tender criterion** — `pq_turnover_floor_cr`, `pq_floor_source` (audit string naming the source field path), plus a `*_consistent` cross-check flag when the value can be triangulated from multiple sources
+5. **Regulatory rule** — `rule_id`, `rule_natural_language`, `rule_condition_when`, `rule_layer`, `rule_typology_code`, `rule_facts_evaluated` (dict of fact values fed to condition_evaluator), plus L27 audit (`verdict_origin`, `severity_origin`)
+
+Plus computation + outcome + ground-truth cross-check fields (`predicted_matches_ground_truth` from `extracted_facts._designed_to_trip` annotation — non-zero RC if disagreement, so a wrapper loop catches regressions immediately).
+
+### orthogonal `evaluation_consequence` field
+
+Distinct from `severity` (which comes from the rule). Tells downstream EligibilityMatrix what to do with this bidder:
+- `HARD_BLOCK` on INELIGIBLE — bidder disqualified, cannot proceed
+- `ADVISORY` on QUALIFIED / SKIP — informational, no action needed
+- `WARNING` on GAP_INSUFFICIENT_DATA — reviewer must supply missing facts
+
+### Pilot-only shortcuts to revisit before Sub-block 3b scaling
+
+- **Tender threshold lives in the bidder's fact_sheet row** (`extracted_facts.pq_floor_cr`) plus a small in-script `SYNTHETIC_TENDER_CATALOG`. Real architecture: a separate Tier-2 tender-criterion node extraction reading PQ thresholds + similar-works requirements + ABC formula + class requirement from each tender's Section III into queryable kg_nodes. Queued.
+- **No TenderDocument nodes for synthetic tenders** — only BidderProfile + BidSubmission. The pilot's `SYNTHETIC_TENDER_CATALOG` is a stand-in.
+- **condition_evaluator can't parse `IN (...)` syntax** — CVC-028's `WorkType IN ('Civil','Electrical')` always resolves UNKNOWN. Tier-1 absorbs this via L27 downgrade (WARNING → ADVISORY); Tier-2 mirrors. A future evaluator upgrade could turn the verdict from UNKNOWN to FIRE for known WorkType, preserving WARNING severity. Out of scope tonight.
+- **Inadvertent cross-layer demonstration**: Kurnool's synthetic PQ floor ₹121.7 cr against ECV ₹85 cr / tenure 3 yr → annual = ₹28.33 cr, multiple = 4.3× — well above the CVC-028 ≤2× cap. The same rule that Tier-2 uses for bidder-side eligibility is what Tier-1 would flag as doc-side excess. Useful as a Sub-block 3b smoke target: run Tier-1 turnover_check on the synthetic tenders once they're materialised as TenderDocument nodes; should produce both a Tier-1 finding (PQ floor excessive) and Tier-2 findings (bidders B2/B3 ineligible against that same floor). Both layers tell different stories about the same rule.
+
+### File naming convention reaffirmed (per L60)
+- Tier-1: `scripts/tier1_<typology>_check.py`
+- Tier-2: `scripts/bid_<typology>_check.py` ← this pilot
+
+### Replicating to the 9 remaining Tier-2 validators (Sub-block 3b)
+
+Pattern is now stable. Each next Tier-2 validator needs only:
+1. A new `TYPOLOGY` string
+2. A `RULE_ID` (or rule-priority list)
+3. A `load_<statement>_fact` helper (one query against `fact_sheets`)
+4. A `compute_verdict` function (typology-specific compare logic)
+5. The same finding/edge emission boilerplate
+
+Everything else (rule selection, condition_evaluator + L27 path, idempotence, crash resilience, citation chain template, ground-truth cross-check) is copy-paste from the pilot.
+
+---
+
 ## L60 — Validator Taxonomy: Tier-1 (Tender Doc Content) vs Tier-2 (Bid Submission Evaluation)
 
 **Identified during Module 3 Sub-block 1 diagnose** (May 2026). The 5 "Batch-3 bidder-fact validators" (Blacklist-Not-Checked, Solvency-Stale, Turnover-Threshold-Excess, Eligibility-Class-Mismatch, Available-Bid-Capacity-Error) were framed in working context as consuming bidder submissions. Reading the docstrings showed otherwise: they read the **TENDER DOCUMENT** to verify it carries the right clauses (the doc MUST require bidders to declare blacklists; the doc MUST state the AP-GO-089 solvency framework; the doc's PQ turnover MUST be within CVC-028 cap; the doc's eligibility-class text MUST admit the right class band for the ECV; the doc's prescribed ABC formula MUST use M=2). They produce findings on corpus today (visible in the 154 ValidationFinding count across 6 corpus docs).
