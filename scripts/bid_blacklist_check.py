@@ -238,38 +238,25 @@ def select_rules(tender_state: str, tender_type: str | None) -> tuple[dict | Non
 
 def compute_verdict(blacklist_status, litigation_count,
                     cases: list[dict]) -> tuple[str, dict]:
-    if blacklist_status is None or litigation_count is None:
+    """Blacklist verdict anchors ONLY on BidderProfile.blacklist_status
+    (debarment register). The 'active govt litigation' secondary signal
+    was removed in Sub-block 1.2 (L70): it conflated AP-GO-066 territory
+    (committee-discretion litigation review, WARNING) with AP-GO-096
+    territory (formal administrative debarment, HARD_BLOCK). Litigation
+    concerns now belong exclusively to bid_litigation_check (AP-GO-066).
+
+    litigation_count and cases[] are retained as audit-only fields on
+    the finding (not verdict inputs)."""
+    if blacklist_status is None:
         return "GAP_INSUFFICIENT_DATA", {
-            "blacklist_clean":     None,
-            "active_govt_cases":   None,
-            "case_count":          None,
+            "blacklist_clean":   None,
+            "litigation_count":  litigation_count,
         }
     blacklist_clean = (str(blacklist_status).lower() == "clean")
-    # Active govt case = any pending case with a Govt body as opposing party.
-    govt_keywords = ("apiic", "ap public works", "government", "govt",
-                     "metro rail", "state", "central")
-    govt_cases = [c for c in (cases or [])
-                  if "pending" in str(c.get("status", "")).lower()
-                  and any(k in str(c.get("opposing_party", "")).lower()
-                          for k in govt_keywords)]
-    active_govt_cases = len(govt_cases) > 0
-    if blacklist_clean and not active_govt_cases:
-        return "QUALIFIED", {
-            "blacklist_clean":   True,
-            "active_govt_cases": False,
-            "case_count":        litigation_count,
-            "govt_case_count":   0,
-        }
-    return "INELIGIBLE", {
-        "blacklist_clean":     blacklist_clean,
-        "active_govt_cases":   active_govt_cases,
-        "case_count":          litigation_count,
-        "govt_case_count":     len(govt_cases),
-        "govt_cases_summary":  [
-            {"case_no": c.get("case_no"), "opposing": c.get("opposing_party"),
-             "subject": c.get("subject"), "status": c.get("status")}
-            for c in govt_cases[:5]
-        ],
+    return ("QUALIFIED" if blacklist_clean else "INELIGIBLE"), {
+        "blacklist_clean":   blacklist_clean,
+        "litigation_count":  litigation_count,
+        "case_count":        (len(cases) if isinstance(cases, list) else None),
     }
 
 
@@ -360,42 +347,33 @@ def main() -> int:
     consequence = evaluation_consequence_for(verdict)
     print(f"\n── Decision ──")
     print(f"  blacklist_clean   : {calc.get('blacklist_clean')}")
-    print(f"  active_govt_cases : {calc.get('active_govt_cases')}  "
-          f"(govt_case_count={calc.get('govt_case_count')})")
+    print(f"  litigation_count  : {calc.get('litigation_count')} (audit-only)")
     print(f"  verdict           : {verdict}")
     print(f"  consequence       : {consequence}")
 
-    # Ground truth: B1/B2 expected QUALIFIED (clean+0), B3 expected
-    # INELIGIBLE (previously_debarred or has active govt cases). Use
-    # the seed's _designed_to_trip narrative as the ground-truth proxy.
-    gt_clear = (str(blacklist_status_from_profile or "").lower() == "clean"
-                and (litigation_count_used or 0) == 0)
+    # Ground truth: blacklist-only — QUALIFIED if blacklist_status=='clean'
+    # regardless of litigation. Litigation concerns are bid_litigation_check's
+    # territory (AP-GO-066 WARNING). Post-L70 overlap fix.
+    gt_clear = (str(blacklist_status_from_profile or "").lower() == "clean")
     predicted_meets = (verdict == "QUALIFIED")
     matches_ground_truth = (predicted_meets == gt_clear)
-    print(f"  ground_truth      : {'CLEAR' if gt_clear else 'FLAGGED'}")
+    print(f"  ground_truth      : {'CLEAR' if gt_clear else 'INELIGIBLE'} (blacklist-only)")
     print(f"  predicted_matches : {matches_ground_truth}")
     if designed_to_trip:
         print(f"  designed_to_trip  : {designed_to_trip}")
 
     primary_rule_node_id = get_or_create_rule_node(BID_ID, PRIMARY_RULE_ID)
 
-    # decision_reason: dominant signal (blacklist supersedes litigation
-    # in framing because blacklist is the AP-GO-096 primary trigger)
+    # decision_reason: anchored ONLY on blacklist_status post-L70 fix.
+    # Litigation reasons removed — they belong to bid_litigation_check.
     if verdict == "QUALIFIED":
-        decision_reason = (
-            f"qualified_blacklist_clean_litigation_{litigation_count_used}"
-        )
-    elif not calc.get("blacklist_clean"):
+        decision_reason = "qualified_blacklist_clean"
+    elif verdict == "INELIGIBLE":
         decision_reason = (
             f"ineligible_blacklist_status_{blacklist_status_from_profile}_per_ap_go_096"
         )
-    elif calc.get("active_govt_cases"):
-        decision_reason = (
-            f"ineligible_active_litigation_{calc.get('govt_case_count')}_"
-            f"cases_with_govt_per_mpw_045_5yr_lookback"
-        )
     else:
-        decision_reason = "gap_insufficient_data"
+        decision_reason = "gap_blacklist_status_missing"
 
     label = (
         f"{TYPOLOGY}: {bidder_name} blacklist={blacklist_status_from_profile} "
@@ -465,12 +443,9 @@ def main() -> int:
         "secondary_rule_severity_origin":  (secondary_rule.get("severity_origin")
                                             if secondary_rule else None),
 
-        # — computation —
+        # — computation (blacklist-only post-L70 overlap fix) —
         "blacklist_clean":            calc.get("blacklist_clean"),
-        "active_govt_cases":          calc.get("active_govt_cases"),
-        "case_count":                 calc.get("case_count"),
-        "govt_case_count":            calc.get("govt_case_count"),
-        "govt_cases_summary":         calc.get("govt_cases_summary"),
+        "case_count":                 calc.get("case_count"),  # audit-only
         "meets_threshold":            (verdict == "QUALIFIED"),
 
         # — outcome —
@@ -517,9 +492,7 @@ def main() -> int:
                 "bid_submission_id":       BID_ID,
                 "bidder_profile_id":       bidder_profile_id,
                 "blacklist_status":        blacklist_status_from_profile,
-                "litigation_count":        litigation_count_used,
-                "active_govt_cases":       calc.get("active_govt_cases"),
-                "govt_case_count":         calc.get("govt_case_count"),
+                "litigation_count":        litigation_count_used,  # audit-only
                 "decision_reason":         decision_reason,
                 "finding_node_id":         finding["node_id"],
                 "defeated":                False,

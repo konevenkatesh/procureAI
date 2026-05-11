@@ -1149,7 +1149,84 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
-## L66 — Synthetic-Seed Coverage Gap for 4-State Aggregate Vocabulary
+## L70 — Cross-Validator Sentinel Pattern (post-overlap-fix audit)
+
+**Established during Sub-block 1.2 bid_blacklist_check fix** (May 2026). When fixing a validator design overlap (e.g. two validators both reacting to the same input field but at different rule severities), add an explicit cross-validator sentinel check that tests the previously-conflated decision region.
+
+**Reference case**: bid_blacklist_check + bid_litigation_check both read Statement-VII litigation_count. Pre-fix, bid_blacklist's `active_govt_cases` secondary signal hijacked AP-GO-066 territory at AP-GO-096 (HARD_BLOCK) severity. Fix removed the secondary signal. Sentinel check: for any bid with `blacklist_status='clean' AND litigation_count>0`, verify `bid_blacklist=QUALIFIED + bid_litigation=INELIGIBLE-WARNING` — never `bid_blacklist=INELIGIBLE`. B4×3 passes this sentinel post-fix.
+
+Pattern: **bake the sentinel into the test corpus**, not into validator code. The synthetic data should always carry at least one bidder that lives in the previously-conflated region; absence of a regression in the aggregate matrix on that bidder is the standing proof that the overlap stays fixed. If a future change re-introduces the overlap, the sentinel bidder's aggregate verdict shifts visibly (here: B4 would flip from FLAGGED back to DISQUALIFIED).
+
+---
+
+## L69 — Synthetic Data Coverage Discipline
+
+**Surfaced during Sub-block 1.2** (May 2026). Sparse synthetic coverage hides cross-validator overlaps. The 3-bidder corpus (B1/B2/B3) never exercised the `blacklist_status='clean' AND litigation_count>0` decision region — the bug surfaced only when B4 (Borderline-Litigation, designed to trip FLAGGED) was added.
+
+**Discipline**: design test cases to exercise EVERY decision branch of EVERY validator, not just intuitive failure modes. Coverage matrix should enumerate not only positive/negative outcomes per validator but every distinct INPUT REGION (the cartesian product of field values that hit independent code paths).
+
+**Concrete checklist for adding new validators**:
+1. Identify every branch in compute_verdict (including secondary signals).
+2. For each branch, find or design a synthetic bidder that hits it AND nothing else (so the branch's contribution to the aggregate is observable in isolation).
+3. If existing bidders all conflate two branches (e.g. B3 trips both blacklist primary + secondary), add a single-branch bidder.
+4. Run the aggregator after seeding and confirm every aggregate-state vocabulary value fires at least once.
+
+**Forward-applicable to Sub-block 6 (CrossBidAnomalyDetector)**: cartel pair B6+B7 and ALB B8 are designed for the same discipline — each carries one targeted anomaly signal in isolation so Sub-block 6's detector logic can be tested branch-by-branch.
+
+---
+
+## L68 — Seed-Script Per-Profile-Flag Pattern
+
+**Established during Sub-block 1.2 refactor** (May 2026). Profile-keyed `endswith()` branches across builders don't scale beyond 3-4 profiles. Replaced with per-profile behavior flags in PROFILES dict:
+
+```python
+"b5": dict(
+    ...,
+    _skip_statement_vi=True,        # forces bid_personnel_check GAP path
+    _premium_pct_delta=-3.5,        # LetterOfBid + PricedBoQ bid amount
+    _emd_bg_anomalous=False,
+    _solvency_buffer_mult=1.5,
+    _similar_works_pattern="three_full",
+    _boq_complete=True,
+    _boq_line_item_count=270,
+),
+```
+
+Builders read flags via `profile.get("_flag_name", default)` — no profile_id pattern matching, no `endswith` chains. Adding a 9th profile is O(1) (add one PROFILES entry); pre-refactor it was O(N) (edit every builder that branched on profile_id).
+
+Naming convention: behavior flags use `_leading_underscore` prefix to distinguish them from data fields (turnover, address, etc.). Forward-applicable to any seed-script that needs to extend test corpus to new profiles.
+
+---
+
+## L67 — Cross-Module Schema Discipline (Sub-block 1.2 application)
+
+**Established during Sub-block 1.2** (May 2026). When extending synthetic data, fold in consumer modules' essential fields rather than letting schema drift across module boundaries. Forward-compat is zero-cost during hand-authored seeding; expensive during downstream migration.
+
+**Reference case**: Sub-block 1.2 added 5 new bidder profiles (B4–B8) for Module 3 (Tier-2 evaluator) demo signal AND simultaneously augmented all 8 BidderProfile rows with 13 Module 4 (communicator) essential fields — email, mobile, notification channel, language, portal credential (synthetic placeholder), historical track record (past blacklist events, tender participation, anomaly flags), authorized signatory, communication address.
+
+When Module 4 ships, no BidderProfile migration needed — the data is already there. If we had ignored Module 4 in Sub-block 1.2, the 24 BidderProfile rows would need a separate backfill migration AT the Module 4 build time, racing against any other changes in flight.
+
+**Discipline checklist** before extending synthetic data:
+1. List all consumer modules (current + planned within the next 2-3 sub-blocks).
+2. For each consumer, identify their essential read fields.
+3. Confirm those fields exist on the entity being seeded. If absent, add them in this seed pass.
+4. Mark optional/speculative fields explicitly out of scope (Sub-block 1.2 deferred DSC status, bank account details, ISO certifications, etc. — fields no current consumer reads).
+
+**Methodology principle**: don't bloat schema with fields no current consumer reads, but DO include fields a near-term consumer will read. The line is "do we have a written-and-approved consumer plan?"
+
+---
+
+## L66 — Synthetic-Seed Coverage Gap for 4-State Aggregate Vocabulary [CLOSED Sub-block 1.2]
+
+**CLOSED Sub-block 1.2** (May 2026). All 4 aggregate verdict states now fire on the extended synthetic corpus:
+- QUALIFIED ×12 (B1×3 + B6×3 + B7×3 + B8×3)
+- FLAGGED_FOR_COMMITTEE_REVIEW ×3 (B4×3 — Borderline-Litigation)
+- MARK_FOR_DOCUMENTATION_REVIEW ×3 (B5×3 — Statement-VI suppressed)
+- DISQUALIFIED ×6 (B2×3 + B3×3)
+
+Closing the L66 gap surfaced a Batch-1 architectural defect: bid_blacklist_check's `active_govt_cases` secondary signal had hijacked AP-GO-066 territory at AP-GO-096 (HARD_BLOCK) severity. Fix landed in same commit per L70 (cross-validator sentinel pattern).
+
+### Original L66 entry (for archive)
 
 **Surfaced during Sub-block 4 (EligibilityMatrix aggregator)**. The aggregator implements a 4-state aggregate verdict vocabulary with `HARD_BLOCK > WARNING > GAP > QUALIFIED` precedence:
 - QUALIFIED

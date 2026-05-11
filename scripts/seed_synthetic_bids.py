@@ -1,23 +1,33 @@
-"""Module 3 Sub-block 1.1 — Synthetic bid data generator.
+"""Module 3 Sub-block 1.1 + 1.2 — Synthetic bid data generator.
 
 Bootstraps the data needed to develop and verify Tier-2 Bid Evaluator
-validators (Sub-blocks 3-6). NO actual Tier-2 validator runs in this
-script — pure data-layer seeding.
+validators (Sub-blocks 3-6) AND Module 4 communicator forward-compat.
+NO actual Tier-2 validator runs in this script — pure data-layer seeding.
 
-== Scope ==
+== Scope (Sub-block 1.2 — extended to 8 profiles) ==
   3 tenders (Kurnool, JA, HC — using stable synthetic tender_id
-  references; the drafter-output doc_ids are short-loop development
-  artefacts that change per regen, so we use deterministic
-  `tender_synth_<key>` identifiers in the bid data).
+  references).
 
-  3 bidder profiles per tender = 9 BidSubmission total:
-    B1 — "Clean Contractor"      (Special class, 250cr turnover, M=2, clean)
-    B2 — "Marginal — Class/Solv" (Class-I, 80cr turnover, stale solvency)
-    B3 — "Anomalous"             (Special class, 30cr turnover, M=3 wrong, litigation, debarment)
+  8 bidder profiles per tender = 24 BidSubmission total:
+    B1 — Clean Contractor                (Special, 250cr, clean → QUALIFIED)
+    B2 — Marginal Class/Solvency         (Class-I, 80cr, stale → DISQUALIFIED)
+    B3 — Anomalous                       (Special, 30cr, M=3, debarred → DISQUALIFIED)
+    B4 — Borderline-Litigation           (clean except 1 litigation → FLAGGED)
+    B5 — Incomplete-Documentation        (Statement-VI suppressed → MARK_FOR_DOC)
+    B6 — Cartel-Pair-A                   (10/10 QUALIFIED; cartel signal vs B7)
+    B7 — Cartel-Pair-B                   (10/10 QUALIFIED; cartel signal vs B6)
+    B8 — Abnormally-Low                  (10/10 QUALIFIED; premium_pct=-38% ALB)
 
-  10 Statement rows per bid in `fact_sheets` (90 total).
+  10 Statement rows per bid in `fact_sheets` (B5 skips Statement-VI → 237 total).
 
-  3 supplementary kg_nodes per bid (LetterOfBid + EMD BG + PricedBoQ) = 27.
+  3 supplementary kg_nodes per bid (LetterOfBid + EMD BG + PricedBoQ) = 72.
+
+  BidderProfile carries 13 Module 4 forward-compat fields per profile:
+  email_primary, mobile_primary, preferred_notification_channel,
+  preferred_language, portal_username, portal_credential_hash (synthetic
+  placeholder ONLY — never real password material), portal_credential_status,
+  past_blacklist_events[], past_tender_participation[], past_anomaly_flags[],
+  authorized_signatory_name, authorized_signatory_role, communication_address.
 
 == Data shape ==
   Path A + C (per diagnose):
@@ -104,7 +114,27 @@ TENDERS = {
 }
 
 
-# ── Bidder profiles (3 — shared across all 3 tenders) ─────────────────
+# ── Bidder profiles (8 — shared across all 3 tenders) ─────────────────
+#
+# Per-profile behavior flags (refactor from endswith() pattern in builders):
+#   _similar_works_pattern : "three_full" | "one_at_60pct" | "zero_works"
+#   _boq_complete          : bool — False marks BoQ as incomplete + unsigned
+#   _boq_line_item_count   : int  — number of priced line items on Form 51
+#   _emd_bg_anomalous      : bool — True forces expired BG from non-Scheduled bank
+#   _solvency_buffer_mult  : float — multiplier applied to required_solvency_cr
+#                                    to compute declared_solvency_cr (≥1.0)
+#   _skip_statement_vi     : bool — True suppresses Statement-VI fact_sheet
+#                                    (forces bid_personnel_check GAP path)
+#   _premium_pct_delta     : float — signed % deviation from ECV (LetterOfBid +
+#                                    PricedBoQ); negative=under, positive=over
+#
+# Module 4 forward-compat fields (consumed by communicator module — added to
+# all 8 profiles in a single seed pass per L67 cross-module discipline):
+#   email_primary, mobile_primary, preferred_notification_channel,
+#   preferred_language, portal_username, portal_credential_hash (synthetic
+#   placeholder ONLY — never real password material), portal_credential_status,
+#   past_blacklist_events[], past_tender_participation[], past_anomaly_flags[],
+#   authorized_signatory_name, authorized_signatory_role, communication_address
 
 PROFILES = {
     "b1": dict(
@@ -121,22 +151,50 @@ PROFILES = {
         years_in_business=22,
         # Drives Statement I, II, V, VI, VIII, X
         average_5yr_turnover_cr=250.0,
-        max_completed_works_value_cr=145.0,       # A factor in ABC
-        existing_commitments_cr=180.0,            # B factor in ABC
-        abc_M_multiplier=2,                       # Correct per AP-GO-062
+        max_completed_works_value_cr=145.0,
+        existing_commitments_cr=180.0,
+        abc_M_multiplier=2,
         solvency_cert_source="Tahsildar",
-        solvency_cert_validity_months_ago=6,      # <12mo → COMPLIANT
+        solvency_cert_validity_months_ago=6,
         litigation_count=0,
         blacklist_status="clean",
         equipment_register_completeness="full_owned",
         key_personnel_count=6,
+        # Behavior flags
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=285,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-5.0,
+        # Module 4 forward-compat
+        email_primary="bidder1@example.com",
+        mobile_primary="+91-9000000001",
+        preferred_notification_channel="email",
+        preferred_language="English",
+        portal_username="premier-ap-constructions",
+        portal_credential_hash="synth_hash_b1_premier",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apiic_a", year=2023, outcome="won",  contract_value_cr=85.0),
+            dict(tender_id="hist_2023_apcrda_b", year=2023, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_aphcj_c", year=2024, outcome="won",  contract_value_cr=76.5),
+            dict(tender_id="hist_2024_apiic_d", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2025_apcrda_e",year=2025, outcome="won",  contract_value_cr=80.75),
+        ],
+        past_anomaly_flags=[],
+        authorized_signatory_name="Mr. K. Rao",
+        authorized_signatory_role="Managing Director",
+        communication_address="3-5-101, Industrial Area, Vijayawada-520001",
     ),
     "b2": dict(
         profile_id="bid_synth_profile_b2",
         company_name="M/s Marginal Construction Pvt Ltd",
         gstin="37AAACM5678B2Z7",
         pan="AAACM5678B",
-        contractor_class="Class-I",   # ECV >2cr & ≤10cr → Class-I (insufficient for ECV>10cr)
+        contractor_class="Class-I",
         registration_state="AndhraPradesh",
         registration_authority="AP State Government per GO Ms No 94/2003",
         registration_certificate_no="AP/I/MARGINAL/2020/0789",
@@ -148,34 +206,352 @@ PROFILES = {
         existing_commitments_cr=60.0,
         abc_M_multiplier=2,
         solvency_cert_source="Bank",
-        solvency_cert_validity_months_ago=14,     # >12mo → STALE per AP-GO-089
+        solvency_cert_validity_months_ago=14,
         litigation_count=0,
         blacklist_status="clean",
         equipment_register_completeness="mixed_owned_leased",
-        key_personnel_count=4,                    # 4 of 6 → GAP
+        key_personnel_count=4,
+        _similar_works_pattern="one_at_60pct",
+        _boq_complete=True,
+        _boq_line_item_count=245,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.0,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-2.0,
+        email_primary="bidder2@example.com",
+        mobile_primary="+91-9000000002",
+        preferred_notification_channel="sms",
+        preferred_language="Telugu",
+        portal_username="marginal-construction",
+        portal_credential_hash="synth_hash_b2_marginal",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apphc_a", year=2023, outcome="won",  contract_value_cr=51.0),
+            dict(tender_id="hist_2023_apphc_b", year=2023, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_apiic_d", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2025_apcrda_e",year=2025, outcome="lost", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[],
+        authorized_signatory_name="Mr. M. Reddy",
+        authorized_signatory_role="Managing Director",
+        communication_address="3-5-202, Industrial Area, Vijayawada-520002",
     ),
     "b3": dict(
         profile_id="bid_synth_profile_b3",
         company_name="M/s Anomalous Builders LLP",
         gstin="37AAACA9999C3Z9",
         pan="AAACA9999C",
-        contractor_class="Special",   # Class is fine, but other factors fail
+        contractor_class="Special",
         registration_state="AndhraPradesh",
         registration_authority="AP State Government per GO Ms No 94/2003",
         registration_certificate_no="AP/SC/ANOMALOUS/2019/0456",
         registration_valid_until="2026-08-31",
         primary_business="Civil construction",
         years_in_business=8,
-        average_5yr_turnover_cr=30.0,              # Way below PQ floor
+        average_5yr_turnover_cr=30.0,
         max_completed_works_value_cr=18.0,
         existing_commitments_cr=42.0,
-        abc_M_multiplier=3,                        # Wrong per AP-GO-062 (M=2 required)
+        abc_M_multiplier=3,
         solvency_cert_source="Tahsildar",
         solvency_cert_validity_months_ago=3,
-        litigation_count=2,                        # Active litigation w/ Govt
-        blacklist_status="previously_debarred",   # 18-month debar 2023, expired
-        equipment_register_completeness="procurable_only",   # Severe gap
-        key_personnel_count=2,                    # 2 of 6 → severe gap
+        litigation_count=2,
+        blacklist_status="previously_debarred",
+        equipment_register_completeness="procurable_only",
+        key_personnel_count=2,
+        _similar_works_pattern="zero_works",
+        _boq_complete=False,
+        _boq_line_item_count=198,
+        _emd_bg_anomalous=True,
+        _solvency_buffer_mult=1.0,
+        _skip_statement_vi=False,
+        _premium_pct_delta=+5.0,
+        email_primary="bidder3@example.com",
+        mobile_primary="+91-9000000003",
+        preferred_notification_channel="portal_only",
+        preferred_language="English",
+        portal_username="anomalous-builders",
+        portal_credential_hash="synth_hash_b3_anomalous",
+        portal_credential_status="suspended",
+        past_blacklist_events=[
+            dict(event_date="2022-08-15", issuing_authority="Hyderabad Metro Rail Ltd",
+                 reason="substandard execution + missed milestones on Phase-2 metro depot contract",
+                 expiry_date="2024-02-15", current_status="expired_active_appeal"),
+        ],
+        past_tender_participation=[
+            dict(tender_id="hist_2022_hmrl_a", year=2022, outcome="disqualified", contract_value_cr=None),
+            dict(tender_id="hist_2023_apiic_b", year=2023, outcome="disqualified", contract_value_cr=None),
+            dict(tender_id="hist_2023_appwd_c",year=2023, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_apiic_d", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2025_apcrda_e",year=2025, outcome="disqualified", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[
+            dict(anomaly_date="2023-04-10", anomaly_type="cartel_suspicion",
+                 tender_id="hist_2023_apiic_b", outcome="dismissed"),
+            dict(anomaly_date="2024-09-22", anomaly_type="cartel_suspicion",
+                 tender_id="hist_2024_apiic_d", outcome="dismissed"),
+        ],
+        authorized_signatory_name="Mr. A. Anomalous",
+        authorized_signatory_role="Managing Partner",
+        communication_address="3-5-303, Industrial Area, Vijayawada-520003",
+    ),
+    # ──── B4 Borderline-Litigation (FLAGGED_FOR_COMMITTEE_REVIEW target) ────
+    "b4": dict(
+        profile_id="bid_synth_profile_b4",
+        company_name="M/s Borderline Litigation Builders Pvt Ltd",
+        gstin="37AAACB4444B4Z4",
+        pan="AAACB4444B",
+        contractor_class="Special",
+        registration_state="AndhraPradesh",
+        registration_authority="AP State Government per GO Ms No 94/2003",
+        registration_certificate_no="AP/SC/BORDERLINE/2017/0234",
+        registration_valid_until="2027-06-30",
+        primary_business="Civil + infrastructure construction",
+        years_in_business=15,
+        average_5yr_turnover_cr=290.0,          # clears HC PQ floor 243.4
+        max_completed_works_value_cr=160.0,
+        existing_commitments_cr=100.0,
+        abc_M_multiplier=2,
+        solvency_cert_source="Tahsildar",
+        solvency_cert_validity_months_ago=4,
+        litigation_count=1,                     # → INELIGIBLE-WARNING on bid_litigation
+        blacklist_status="clean",
+        equipment_register_completeness="full_owned",
+        key_personnel_count=6,
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=290,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-4.0,
+        email_primary="bidder4@example.com",
+        mobile_primary="+91-9000000004",
+        preferred_notification_channel="whatsapp",
+        preferred_language="Both",
+        portal_username="borderline-litigation-builders",
+        portal_credential_hash="synth_hash_b4_borderline",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apiic_a", year=2023, outcome="won",  contract_value_cr=120.0),
+            dict(tender_id="hist_2023_apcrda_b",year=2023, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="won",  contract_value_cr=95.0),
+            dict(tender_id="hist_2024_apiic_d", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2025_appwd_e", year=2025, outcome="lost", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[],
+        authorized_signatory_name="Mr. B. Singh",
+        authorized_signatory_role="Managing Director",
+        communication_address="4-7-12, Civil Lines, Tirupati-517501",
+    ),
+    # ──── B5 Incomplete-Documentation (MARK_FOR_DOC_REVIEW target) ────
+    "b5": dict(
+        profile_id="bid_synth_profile_b5",
+        company_name="M/s Incomplete Submissions Corp Pvt Ltd",
+        gstin="37AAACI5555I5Z5",
+        pan="AAACI5555I",
+        contractor_class="Special",
+        registration_state="AndhraPradesh",
+        registration_authority="AP State Government per GO Ms No 94/2003",
+        registration_certificate_no="AP/SC/INCOMPLETE/2018/0345",
+        registration_valid_until="2026-11-30",
+        primary_business="Civil + structural construction",
+        years_in_business=12,
+        average_5yr_turnover_cr=250.0,          # clears HC 243.4
+        max_completed_works_value_cr=150.0,
+        existing_commitments_cr=110.0,
+        abc_M_multiplier=2,
+        solvency_cert_source="Tahsildar",
+        solvency_cert_validity_months_ago=5,
+        litigation_count=0,
+        blacklist_status="clean",
+        equipment_register_completeness="full_owned",
+        key_personnel_count=6,                  # field present but Statement-VI suppressed
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=270,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=True,                # → bid_personnel_check GAP
+        _premium_pct_delta=-3.5,
+        email_primary="bidder5@example.com",
+        mobile_primary="+91-9000000005",
+        preferred_notification_channel="email",
+        preferred_language="English",
+        portal_username="incomplete-submissions-corp",
+        portal_credential_hash="synth_hash_b5_incomplete",
+        portal_credential_status="first_login_pending",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apcrda_a", year=2023, outcome="won",  contract_value_cr=110.0),
+            dict(tender_id="hist_2023_apiic_b", year=2023, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="disqualified",
+                 contract_value_cr=None, disqualification_reason="documents incomplete at submission deadline"),
+            dict(tender_id="hist_2024_apiic_d", year=2024, outcome="lost", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[],
+        authorized_signatory_name="Mr. I. Kumar",
+        authorized_signatory_role="Director",
+        communication_address="5-9-34, Old Town, Kakinada-533001",
+    ),
+    # ──── B6 Cartel-Pair-A (QUALIFIED on Tier-2; cartel signal vs B7) ────
+    "b6": dict(
+        profile_id="bid_synth_profile_b6",
+        company_name="M/s Cartel Alpha Construction Pvt Ltd",
+        gstin="37AAACX6666X6Z6",
+        pan="AAACX6666X",
+        contractor_class="Special",
+        registration_state="AndhraPradesh",
+        registration_authority="AP State Government per GO Ms No 94/2003",
+        registration_certificate_no="AP/SC/CARTEL-A/2019/0456",
+        registration_valid_until="2027-01-15",
+        primary_business="Civil construction (commercial buildings)",
+        years_in_business=11,
+        average_5yr_turnover_cr=260.0,
+        max_completed_works_value_cr=130.0,
+        existing_commitments_cr=110.0,
+        abc_M_multiplier=2,
+        solvency_cert_source="Tahsildar",
+        solvency_cert_validity_months_ago=4,
+        litigation_count=0,
+        blacklist_status="clean",
+        equipment_register_completeness="full_owned",
+        key_personnel_count=6,
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=275,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-3.10,               # cartel signal: near-identical w/ B7
+        email_primary="bidder6@example.com",
+        mobile_primary="+91-9000000006",
+        preferred_notification_channel="email",
+        preferred_language="Telugu",
+        portal_username="cartel-alpha-construction",
+        portal_credential_hash="synth_hash_b6_cartel_a",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apiic_a", year=2023, outcome="won",  contract_value_cr=90.0),
+            dict(tender_id="hist_2024_apcrda_b",year=2024, outcome="won",  contract_value_cr=85.0),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="lost", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[
+            dict(anomaly_date="2024-11-05", anomaly_type="cartel_suspicion",
+                 tender_id="hist_2024_apcrda_b", outcome="dismissed"),
+        ],
+        authorized_signatory_name="Mr. R. Sharma",      # matched-pattern w/ B7
+        authorized_signatory_role="Managing Director",
+        communication_address="4-7-89, Industrial Estate, Guntur-522001",  # SHARED w/ B7
+    ),
+    # ──── B7 Cartel-Pair-B (QUALIFIED on Tier-2; cartel signal vs B6) ────
+    "b7": dict(
+        profile_id="bid_synth_profile_b7",
+        company_name="M/s Cartel Beta Construction Pvt Ltd",
+        gstin="37AAACY7777Y7Z7",
+        pan="AAACY7777Y",
+        contractor_class="Special",
+        registration_state="AndhraPradesh",
+        registration_authority="AP State Government per GO Ms No 94/2003",
+        registration_certificate_no="AP/SC/CARTEL-B/2019/0457",
+        registration_valid_until="2027-01-20",
+        primary_business="Civil construction (commercial buildings)",
+        years_in_business=10,
+        average_5yr_turnover_cr=270.0,
+        max_completed_works_value_cr=135.0,
+        existing_commitments_cr=115.0,
+        abc_M_multiplier=2,
+        solvency_cert_source="Tahsildar",
+        solvency_cert_validity_months_ago=5,
+        litigation_count=0,
+        blacklist_status="clean",
+        equipment_register_completeness="full_owned",
+        key_personnel_count=6,
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=280,
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-3.05,               # cartel signal: 1.6% off B6
+        email_primary="bidder7@example.com",
+        mobile_primary="+91-9000000007",
+        preferred_notification_channel="email",
+        preferred_language="Telugu",
+        portal_username="cartel-beta-construction",
+        portal_credential_hash="synth_hash_b7_cartel_b",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apiic_a", year=2023, outcome="won",  contract_value_cr=88.0),
+            dict(tender_id="hist_2024_apcrda_b",year=2024, outcome="won",  contract_value_cr=87.0),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="lost", contract_value_cr=None),
+        ],
+        past_anomaly_flags=[
+            dict(anomaly_date="2024-11-05", anomaly_type="cartel_suspicion",
+                 tender_id="hist_2024_apcrda_b", outcome="dismissed"),
+        ],
+        authorized_signatory_name="Mr. R. Patel",       # matched-pattern w/ B6
+        authorized_signatory_role="Managing Director",
+        communication_address="4-7-89, Industrial Estate, Guntur-522001",  # SHARED w/ B6
+    ),
+    # ──── B8 Abnormally-Low (QUALIFIED on Tier-2; ALB signal in BoQ/LoB) ────
+    "b8": dict(
+        profile_id="bid_synth_profile_b8",
+        company_name="M/s Abnormally Low Bidders Pvt Ltd",
+        gstin="37AAACZ8888Z8Z8",
+        pan="AAACZ8888Z",
+        contractor_class="Special",
+        registration_state="AndhraPradesh",
+        registration_authority="AP State Government per GO Ms No 94/2003",
+        registration_certificate_no="AP/SC/ABNORMAL/2020/0567",
+        registration_valid_until="2027-05-25",
+        primary_business="Civil construction (mixed)",
+        years_in_business=9,
+        average_5yr_turnover_cr=280.0,
+        max_completed_works_value_cr=120.0,
+        existing_commitments_cr=100.0,
+        abc_M_multiplier=2,
+        solvency_cert_source="Tahsildar",
+        solvency_cert_validity_months_ago=3,
+        litigation_count=0,
+        blacklist_status="clean",
+        equipment_register_completeness="full_owned",
+        key_personnel_count=6,
+        _similar_works_pattern="three_full",
+        _boq_complete=True,
+        _boq_line_item_count=210,               # fewer items consistent w/ ALB-style sparse pricing
+        _emd_bg_anomalous=False,
+        _solvency_buffer_mult=1.5,
+        _skip_statement_vi=False,
+        _premium_pct_delta=-38.0,               # ALB signal — 38% under ECV
+        email_primary="bidder8@example.com",
+        mobile_primary="+91-9000000008",
+        preferred_notification_channel="sms",
+        preferred_language="English",
+        portal_username="abnormally-low-bidders",
+        portal_credential_hash="synth_hash_b8_alb",
+        portal_credential_status="active",
+        past_blacklist_events=[],
+        past_tender_participation=[
+            dict(tender_id="hist_2023_apiic_a", year=2023, outcome="won",
+                 contract_value_cr=60.0, note="winning bid 35% below ECV — ALB pattern"),
+            dict(tender_id="hist_2024_apcrda_b",year=2024, outcome="won",
+                 contract_value_cr=72.0, note="winning bid 30% below ECV — ALB pattern"),
+            dict(tender_id="hist_2024_apphc_c", year=2024, outcome="lost", contract_value_cr=None),
+            dict(tender_id="hist_2025_apiic_d", year=2025, outcome="won",
+                 contract_value_cr=78.0, note="winning bid 28% below ECV — ALB pattern"),
+        ],
+        past_anomaly_flags=[
+            dict(anomaly_date="2024-07-18", anomaly_type="abnormally_low_bid",
+                 tender_id="hist_2024_apcrda_b", outcome="confirmed"),
+        ],
+        authorized_signatory_name="Mr. L. Bidder",
+        authorized_signatory_role="CEO",
+        communication_address="6-2-101, Sea View Apartments, Visakhapatnam-530001",
     ),
 }
 
@@ -219,7 +595,8 @@ def build_statement_ii(profile: dict, tender: dict) -> dict:
     # B1: 3 similar works at 100% ECV; B2: 1 at 60%; B3: 0
     threshold_pct = tender["pq_similar_works_threshold_pct"]
     threshold_cr = tender["ecv_cr"] * threshold_pct / 100.0
-    if profile["profile_id"].endswith("b1"):
+    pattern = profile.get("_similar_works_pattern", "three_full")
+    if pattern == "three_full":
         works = [
             dict(name="Govt Hospital, Vijayawada — Phase 1",
                  client="APIIC", ecv_cr=round(tender["ecv_cr"] * 1.0, 2),
@@ -235,7 +612,7 @@ def build_statement_ii(profile: dict, tender: dict) -> dict:
                  compliance_pct=100, certificate_ref="EE/HCJ/KKD/2023/0907"),
         ]
         meets = True
-    elif profile["profile_id"].endswith("b2"):
+    elif pattern == "one_at_60pct":
         works = [
             dict(name="Residential Quarters, AP Police Housing",
                  client="APPHC", ecv_cr=round(tender["ecv_cr"] * 0.60, 2),
@@ -243,7 +620,7 @@ def build_statement_ii(profile: dict, tender: dict) -> dict:
                  compliance_pct=92, certificate_ref="EE/APPHC/2024/0205"),
         ]
         meets = False
-    else:
+    else:    # zero_works
         works = []
         meets = False
     return dict(
@@ -455,7 +832,7 @@ def build_statement_viii(profile: dict, tender: dict) -> dict:
     else:
         class_min_cr = 1.0
         required_solvency_cr = 0.1
-    declared_solvency_cr = required_solvency_cr * 1.5 if profile["profile_id"].endswith("b1") else required_solvency_cr
+    declared_solvency_cr = required_solvency_cr * profile.get("_solvency_buffer_mult", 1.0)
     return dict(
         bidder_name=profile["company_name"],
         tender_id=tender["tender_id"],
@@ -564,29 +941,31 @@ STATEMENT_BUILDERS = {
 
 def build_letter_of_bid(profile: dict, tender: dict) -> dict:
     """LetterOfBid kg_node properties."""
-    bid_amount_cr = tender["ecv_cr"] * (0.95 if profile["profile_id"].endswith("b1")
-                                         else 0.98 if profile["profile_id"].endswith("b2")
-                                         else 1.05)   # B3 over-bid (uncompetitive)
-    premium_pct = round((bid_amount_cr - tender["ecv_cr"]) / tender["ecv_cr"] * 100, 2)
+    premium_pct = profile.get("_premium_pct_delta", -3.0)
+    bid_amount_cr = tender["ecv_cr"] * (1.0 + premium_pct / 100.0)
+    signatory = (
+        f"{profile.get('authorized_signatory_name', 'Mr. K. Rao')}, "
+        f"{profile.get('authorized_signatory_role', 'Managing Director')}"
+    )
     return dict(
         bidder_name=profile["company_name"],
         tender_nit_no=tender["nit_no"],
         bid_amount_cr=round(bid_amount_cr, 2),
         bid_amount_words=f"Rupees {bid_amount_cr:.2f} crore only",
-        premium_pct=premium_pct,
+        premium_pct=round(premium_pct, 2),
         bid_type="Lump-Sum Percentage on ECV",
         bid_validity_days=90,
         emd_bg_reference=f"BG/{profile['profile_id']}/{tender['tender_id']}/EMD-001",
         emd_amount_cr=round(tender["ecv_cr"] * 0.01, 2),  # 1% of ECV
         site_inspection_confirmed=True,
-        signing_authority="Mr. K. Rao, Managing Director",
+        signing_authority=signatory,
         signature_date="2026-05-10",
     )
 
 
 def build_emd_bg(profile: dict, tender: dict) -> dict:
     """EMD Bank Guarantee kg_node properties."""
-    is_anomalous = profile["profile_id"].endswith("b3")
+    is_anomalous = profile.get("_emd_bg_anomalous", False)
     return dict(
         bidder_name=profile["company_name"],
         tender_nit_no=tender["nit_no"],
@@ -596,7 +975,7 @@ def build_emd_bg(profile: dict, tender: dict) -> dict:
                          if not is_anomalous else
                          "Cooperative Bank of XYZ, Tirupati"),
         bg_issue_date="2026-05-08",
-        bg_expiry_date=("2026-11-08" if not is_anomalous else "2026-04-15"),  # B3 expired
+        bg_expiry_date=("2026-11-08" if not is_anomalous else "2026-04-15"),
         bg_validity_180_days=(not is_anomalous),
         bg_unconditional=True,
         bg_format_per_proforma=True,
@@ -611,16 +990,14 @@ def build_emd_bg(profile: dict, tender: dict) -> dict:
 
 def build_priced_boq(profile: dict, tender: dict) -> dict:
     """Priced BoQ kg_node properties (top-line summary)."""
-    bid_amount_cr = tender["ecv_cr"] * (0.95 if profile["profile_id"].endswith("b1")
-                                         else 0.98 if profile["profile_id"].endswith("b2")
-                                         else 1.05)
+    premium_pct = profile.get("_premium_pct_delta", -3.0)
+    bid_amount_cr = tender["ecv_cr"] * (1.0 + premium_pct / 100.0)
+    is_complete = profile.get("_boq_complete", True)
     return dict(
         bidder_name=profile["company_name"],
         tender_nit_no=tender["nit_no"],
         total_bid_value_cr=round(bid_amount_cr, 2),
-        line_item_count=(285 if profile["profile_id"].endswith("b1")
-                         else 245 if profile["profile_id"].endswith("b2")
-                         else 198),    # B3 incomplete BoQ
+        line_item_count=profile.get("_boq_line_item_count", 250),
         major_heads=[
             "Site preparation + earthwork",
             "Substructure (foundation)",
@@ -629,11 +1006,11 @@ def build_priced_boq(profile: dict, tender: dict) -> dict:
             "MEP (electrical, plumbing, HVAC)",
             "External development",
         ],
-        each_page_signed=(not profile["profile_id"].endswith("b3")),
+        each_page_signed=is_complete,
         rates_in_figures_and_words_consistent=True,
         _designed_to_trip=(
             "COMPLIANT — all line items priced, signed page-by-page"
-            if not profile["profile_id"].endswith("b3") else
+            if is_complete else
             "INCOMPLETE — fewer line items than scope; some pages unsigned"
         ),
     )
@@ -670,42 +1047,63 @@ def _delete_prior() -> tuple[int, int, int]:
     return len(node_ids), len(fact_ids), len(edge_ids)
 
 
+import time
+
+
+def _post_with_retry(url: str, *, headers: dict, json_body, timeout: int = 30,
+                     max_attempts: int = 4) -> "requests.Response":
+    """Lightweight retry-with-backoff on transient connection resets.
+    Sub-block 1.2's 270+ sequential POSTs exposed Supabase rate-limit
+    behavior (ConnectionResetError mid-batch). 4-attempt exponential
+    backoff (0.5s/1s/2s) handles it without complicating the call sites."""
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            r = requests.post(url, headers=headers, json=json_body, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as exc:
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break
+            time.sleep(0.5 * (2 ** attempt))
+    raise last_exc  # type: ignore[misc]
+
+
 def _insert_node(doc_id: str, node_type: str, label: str,
                  properties: dict, source_ref: str = "synthetic_bid_seed_v1") -> str:
-    r = requests.post(f"{REST}/rest/v1/kg_nodes",
+    r = _post_with_retry(f"{REST}/rest/v1/kg_nodes",
         headers={**H, "Prefer": "return=representation"},
-        json=[dict(doc_id=doc_id, node_type=node_type, label=label,
-                   properties=properties, source_ref=source_ref)],
+        json_body=[dict(doc_id=doc_id, node_type=node_type, label=label,
+                        properties=properties, source_ref=source_ref)],
         timeout=30)
-    r.raise_for_status()
     return r.json()[0]["node_id"]
 
 
 def _insert_edge(doc_id: str, from_id: str, to_id: str, edge_type: str,
                  properties: dict | None = None) -> str:
-    r = requests.post(f"{REST}/rest/v1/kg_edges",
+    r = _post_with_retry(f"{REST}/rest/v1/kg_edges",
         headers={**H, "Prefer": "return=representation"},
-        json=[dict(doc_id=doc_id, from_node_id=from_id, to_node_id=to_id,
-                   edge_type=edge_type, weight=1.0,
-                   properties=properties or {})],
+        json_body=[dict(doc_id=doc_id, from_node_id=from_id, to_node_id=to_id,
+                        edge_type=edge_type, weight=1.0,
+                        properties=properties or {})],
         timeout=30)
-    r.raise_for_status()
     return r.json()[0]["edge_id"]
 
 
 def _insert_fact_sheet(doc_id: str, fact_group: str, extracted_facts: dict,
                        section_heading: str) -> None:
-    r = requests.post(f"{REST}/rest/v1/fact_sheets",
+    _post_with_retry(f"{REST}/rest/v1/fact_sheets",
         headers=H,
-        json=[dict(doc_id=doc_id, fact_group=fact_group,
-                   extracted_facts=extracted_facts,
-                   section_heading=section_heading,
-                   source_file=f"synthetic_bid_seed_{doc_id}",
-                   line_start=1, line_end=1,
-                   qdrant_similarity=None,
-                   extracted_by="synthetic_bid_seed_v1")],
+        json_body=[dict(doc_id=doc_id, fact_group=fact_group,
+                        extracted_facts=extracted_facts,
+                        section_heading=section_heading,
+                        source_file=f"synthetic_bid_seed_{doc_id}",
+                        line_start=1, line_end=1,
+                        qdrant_similarity=None,
+                        extracted_by="synthetic_bid_seed_v1")],
         timeout=30)
-    r.raise_for_status()
 
 
 # ── Main seeding ──────────────────────────────────────────────────────
@@ -770,8 +1168,12 @@ def main() -> int:
             )
             n_submission += 1
 
-            # 10 Statement fact_sheets
+            # 10 Statement fact_sheets (B5 skips Statement-VI to force
+            # bid_personnel_check GAP path per L66 vocabulary coverage)
             for fact_group, builder in STATEMENT_BUILDERS.items():
+                if (fact_group == "Statement-VI-KeyPersonnel"
+                        and prof.get("_skip_statement_vi", False)):
+                    continue
                 facts = builder(prof, tender)
                 _insert_fact_sheet(
                     doc_id=doc_id, fact_group=fact_group,
