@@ -1,10 +1,13 @@
-# Cloud Build: m1-drafter image
+# Cloud Build — m1-drafter v2 image
 # Run from repo root:
 #   gcloud builds submit --config=services/m1-drafter/cloudbuild.yaml
+# Tags both :v2 and :latest so rollback to v1 stub is one revision-shift away.
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v2
       - -t
       - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
       - -f
@@ -13,9 +16,14 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v2
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
       - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
 images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v2
   - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
 options:
   logging: CLOUD_LOGGING_ONLY
-timeout: 600s
+timeout: 900s

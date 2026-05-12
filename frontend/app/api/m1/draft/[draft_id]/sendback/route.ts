@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { forwardJson } from "@/lib/cloudRun";
 
 export const dynamic = "force-dynamic";
 
@@ -8,15 +9,27 @@ export async function POST(
 ) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
-  const url = (process.env.M1_DRAFTER_URL || "http://localhost:8001") +
-    `/m1/draft/${encodeURIComponent(params.draft_id)}/sendback`;
+  const fullBody = { ...body, draft_id: params.draft_id };
+
+  if (process.env.M1_DRAFTER_URL) {
+    const result = await forwardJson(
+      "m1",
+      `/m1/draft/${encodeURIComponent(params.draft_id)}/sendback`,
+      { method: "POST", body: fullBody },
+    );
+    return NextResponse.json(result.body, { status: result.status });
+  }
+  // Local dev
   try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, draft_id: params.draft_id }),
-      cache: "no-store",
-    });
+    const r = await fetch(
+      `http://localhost:8001/m1/draft/${encodeURIComponent(params.draft_id)}/sendback`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fullBody),
+        cache: "no-store",
+      },
+    );
     const data = await r.json().catch(() => ({}));
     return NextResponse.json(data, { status: r.status });
   } catch (e: any) {

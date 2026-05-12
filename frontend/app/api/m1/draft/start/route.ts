@@ -3,13 +3,12 @@
  *
  * Server-side proxy to the m1-drafter Cloud Run service. Adapts the
  * frontend wizard payload to the worker contract, attaches a Cloud Run
- * ID token if needed (deferred to M1.10), and returns the draft_id +
- * stream_url so the frontend can redirect to the live generation view.
- *
- * Local dev: forwards to http://localhost:8001/m1/run (uvicorn).
- * Production: forwards to M1_DRAFTER_URL (Cloud Run) with ID token.
+ * ID token via the metadata server (when running on Cloud Run), and
+ * returns the draft_id + stream_url so the frontend can redirect to
+ * the live generation view.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { forwardJson, backendUrl, getIdToken } from "@/lib/cloudRun";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +19,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "invalid json body" }, { status: 400 });
   }
-
-  // Required: draft_id, initiator_role, initiator_id, initial_payload
   if (!body.initial_payload) {
     return NextResponse.json(
       { error: "missing initial_payload" },
@@ -29,15 +26,42 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const drafterUrl =
-    process.env.M1_DRAFTER_URL || "http://localhost:8001";
-
+  // When M1_DRAFTER_URL is set, forward to Cloud Run with ID token (production).
+  // When unset, fall back to localhost:8001 unauthenticated (local dev).
   try {
-    const upstream = await fetch(`${drafterUrl}/m1/run`, {
+    if (process.env.M1_DRAFTER_URL) {
+      const result = await forwardJson("m1", "/m1/run", {
+        method: "POST",
+        body: {
+          tender_id: null,
+          params: {
+            draft_id: body.draft_id,
+            initiator_role: body.initiator_role,
+            initiator_id: body.initiator_id,
+            initial_payload: body.initial_payload,
+          },
+        },
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.body?.error || result.body?.detail || result.message || "drafter rejected request", status: result.status },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({
+        ...result.body,
+        draft_id: body.draft_id,
+        stream_url: `/api/m1/draft/stream/${body.draft_id}`,
+      });
+    }
+
+    // Local dev fallback (no auth)
+    const localUrl = "http://localhost:8001";
+    const upstream = await fetch(`${localUrl}/m1/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tender_id: null,                              // assigned at PUBLISHED
+        tender_id: null,
         params: {
           draft_id: body.draft_id,
           initiator_role: body.initiator_role,
@@ -47,7 +71,6 @@ export async function POST(req: NextRequest) {
       }),
       cache: "no-store",
     });
-
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
       return NextResponse.json(
@@ -55,11 +78,8 @@ export async function POST(req: NextRequest) {
         { status: 502 },
       );
     }
-
     return NextResponse.json({
-      job_id: data.job_id,
-      status: data.status,
-      poll_url: data.poll_url,
+      ...data,
       draft_id: body.draft_id,
       stream_url: `/api/m1/draft/stream/${body.draft_id}`,
     });
@@ -68,7 +88,6 @@ export async function POST(req: NextRequest) {
       {
         error: "m1-drafter unreachable",
         detail: String(e?.message || e),
-        hint: "Is the local m1-drafter running at port 8001? (cd services/m1-drafter && uvicorn app.main:app --reload --port 8001)",
       },
       { status: 503 },
     );

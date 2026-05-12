@@ -34,7 +34,8 @@ procure-ai-frontend/dist/
 procure-ai-frontend/node_modules/
 
 # Heavy data / outputs not needed in any image
-data/
+# Anchor to repo root only — frontend/data/ (M1 master JSONs) must ship.
+/data/
 artifacts/
 /tmp/
 *.parquet

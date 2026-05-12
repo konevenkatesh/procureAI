@@ -1149,6 +1149,240 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
+
+**Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
+
+### Why a real tender, not a synthetic fixture
+
+A synthetic fixture validates the code path but not the **schema fidelity** to eGP norms. The Banaganapalli sample comes directly from the AP government's live eProcurement portal (`https://tender.apeprocurement.gov.in`) — every field name, every layout decision, every regulatory citation is the actual production format. If our `TenderDraftState` schema doesn't match it, the platform fails its core promise: "a draft produced here can be filed at eGP without translation."
+
+Validation checks the smoke test enforces:
+
+1. `inrToWords(1597185) === "Fifteen Lakh Ninety Seven Thousand One Hundred and Eighty Five Rupees"` — exact eGP text match (single-character drift would mean the Indian-system word algorithm diverged from gov convention).
+2. The 7 mandatory documents per Banaganapalli are pre-loaded as defaults in `data/document-templates.json` — verbatim. Includes the typos ("Successful Bidders" → "Sucessful Bidders", "Equipment" → "EQuipment") because the real eGP page has them. Future cleanup: a normalisation pass once we ship that, but not for the smoke baseline.
+3. `tender_notice_number` format: `"NIT No: <ALPHA-NUMERIC>/2026-27 Dt. YYYY-MM-DD"` — mirrors the actual NIT No format on the portal.
+4. The 11 eGP sections in `EGPLiveView.tsx` map 1:1 to the eGP HTML sections (Current Tender Details / Enquiry Particulars / Transaction Fee / Tender Dates / Authority / Bid Security / Required Documents / General Terms+Eligibility / Tech / Legal / Procedure / Geography / Enquiry Forms).
+5. Geography cascade lands on `Banaganapalli/Banaganapalle/Nandyal` per the real Parliament/Assembly/Mandal hierarchy.
+
+### Smoke test as binary acceptance gate
+
+`services/m1-drafter/test_smoke_banaganapalli.py` runs in-process via FastAPI TestClient + real Supabase. Acceptance gate is binary: ALL 8 sub-blocks (M1.1-M1.8) must pass OR the build doesn't ship. No partial-pass option.
+
+Predictions vs actual deltas (locked):
+- TenderDraft: +1 (one draft per run)
+- GateTransition: +4 (TECH approve, FIN approve, PROC approve, AUTH publish)
+- DraftVersionSnapshot: +6 (v1 init, v2 post-AI, v3 TECH, v4 FIN, v5 PROC, v6 PUBLISH)
+- 5 artifacts rendered (BID_DOCUMENT.docx 41KB + .pdf 14KB + BoQ.xlsx 6KB + ELIGIBILITY.docx 38KB + summary.md 7KB)
+- Hard sentinel `154/351/49/27/3/6/3` frozen throughout AND restored after cleanup
+
+Run 5 local: 2.66s wall-clock end-to-end. Run 6 cloud: <1s worker DONE + 12s for all 4 gate transitions + publish.
+
+### Forward applicability
+
+Any new module (Module 2 Pre-RFP Validator when it ships in Run 7; Module 5 Reviewer when it ships future) gets its own real-tender canonical smoke test. The pattern: pick a public-portal sample, mirror its schema in code, write a TestClient script that runs the full pipeline against the real Supabase, assert sentinel + artifacts + state transitions match.
+
+---
+
+## L106 — Local-First Development Discipline (Zero Cloud Build Burn During Iteration)
+
+**Established in Run 5** (2026-05-12; Night 1 explicitly local-only). The Module 1 build is the first sub-block sequence where the *full* implementation cycle (~6,700 LOC across 40+ files) completed locally before any Cloud Build minute was spent.
+
+### The discipline
+
+Night 1 (Run 5): zero `gcloud builds submit`, zero `gcloud run deploy`, zero Cloud Tasks invocations. Backend dev uses `python3 -m uvicorn` on localhost:8001; frontend dev uses `npm run dev` on localhost:3000. Smoke test runs in-process via FastAPI TestClient with `set -a && . ./.env && set +a` loading credentials.
+
+Night 2 (Run 6): exactly 4 Cloud Build submissions:
+1. `services/m1-drafter` v2 image build (1m33s)
+2. `frontend` rebuild #1 (FAILED — gcloudignore issue, see below)
+3. `frontend` rebuild #2 after gcloudignore fix (1m55s)
+4. `frontend` rebuild #3 after auth-aware proxy fix (1m39s)
+
+Total Cloud Build minutes spent on M1 cloud deploy: ~7 minutes. Free tier provides 120 build-min/day; well within budget.
+
+### What the discipline catches
+
+1. **Schema drift between TS and Python**: discovered immediately when `npx next build` fails or `python3 -c "from app.schemas import ..."` raises. No 2-minute Cloud Build round-trip per attempt.
+2. **Pydantic validation gaps**: tests on construct + JSON round-trip fail fast.
+3. **Import-path bugs**: M1.9 caught the missing `__init__.py` + the package-vs-module Docker layout issue locally, before submitting.
+4. **TSC compile errors**: caught in <5 seconds via `npx tsc --noEmit` instead of waiting for Cloud Build.
+
+### What it doesn't catch (caught in Night 2)
+
+1. **Cloud Run service-to-service auth requirement** — the m1-drafter is `--no-allow-unauthenticated`; new Next.js API proxies needed `forwardJson` (ID-token-injecting) wrapper. Caught in M1.11 when production POST returned `403 drafter rejected request`.
+2. **`.gcloudignore` over-broad pattern** — `data/` (intended for repo-root only) was excluding `frontend/data/*.json` (M1 master JSONs). Caught when first frontend Cloud Build failed: "Module not found: Can't resolve '@/data/ap-departments.json'". Fix: anchor to `/data/`.
+3. **Cloud Run instance-affinity for in-process SSE bus**: smoke test on production worked once but a fresh SSE consumer hitting a different Cloud Run instance gets an empty buffer. Forward: production-grade SSE needs Redis pubsub OR Supabase event replay.
+
+### Forward applicability
+
+Every multi-day build that targets Cloud Run should follow the Run 5/Run 6 cadence: Night 1 local-only (no GCP burn, fast iteration), Night 2 cloud deploy + production smoke (only when local is green). The acceptance gate is the local smoke test passing in <3 seconds; cloud cost discipline follows automatically.
+
+---
+
+## L105 — Per-Gate DraftVersionSnapshot Pattern (Immutable Artifacts at Each Transition)
+
+**Established in M1.6** (2026-05-12, commit `3f00b41`). Every gate boundary writes an immutable full-payload snapshot to a separate kg_node type (`DraftVersionSnapshot`), allowing perfect time-travel debugging and audit replay.
+
+### Why not just version the TenderDraft
+
+A naive approach updates `TenderDraft.properties` in place and trusts the `version` counter. This loses the **state-at-each-boundary** semantics that auditors want: "what did the draft look like at the moment TECHNICAL approved it?" Without snapshots, you can reconstruct it only by reversing edit history — fragile, and breaks once you allow free-form edits (per M1.6's `apply_edits()`).
+
+### The pattern
+
+After every `approve / revise / publish / sendback`, the gate handler calls `_snapshot(state, role)` which inserts:
+
+```python
+DraftVersionSnapshotProps(
+    snapshot_id=f"{draft_id}_v{n}",
+    draft_id=draft_id,
+    version=n,
+    payload=state,                # full TenderDraftState frozen at this moment
+    created_by_role=role,
+    created_at=now_iso(),
+)
+```
+
+`properties.payload` is the entire `TenderDraftState` model_dump. JSONB storage on Supabase makes this cheap (~10 KB per snapshot for the Banaganapalli sample). 6 snapshots per draft × 1000 drafts = 60 MB; trivial.
+
+### Versioning convention
+
+Locked per the data-model doc:
+- v1: after `analyze_inputs` (post-form, pre-AI)
+- v2: after `workflow_complete` (post-AI; entering TECHNICAL)
+- v3: after TECHNICAL approve
+- v4: after FINANCIAL approve
+- v5: after PROCUREMENT approve
+- v6: after AUTHORITY publish (artifacts rendered at this version)
+
+Send-back transitions increment the version too — a v3 sent back to INITIATION becomes v4 not v1 on re-submission. The snapshot chain is monotonic by design.
+
+### Audit-defensibility win
+
+CAG / vigilance can ask: "show me the draft exactly as the Senior Engineer saw it before approving" → load snapshot v2. "What changed between SE approval and DH approval?" → diff v3 vs v4 (JSON Patch over `payload`). "Was the final published version free of out-of-scope edits?" → walk v3 → v4 → v5 → v6 verifying each diff matches the corresponding `GateTransitionEdit[]` from the audit trail.
+
+Smoke test verifies the snapshot count exactly: `len(snapshots) == 6` is a hard assertion (not `>= 6`). Any extra row indicates an unauthorised state mutation that needs investigation.
+
+---
+
+## L104 — 4-Gate State Machine + RBAC + Field-Scoped Edits (Audit-Defensibility Against CAG)
+
+**Established in M1.6** (commit `3f00b41`). Module 1 ships a 4-gate review pipeline (TECHNICAL → FINANCIAL → PROCUREMENT → AUTHORITY) with role-based access control AND per-gate field edit scoping. Designed for audit-defensibility under CAG / CVC scrutiny.
+
+### Why both RBAC and field scoping
+
+RBAC alone (role X can act on gate Y) is necessary but not sufficient. A Senior Engineer rightfully assigned to the TECHNICAL gate could, if the schema were lax, edit `financial.estimated_contract_value_inr` and inflate the contract value. Field scoping says: "Senior Engineer can edit `boq` + `general_terms.technical` only; ECV edits require Department Head."
+
+The two layers compose:
+
+```python
+def approve(...):
+    state = load_tender_draft(draft_id)
+    if not role_can_act(actor_role, state.current_gate):
+        raise GateError(403)                               # RBAC layer
+    if edits:
+        validate_edits(edits, state.current_gate)          # Field-scope layer
+    state = apply_edits(state, edits)
+    ...
+```
+
+Both layers must pass. Smoke test verifies both:
+- Negative test: `DEALING_OFFICER` tries to approve `FINANCIAL` → 403 (RBAC reject)
+- Negative test: `TENDER_INVITING_AUTHORITY` tries to edit `boq.0.qty` → 403 (field scope reject — AUTHORITY gate is read-only)
+
+### Locked scope per gate
+
+| Gate | Editable paths |
+|---|---|
+| INITIATION | `*` (everything) |
+| AI_GENERATION | (none) |
+| TECHNICAL | `boq`, `general_terms.technical`, `general_terms.eligibility`, `enquiry_particulars.name_of_work`, `financial.period_of_completion_months`, `documents` |
+| FINANCIAL | `financial.estimated_contract_value_inr` + words, `bid_security_percent` + inr, `transaction_fee_inr`, `bid_validity_days`, `classification.form_of_contract` |
+| PROCUREMENT | `evaluation.*`, `classification.bid_call_numbers`, `enquiry_forms` |
+| AUTHORITY | (none — publish / sendback only) |
+| PUBLISHED | (none — terminal) |
+
+Locked here = changing the scope requires a directive + lesson entry + smoke test update. NOT a quiet code edit.
+
+### Send-back rules
+
+- TECHNICAL/FINANCIAL/PROCUREMENT can only **revise** (returns to INITIATION; Dealing Officer re-triggers).
+- AUTHORITY can **sendback to any prior gate** via `send_back_to` param.
+
+This is asymmetric by design: AUTHORITY sees the whole draft + has discretion to surgically return to a specific reviewer (e.g. "Financial got it wrong on bid_security, but Technical is fine — send back to FINANCIAL only").
+
+### Path-match semantics
+
+`validate_edits` uses dot-path scope matching:
+- Scope `["boq"]` matches paths `boq`, `boq.0`, `boq.0.qty` (sub-paths allowed)
+- Scope `["financial.bid_security_percent"]` matches only that exact path; `financial.estimated_contract_value_inr` rejects.
+
+Smoke test:
+```python
+assert _path_matches_scope("boq.0.qty", ["boq"]) == True
+assert _path_matches_scope("financial.bid_security_percent", ["boq"]) == False
+assert _path_matches_scope("anything", ["*"]) == True
+```
+
+### Forward applicability
+
+Any future module with multi-stakeholder review (Module 5 Reviewer for vigilance, Module 6 contract amendment workflow) gets the same 2-layer pattern: declare gates + scopes in a single config dict, enforce in middleware, smoke-test both layers with negative cases. The audit-defensibility design carries through.
+
+---
+
+## L103 — 12-Node LangGraph Workflow with Structured SSE (Field-Level Events vs Markdown Streaming)
+
+**Established in M1.5** (commit `3f00b41`) + verified end-to-end in M1.8 (local) and M1.11 (production on `https://procureai.bimsaarthi.com`).
+
+### Why structured field-level events, not markdown chunks
+
+The naive LLM-streaming pattern emits raw markdown to a chat-like UI: tokens flow into a single text panel that the user reads top-to-bottom. That works for ChatGPT-style products. It fails for procurement: tender documents have **structured fields** (ECV, period, bid security, 7 mandatory documents, etc.). The user needs to see the EGP-format layout populating in place — not a wall of streaming text.
+
+So M1.5 inverts the pattern. Each LangGraph node emits **discriminated events** with field paths:
+
+```python
+SSEEventFieldUpdate(path="financial.estimated_contract_value_inr", value=1597185, node=...)
+SSEEventTextChunk(path="general_terms.eligibility", chunk="GENERAL TERMS ...", node=...)
+SSEEventTableRowAdded(table="boq", row={s_no: 1, item: "Earthwork ...", qty: 120}, node=...)
+SSEEventNodeStarted(node="draft_eligibility", index=7, total=12)
+SSEEventNodeComplete(node="draft_eligibility", elapsed_ms=1042, citations=...)
+SSEEventWorkflowComplete(draft_id=..., total_elapsed_ms=2814)
+```
+
+The frontend reducer (`useSSEDraftStream.ts`) applies each event via `setPath(draft, ev.path, ev.value)` directly into the `TenderDraftState` tree. The `EGPLiveView` component subscribes to the state and re-renders affected sections only.
+
+### The demo differentiator
+
+When the user clicks "Generate" on the wizard, they don't see a chat-style streaming text. They see the **eGP-format Tender Details page** fill in section by section:
+1. NIT number assigned at `draft_NIT` node (~1.5s in)
+2. Tender Dates table populates immediately (echoed from form input)
+3. Eligibility paragraph types in word-by-word at `draft_eligibility` (~3-5s in)
+4. BoQ rows append one-by-one at `draft_BoQ_skeleton` (~6-7s in)
+5. Legal terms paragraph types in at `draft_legal_terms` (~8-10s in)
+6. Workflow_complete fires; user auto-redirects to /review (~12s end-to-end in template mode)
+
+12 node-progress cards on the right-rail sidebar show queued/running/done state with elapsed_ms per node. Click-to-expand on the `draft_eligibility` node card reveals the cited rules (`AP-GO-94/2003`, `CVC-028`, `MPW-040`).
+
+### Production caveat: Cloud Run instance-affinity for in-process SSE bus
+
+The implementation uses a per-draft in-process ring buffer (1000-event cap). Works perfectly on a single Cloud Run instance. **Caveat**: if the worker runs on instance A and the SSE consumer connects to instance B (load-balanced), B has an empty buffer.
+
+Production fix options (deferred to Run 7+):
+- **Redis pubsub** for cross-instance event replay
+- **Supabase event table** + cursor-based replay (consistent with the kg_node pattern)
+- **Cloud Run revision pinning** via session affinity (workable for the demo; fragile at scale)
+
+For the current demo (`--min-instances=0`, low traffic), the single warm instance handles both worker + SSE consumer on the same revision. Smoke test in M1.11 confirmed SSE streaming works through the Global HTTPS LB + Cloud Run with `x-accel-buffering: no` header — events arrive as individual `data: {...}\n\n` frames, no batching.
+
+### Pragmatic fallback if SSE fails
+
+If a future Cloud Run revision upgrade breaks the in-process bus, the frontend can fall back to **polling** `/api/m1/draft/{id}/get` every 1-2s and diffing the state tree. Same UI, simpler infrastructure, ~2s latency cost. Documented in this lesson for future maintainers.
+
+### Forward applicability
+
+Any future module with a multi-stage AI pipeline + structured output (Module 2 Pre-RFP Validator over 24 typology checks; Module 5 Reviewer with multi-criterion drilldown) inherits this pattern. Define your `LangGraphNode` enum + `SSEEvent` discriminated union; emit structured updates; let the frontend reducer apply them in place.
+
+---
+
 ## L102 — Wrong-Project-Paste Recovery Pattern (Cross-Repo Working Discipline)
 
 **Established in R4-4 wrap** (2026-05-12). Meta-lesson on operating Claude Code across multiple repos in the same workstation: when a directive is pasted into the wrong session, the cheapest detection is a **ledger comparison** of the actual git log against what the directive expects.
