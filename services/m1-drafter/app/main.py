@@ -48,6 +48,7 @@ from .gates import (
     sendback as gate_sendback,
 )
 from .langgraph_workflow import run_workflow
+from .workflow_v2 import run_workflow_v2
 from .persistence import (
     delete_draft_completely,
     insert_version_snapshot,
@@ -155,11 +156,21 @@ def worker(job_id: str, params: dict) -> dict:
         created_at=ts,
     ))
 
-    # 2) Run workflow (synchronously inside the worker) — emits SSE events
+    # 2) Run workflow (synchronously inside the worker) — emits SSE events.
+    #    M1_DRAFTER_WORKFLOW_V2=1 routes to the R7.5 corpus-driven 15-node v2
+    #    workflow. Default (v1) is kept for backwards compatibility with the
+    #    M1 v1 deployment until the v2 smoke is signed off.
     event_count = 0
-    for event in run_workflow(state):
-        _publish_event(draft_id, event)
-        event_count += 1
+    use_v2 = os.environ.get("M1_DRAFTER_WORKFLOW_V2", "").lower() in ("1", "true", "yes")
+    if use_v2:
+        boq_skeleton = params.get("boq_skeleton") if isinstance(params, dict) else None
+        for event in run_workflow_v2(state, boq_skeleton=boq_skeleton):
+            _publish_event(draft_id, event)
+            event_count += 1
+    else:
+        for event in run_workflow(state):
+            _publish_event(draft_id, event)
+            event_count += 1
 
     # 3) Workflow complete: transition to TECHNICAL gate, version 2, snapshot
     state.current_gate = GateName.TECHNICAL

@@ -142,8 +142,14 @@ def gemini_call(
     temperature: float = 0.1,
     location: str = PRIMARY_LOCATION,
     system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = None,
 ) -> dict:
-    """Generic Gemini call. Returns parsed JSON if response_schema is provided, else text response."""
+    """Generic Gemini call. Returns parsed JSON if response_schema is provided, else text response.
+
+    thinking_budget: tokens reserved for 2.5 chain-of-thought. R7.4 lesson: Flash
+    consumed 285/300 tokens on thinking with the default budget. Pass 0 to disable
+    thinking entirely (recommended for BoQ batching and short structured output).
+    """
     body: dict[str, Any] = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -151,6 +157,8 @@ def gemini_call(
             "temperature": temperature,
         },
     }
+    if thinking_budget is not None:
+        body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": thinking_budget}
     if system_instruction:
         body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
     if response_schema:
@@ -199,8 +207,10 @@ def gemini_flash(
     temperature: float = 0.1,
     location: str = PRIMARY_LOCATION,
     system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = 0,
 ) -> dict:
-    """Cheap, fast — for BoQ line items + retrieval helpers."""
+    """Cheap, fast — for BoQ line items + retrieval helpers.
+    Defaults thinking_budget=0 (Flash thinking is rarely useful for structured BoQ output)."""
     return gemini_call(
         model_id=FLASH_MODEL_ID,
         prompt=prompt,
@@ -209,6 +219,7 @@ def gemini_flash(
         temperature=temperature,
         location=location,
         system_instruction=system_instruction,
+        thinking_budget=thinking_budget,
     )
 
 
@@ -220,8 +231,10 @@ def gemini_pro(
     temperature: float = 0.2,
     location: str = PRIMARY_LOCATION,
     system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = None,
 ) -> dict:
-    """Reasoning — for PCC clause overrides, complex Section VI adaptations."""
+    """Reasoning — for PCC clause overrides, complex Section VI adaptations.
+    Default thinking_budget=None means Pro decides; pass an explicit value to cap."""
     return gemini_call(
         model_id=PRO_MODEL_ID,
         prompt=prompt,
@@ -230,6 +243,7 @@ def gemini_pro(
         temperature=temperature,
         location=location,
         system_instruction=system_instruction,
+        thinking_budget=thinking_budget,
     )
 
 
