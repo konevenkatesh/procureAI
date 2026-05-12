@@ -3170,3 +3170,62 @@ Methodology catches (forward-applicable):
 7. **`.gcloudignore` at repo root** keeps Cloud Build context lean (3.8 MiB instead of 100+ MiB) by skipping `.env`, `.venv`, `node_modules`, `data/`, `source_documents/`, `frontend/.next/`, `experiments/`, large parquet/sqlite files.
 
 End-to-end verified: POST `/m4/run` → 202 + job_id → poll `/jobs/{id}` → DONE in ~2 seconds (Cloud Run cold-start + Cloud Tasks dispatch + Supabase PATCH). All 4 services pass `/health` and full pipeline.
+
+
+## L96 — Custom Domain via Global HTTPS Load Balancer + Serverless NEG (legacy domain-mappings unsupported in asia-south1)
+
+`gcloud beta run domain-mappings create --region=asia-south1` returns `501 UNIMPLEMENTED — Creating domain mappings is not allowed in asia-south1`. Legacy region-locked Cloud Run domain mapping is only available in a subset of regions (mostly US/EU). For asia-south1 the supported path is a Global External HTTPS Load Balancer in front of a serverless NEG.
+
+7-resource stack created in `procureai-prod`:
+- Global static IPv4 `procureai-frontend-ip` (`34.102.134.26`)
+- Serverless NEG `procureai-frontend-neg` (asia-south1 → `procure-ai-frontend`)
+- Global backend service `procureai-frontend-backend` (`EXTERNAL_MANAGED` scheme)
+- URL map `procureai-frontend-url-map`
+- Google-managed SSL cert `procureai-frontend-cert` (auto-renewing once DNS resolves)
+- Target HTTPS proxy `procureai-frontend-https-proxy`
+- Global forwarding rule `procureai-frontend-https` (TCP 443)
+
+Methodology catches (forward-applicable):
+
+1. **DNS record type flips: A record, not CNAME.** Legacy domain-mappings give a `ghs.googlehosted.com` CNAME; the LB path gives a static IPv4 that requires an A record. The original workflow's "CNAME" was an inherited assumption — when targeting asia-south1, always plan for A records to the LB static IP.
+2. **Domain ownership verification at Search Console (TXT record) precedes the LB cert.** Google-managed certs require the apex domain to be verified at https://search.google.com/search-console *before* the cert provisioner will mint a cert. Verify the parent (`bimsaarthi.com` via "Domain" property, not "URL prefix") once; covers every future subdomain.
+3. **Cert provisioning lag is 10–60 min after DNS goes live.** Status field is `managed.status`. Until `ACTIVE`, `https://...` returns SSL errors. Monitor:
+   ```bash
+   gcloud compute ssl-certificates describe procureai-frontend-cert \
+     --global --format="value(managed.status,managed.domainStatus)"
+   ```
+4. **Cost trade-off vs. default `*.run.app` URL.** The LB stack costs ~₹1,800/month (forwarding rule + LB rule + ~5GB egress baseline). The `*.run.app` URL is free, supports HTTPS, and works the same. For demos that don't need the custom domain, skip the LB entirely.
+5. **`bimsaarthi.com` DNS lives at GoDaddy (`ns53/ns54.domaincontrol.com`), not Zoho.** Zoho is the email provider only. Any DNS edits go at GoDaddy DNS Management. The original workflow's "Zoho CNAME update" was wrong on two counts (provider and record type).
+
+
+## L97 — Frontend → Backend Wiring via Metadata-Server ID Tokens (Cloud Run service-to-service auth)
+
+GCP-4 of the migration. Frontend (`procure-ai-frontend`) calls 4 backend services (`m1-drafter` / `m2-validator` / `m3-evaluator` / `m4-communicator`) which are all deployed `--no-allow-unauthenticated`. The Next.js API routes mint per-request ID tokens via the GCP metadata server.
+
+Pattern (in `frontend/lib/cloudRun.ts`):
+```typescript
+const r = await fetch(
+  `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${BACKEND_URL}`,
+  { headers: { "Metadata-Flavor": "Google" } },
+);
+const idToken = await r.text();
+// then: Authorization: Bearer ${idToken}
+```
+
+Methodology catches:
+
+1. **`audience` MUST be the exact backend URL with no trailing slash.** Cloud Run validates the `aud` claim against its own URL. Mismatch → 401. We normalize with `url.replace(/\/+$/, "")` to be safe.
+2. **Token is fetched per-request, not cached.** Tokens are 1-hour JWTs; for the cost of one ~200ms call per request, you avoid expiry tracking and refresh logic. If RPS goes high, cache per-(audience, runtime) with a 50-min TTL.
+3. **`http://metadata.google.internal` is reachable ONLY inside a GCE/Cloud Run runtime.** Locally (`npm run dev`) the host doesn't resolve. Return `null` from `getIdToken()` on failure and let the route handler 503 with a clear message — don't try to fall back to gcloud user creds in a Next.js server context.
+4. **`runtime: "nodejs"` on every API route.** Next.js 14 defaults to Edge runtime for some patterns; metadata-server fetch needs full Node fetch (DNS resolution to `metadata.google.internal`).
+5. **Runtime SA needs `roles/run.invoker` on each backend service** (granted in GCP-2.8). Without it, the metadata token is valid but Cloud Run rejects with 403.
+6. **Polling cadence: 2 seconds**, client-side, in `JobRunner.tsx`. Stop on `{done: true}`. Total bandwidth per running job: ~50 KB/min, well under any limit. SSE upgrade path: replace `GET /api/jobs/...` with a streaming `ReadableStream` that pushes one JSON line per backend poll; client uses `EventSource`. Noted in the route comment.
+7. **Job state is owned by Supabase, not by the Next.js server.** This means the frontend can survive a Cloud Run revision swap mid-job; the poll keeps working because it just re-fetches from Supabase via the new backend revision. No in-memory state to lose.
+8. **SSR/Server Component vs Client Component split.** The 4 module pages stay Server Components (fast first paint with Supabase data); the new run-and-poll widgets are Client Components (`"use client"`). The split keeps the existing page-data fetches working unchanged.
+
+End-to-end verified post-deploy on all 4 modules:
+- POST `/api/m1/draft`, `/api/m2/validate`, `/api/m3/evaluate`, `/api/m4/communicate` → 202 + job_id + poll_url
+- GET `/api/jobs/{module}/{job_id}` → DONE on first poll (~2-3s)
+- All 4 module pages `/module{1..4}` return HTTP 200
+
+Sentinel preserved: 154 ValidationFinding / 75 Communication unchanged. Job rows (new node_type) additive.
