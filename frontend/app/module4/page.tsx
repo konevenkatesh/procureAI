@@ -5,6 +5,8 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { fetchAll } from "@/lib/supabase";
 import { MessageSquare, ArrowRight, Sparkles } from "lucide-react";
 import PipelineLauncher from "@/components/PipelineLauncher";
+import ClarificationLauncher from "@/components/ClarificationLauncher";
+import RegionBadge from "@/components/RegionBadge";
 
 export const revalidate = 60;
 
@@ -64,6 +66,10 @@ export default async function Module4Page({ searchParams }: { searchParams: Sear
           bilingual EN+TE via Sarvam-M with DPDP pseudonymisation. Internal communications stay
           English-only.
         </p>
+        <div className="mt-4 flex items-center gap-3">
+          <ClarificationLauncher />
+          <RegionBadge />
+        </div>
       </header>
 
       <section className="mb-6">

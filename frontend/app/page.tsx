@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { WorkflowDiagram } from "@/components/workflow-diagram";
 import { countRows } from "@/lib/supabase";
 import { Users, FileCheck2, GavelIcon, BookOpenCheck, ExternalLink } from "lucide-react";
+import RegionBadge from "@/components/RegionBadge";
 
 export const revalidate = 60;
 
@@ -34,8 +35,11 @@ export default async function DashboardPage() {
     <div className="p-8 md:p-10">
       {/* Hero */}
       <header className="mb-8">
-        <div className="text-xs font-bold text-saffron-700 tracking-widest mb-2">
-          BIMSAARTHI TECHNOLOGIES · GOVERNMENT OF ANDHRA PRADESH
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <div className="text-xs font-bold text-saffron-700 tracking-widest">
+            BIMSAARTHI TECHNOLOGIES · GOVERNMENT OF ANDHRA PRADESH
+          </div>
+          <RegionBadge />
         </div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-ink-900 mb-2">
           ProcureAI — AP State Procurement Platform
