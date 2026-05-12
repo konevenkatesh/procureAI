@@ -729,8 +729,9 @@ def run_workflow_v2(
                     # wall-clock guards).
                     from .boq_generator import (
                         BoQSkeletonRow, ProjectContext, classify_discipline,
-                        _run_batch,
+                        run_batches_parallel,
                     )
+                    max_concurrent = int(os.environ.get("M1_BOQ_MAX_CONCURRENT", "10"))
                     project_ctx = ProjectContext(
                         project_name=state.enquiry_particulars.name_of_project,
                         discipline_hint=_discipline_hint_for_state(state),
@@ -764,46 +765,53 @@ def run_workflow_v2(
                         for rows in buckets.values()
                     )
                     yield _field_update("_boq_batch_plan", {
-                        "n_batches": n_batches_total,
-                        "n_rows":    len(norm_rows),
-                        "buckets":   {d: len(r) for d, r in buckets.items()},
+                        "n_batches":       n_batches_total,
+                        "n_rows":          len(norm_rows),
+                        "max_concurrent":  max_concurrent,
+                        "buckets":         {d: len(r) for d, r in buckets.items()},
                     }, node)
 
+                    # R8.6 — pre-build the (batch_idx, discipline, rows, exemplars) tuples
+                    # for the parallel runner. Exemplars are retrieved once per discipline.
+                    pending_batches = []
+                    exemplars_by_disc: dict[str, list] = {}
                     for discipline, rows in buckets.items():
                         retrieval_disc = discipline if discipline != "Unknown" else "Civil"
-                        exemplars = retrieve_tech_templates_pgvector(
+                        exemplars_by_disc[discipline] = retrieve_tech_templates_pgvector(
                             retrieval_disc, retrieval_disc, top_k=8,
                         )
                         for start in range(0, len(rows), BATCH_SIZE):
                             batch = rows[start:start + BATCH_SIZE]
                             batch_idx += 1
-                            yield _ev_boq_batch_started(batch_idx, discipline, len(batch), node)
-                            t_batch = time.time()
-                            try:
-                                enriched = _run_batch(batch, project_ctx, exemplars, discipline)
-                            except Exception as e:
-                                logger.error(f"  batch {batch_idx} ({discipline}) failed: {e}")
-                                from .boq_generator import _stub_row
-                                enriched = [_stub_row(r, discipline) for r in batch]
-                            batch_ms = int((time.time() - t_batch) * 1000)
-                            from .boq_generator import _LAST_BATCH_USAGE
-                            yield _ev_llm_call(
-                                _LAST_BATCH_USAGE.get("model", "gemini-2.5-flash"),
-                                node, _LAST_BATCH_USAGE, batch_ms,
+                            pending_batches.append(
+                                (batch_idx, discipline, batch, exemplars_by_disc[discipline])
                             )
-                            # Yield row events progressively
-                            for er in enriched:
-                                enriched_all.append(er)
-                                yield _ev_boq_item_complete(er, batch_idx, node)
-                                yield {
-                                    "type":  "table_row_added",
-                                    "table": "boq",
-                                    "row":   BoQRow(
-                                        s_no=er.sno, item=er.short_desc, qty=er.est_qty,
-                                        unit=er.uom, rate=(er.rate_inr or None), amount=None,
-                                    ).model_dump(),
-                                    "node":  node.value,
-                                }
+                            # Emit the batch_started up-front so the SSE consumer
+                            # sees N batches kicked off concurrently.
+                            yield _ev_boq_batch_started(batch_idx, discipline, len(batch), node)
+
+                    # R8.6 — drive the runner; results stream as each batch finishes.
+                    runner = run_batches_parallel(
+                        pending_batches, project_ctx,
+                        max_concurrent=max_concurrent,
+                    )
+                    for (bidx, disc, enriched, usage) in runner:
+                        yield _ev_llm_call(
+                            usage.get("model", "gemini-2.5-flash"),
+                            node, usage, usage.get("elapsed_ms", 0),
+                        )
+                        for er in enriched:
+                            enriched_all.append(er)
+                            yield _ev_boq_item_complete(er, bidx, node)
+                            yield {
+                                "type":  "table_row_added",
+                                "table": "boq",
+                                "row":   BoQRow(
+                                    s_no=er.sno, item=er.short_desc, qty=er.est_qty,
+                                    unit=er.uom, rate=(er.rate_inr or None), amount=None,
+                                ).model_dump(),
+                                "node":  node.value,
+                            }
 
                     # Persist BoQ on state (downgraded to BoQRow shape)
                     state.boq = [

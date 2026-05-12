@@ -1,18 +1,24 @@
-"""R7.4 — Vertex AI hybrid clients.
+"""R7.4 + R8.6 — Vertex AI clients (Gemini-only after R8.6 user decision).
 
-Three model wrappers:
-  - gemini_flash():    cheap, fast — BoQ line item generation in batches
-  - gemini_pro():      reasoning — PCC clause overrides, complex Section VI adaptations
-  - claude_sonnet():   fallback when Gemini structured-output drifts (Claude Sonnet 4 via Vertex AI Model Garden)
+Model wrappers:
+  - gemini_flash() / gemini_flash_async(): BoQ line item generation in batches
+  - gemini_pro()   / gemini_pro_async():   PCC clause overrides, Section VI adaptations.
+                                            Also acts as Flash-drift fallback (R8.6,
+                                            replacing the removed Sonnet path).
 
 Auth:
   - Local dev: gcloud user creds via `gcloud auth print-access-token`
   - Cloud Run: runtime SA (procure-ai-runtime) via metadata server
 
-All clients return structured output via Pydantic schema validation (response_schema for Gemini,
-manual JSON parsing for Claude). No API keys — pure REST + token-based auth.
+All clients return structured output via Pydantic schema validation
+(response_schema). No API keys — pure REST + token-based auth.
 
-Also includes embed_text() for Vertex AI text-embedding-005 (768-dim).
+R8.6: Anthropic Sonnet-4-via-Vertex-Model-Garden removed entirely. The user's
+project lacked Anthropic publisher access on Vertex Model Garden, so every
+fallback attempt returned 404. Replaced with Gemini Pro as the drift fallback —
+the gemini-2.5-pro structured-output is robust enough on its own.
+
+Also includes embed_text() / embed_texts_batch() for Vertex AI text-embedding-005 (768-dim).
 """
 from __future__ import annotations
 
@@ -39,7 +45,6 @@ ASIA_LOCATION = "asia-south1"                                            # for e
 
 FLASH_MODEL_ID = "gemini-2.5-flash"
 PRO_MODEL_ID = "gemini-2.5-pro"
-SONNET_MODEL_ID = "claude-sonnet-4@20250514"                             # Vertex Model Garden id
 EMBEDDING_MODEL_ID = "text-embedding-005"
 
 
@@ -91,14 +96,6 @@ def _vertex_url(location: str, model_id: str, action: str = "generateContent") -
     return (
         f"https://{location}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}"
         f"/locations/{location}/publishers/google/models/{model_id}:{action}"
-    )
-
-
-def _anthropic_vertex_url(location: str, model_id: str) -> str:
-    """Build Vertex AI Model Garden URL for Claude (publisher=anthropic)."""
-    return (
-        f"https://{location}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}"
-        f"/locations/{location}/publishers/anthropic/models/{model_id}:rawPredict"
     )
 
 
@@ -295,76 +292,133 @@ def gemini_pro(
     )
 
 
-# ─── Claude Sonnet 4 fallback (Vertex AI Model Garden) ───────────────
+# ─── Async variants (R8.6) — httpx.AsyncClient for parallel batching ──
 
 
-def claude_sonnet(
-    prompt: str,
-    *,
-    max_tokens: int = 4096,
-    temperature: float = 0.2,
-    system: Optional[str] = None,
-    response_schema: Optional[Type[BaseModel]] = None,
-    location: str = "us-east5",  # Claude is available in us-east5 on Vertex Model Garden
-) -> dict:
-    """Claude Sonnet 4 via Vertex AI Model Garden (publisher=anthropic).
-    Use as fallback when Gemini structured-output drifts."""
-    # Anthropic Messages API shape
-    body: dict[str, Any] = {
-        "anthropic_version": "vertex-2023-10-16",
-        "max_tokens":        max_tokens,
-        "temperature":       temperature,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    if system:
-        body["system"] = system
-
-    # If a schema is provided, append "Return JSON matching this schema: ..." to the prompt.
-    # Anthropic native structured output via tool_use is overkill for our needs.
-    if response_schema:
-        schema_str = json.dumps(response_schema.model_json_schema(), indent=2)
-        body["messages"][0]["content"] += (
-            f"\n\nRespond ONLY with a JSON object matching this schema:\n```json\n{schema_str}\n```"
+async def _post_json_async(url: str, body: dict, timeout: int = 180) -> dict:
+    """Async sibling of _post_json — used by run_batches_parallel for concurrent
+    Flash calls. Reads metadata-server / gcloud token via the same cached path
+    (token fetch is not awaited; the sync path is fast enough)."""
+    import httpx
+    token = _get_token()
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+        resp = await client.post(
+            url,
+            json=body,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
         )
+        if resp.status_code >= 400:
+            text = resp.text
+            raise RuntimeError(f"HTTP {resp.status_code}: {text[:500]}")
+        return resp.json()
 
-    url = _anthropic_vertex_url(location, SONNET_MODEL_ID)
+
+async def gemini_call_async(
+    *,
+    model_id: str,
+    prompt: str,
+    response_schema: Optional[Type[BaseModel]] = None,
+    max_output_tokens: int = 2048,
+    temperature: float = 0.1,
+    location: str = PRIMARY_LOCATION,
+    system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = None,
+) -> dict:
+    """Async sibling of gemini_call. Same shape/contract."""
+    body: dict[str, Any] = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_output_tokens,
+            "temperature": temperature,
+        },
+    }
+    if thinking_budget is not None:
+        body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": thinking_budget}
+    if system_instruction:
+        body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+    if response_schema:
+        body["generationConfig"]["responseMimeType"] = "application/json"
+        body["generationConfig"]["responseSchema"] = _pydantic_to_response_schema(response_schema)
+
+    url = _vertex_url(location, model_id)
+    resp = await _post_json_async(url, body, timeout=180)
+
     try:
-        resp = _post_json(url, body, timeout=180)
-    except RuntimeError as e:
-        # If us-east5 unavailable, try us-central1
-        if "us-east5" in str(e) or "404" in str(e):
-            url = _anthropic_vertex_url(PRIMARY_LOCATION, SONNET_MODEL_ID)
-            resp = _post_json(url, body, timeout=180)
-        else:
-            raise
+        cand = resp["candidates"][0]
+        parts = cand.get("content", {}).get("parts", [])
+        text = "".join(p.get("text", "") for p in parts)
+    except (KeyError, IndexError) as e:
+        raise RuntimeError(f"Unexpected Gemini response shape: {resp}") from e
 
-    text = "".join(c.get("text", "") for c in resp.get("content", []))
-    usage = resp.get("usage", {})
-
+    usage = resp.get("usageMetadata", {})
     out: dict[str, Any] = {
         "text":              text,
-        "prompt_tokens":     usage.get("input_tokens", 0),
-        "completion_tokens": usage.get("output_tokens", 0),
-        "total_tokens":      usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
-        "model_version":     resp.get("model", SONNET_MODEL_ID),
+        "prompt_tokens":     usage.get("promptTokenCount", 0),
+        "completion_tokens": usage.get("candidatesTokenCount", 0),
+        "thought_tokens":    usage.get("thoughtsTokenCount", 0),
+        "total_tokens":      usage.get("totalTokenCount", 0),
+        "model_version":     resp.get("modelVersion", model_id),
         "raw":               resp,
     }
+
     if response_schema:
         try:
-            # Strip code fences if present
-            cleaned = text.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("```", 2)[1]
-                if cleaned.startswith("json"):
-                    cleaned = cleaned[4:].strip()
-            parsed = json.loads(cleaned)
+            parsed = json.loads(text)
             out["parsed"] = response_schema.model_validate(parsed)
             out["parse_ok"] = True
-        except (json.JSONDecodeError, ValidationError, IndexError) as e:
+        except (json.JSONDecodeError, ValidationError) as e:
             out["parsed"] = None
             out["parse_ok"] = False
             out["parse_error"] = str(e)
     return out
+
+
+async def gemini_flash_async(
+    prompt: str,
+    *,
+    response_schema: Optional[Type[BaseModel]] = None,
+    max_output_tokens: int = 2048,
+    temperature: float = 0.1,
+    location: str = PRIMARY_LOCATION,
+    system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = 0,
+) -> dict:
+    return await gemini_call_async(
+        model_id=FLASH_MODEL_ID,
+        prompt=prompt,
+        response_schema=response_schema,
+        max_output_tokens=max_output_tokens,
+        temperature=temperature,
+        location=location,
+        system_instruction=system_instruction,
+        thinking_budget=thinking_budget,
+    )
+
+
+async def gemini_pro_async(
+    prompt: str,
+    *,
+    response_schema: Optional[Type[BaseModel]] = None,
+    max_output_tokens: int = 4096,
+    temperature: float = 0.2,
+    location: str = PRIMARY_LOCATION,
+    system_instruction: Optional[str] = None,
+    thinking_budget: Optional[int] = None,
+) -> dict:
+    """R8.6 — async Pro is also the Flash-drift fallback (replaces removed Sonnet)."""
+    return await gemini_call_async(
+        model_id=PRO_MODEL_ID,
+        prompt=prompt,
+        response_schema=response_schema,
+        max_output_tokens=max_output_tokens,
+        temperature=temperature,
+        location=location,
+        system_instruction=system_instruction,
+        thinking_budget=thinking_budget,
+    )
 
 
 # ─── Embeddings ──────────────────────────────────────────────────────

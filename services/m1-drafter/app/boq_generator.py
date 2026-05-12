@@ -14,8 +14,15 @@ Two stages:
          b. For each cluster: top-K=8 TechSpecTemplate retrieval via pgvector on
             'item_name + project_context.discipline_hint'.
          c. Stuff top-K templates into the prompt as exemplars, then ask
-            Gemini Flash to fill 30 rows at a time with structured output.
-         d. Fallback to claude_sonnet() if parse_ok=False after 1 retry.
+            Gemini Flash to fill 15 rows at a time with structured output.
+         d. R8.6: Fallback to Gemini Pro on Flash drift (3 consecutive parse fails
+            on same discipline). Sonnet path removed per user decision.
+
+  3. run_batches_parallel(batches, max_concurrent=10)  [R8.6]
+       → bridges async batching into sync workflow via threading.Queue. Uses
+         asyncio.Semaphore + tenacity exponential backoff. Yields per-batch
+         results as they complete (not at-end), so the workflow generator
+         can stream events progressively.
 
 The 30-item batch size is the empirically-derived sweet spot:
   - 30 × ~12k spec_tokens × 0.075 USD/1M = $0.027/batch on Flash
@@ -487,12 +494,43 @@ def generate_boq_specs(
                 yield out_row
 
 
-# Module-level skip flag: if Sonnet 404s once (e.g. project lacks
-# Model Garden access for Anthropic publisher), don't retry per-batch.
-_SONNET_SKIP_AFTER_404 = {"skip": False}
-
+# R8.6 — track consecutive parse failures per-discipline to decide when
+# to flip from Flash to Pro on subsequent batches in the same discipline.
+_FLASH_FAILS_BY_DISCIPLINE: dict[str, int] = {}
+_FLASH_DRIFT_THRESHOLD = 3
 
 _LAST_BATCH_USAGE: dict = {}  # mutable holder for the workflow to read
+
+
+def _apply_skeleton_to_response(parsed: "BoQBatchResponse",
+                                skeleton_rows: list[BoQSkeletonRow],
+                                discipline: str) -> list[BoQItemOutput]:
+    """Merge LLM response back onto the original skeleton (enforce s_no/qty/unit/item_name)."""
+    by_sno = {r.sno: r for r in parsed.rows}
+    out: list[BoQItemOutput] = []
+    for sk in skeleton_rows:
+        if sk.s_no in by_sno:
+            row = by_sno[sk.s_no].model_copy(update={
+                "item_name": sk.item_name,
+                "est_qty":   sk.qty,
+                "uom":       sk.unit,
+                "sno":       sk.s_no,
+            })
+            out.append(row)
+        else:
+            out.append(_stub_row(sk, discipline))
+    return out
+
+
+def _record_usage(model: str, resp: dict, elapsed_ms: int) -> None:
+    _LAST_BATCH_USAGE.clear()
+    _LAST_BATCH_USAGE.update({
+        "model":             model,
+        "prompt_tokens":     resp.get("prompt_tokens", 0),
+        "completion_tokens": resp.get("completion_tokens", 0),
+        "thought_tokens":    resp.get("thought_tokens", 0),
+        "elapsed_ms":        elapsed_ms,
+    })
 
 
 def _run_batch(
@@ -501,97 +539,214 @@ def _run_batch(
     exemplars: list[TechSpecTemplate],
     discipline: str,
 ) -> list[BoQItemOutput]:
-    """Single Flash call; falls back to Claude Sonnet on parse failure
-    UNLESS Sonnet has already 404'd once in this process (then straight to stubs).
+    """Sync sibling of _run_batch_async — kept for the existing sync workflow_v2 path.
 
-    Token usage from the most recent Flash call is recorded into
-    _LAST_BATCH_USAGE so the workflow generator can emit an accurate
-    llm_call event after each batch (without changing this function's
-    return signature, which is consumed by older code paths).
+    Flash with 12288 output cap; on parse fail falls back to Gemini Pro
+    (R8.6: replaces the removed Sonnet path). If Flash drifts ≥3 times in a row
+    on the same discipline, subsequent batches in that discipline go straight
+    to Pro.
     """
-    # Lazy-import to avoid circular and to let smoke tests stub it
-    from .vertex_client import gemini_flash, claude_sonnet
+    from .vertex_client import gemini_flash, gemini_pro
 
     prompt = build_batch_prompt(skeleton_rows, project_ctx, exemplars, discipline)
+    use_pro = _FLASH_FAILS_BY_DISCIPLINE.get(discipline, 0) >= _FLASH_DRIFT_THRESHOLD
+
     t0 = time.time()
-    # 15-row batch × ~300 output tokens each = ~4500; cap at 12288 for safety
-    resp = gemini_flash(
-        prompt,
-        response_schema=BoQBatchResponse,
-        max_output_tokens=12288,
-        temperature=0.15,
-        system_instruction=_BOQ_BATCH_SYSTEM,
-        thinking_budget=0,               # R7.4 lesson: hard-disable thinking
-    )
+    if use_pro:
+        logger.info(f"  Pro batch ({discipline}, {len(skeleton_rows)} rows) — Flash drift threshold hit")
+        resp = gemini_pro(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM,
+        )
+        model_used = "gemini-2.5-pro"
+    else:
+        resp = gemini_flash(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM, thinking_budget=0,
+        )
+        model_used = "gemini-2.5-flash"
     elapsed_ms = int((time.time() - t0) * 1000)
     logger.info(
-        f"  Flash batch ({discipline}, {len(skeleton_rows)} rows) — "
-        f"{resp['prompt_tokens']}→{resp['completion_tokens']} tokens, {elapsed_ms}ms"
+        f"  {model_used} batch ({discipline}, {len(skeleton_rows)} rows) — "
+        f"{resp.get('prompt_tokens')}→{resp.get('completion_tokens')} tokens, {elapsed_ms}ms"
     )
-    _LAST_BATCH_USAGE.clear()
-    _LAST_BATCH_USAGE.update({
-        "model": "gemini-2.5-flash",
+    _record_usage(model_used, resp, elapsed_ms)
+
+    parsed = resp.get("parsed")
+    if resp.get("parse_ok") and isinstance(parsed, BoQBatchResponse) and parsed.rows:
+        _FLASH_FAILS_BY_DISCIPLINE[discipline] = 0
+        return _apply_skeleton_to_response(parsed, skeleton_rows, discipline)
+
+    # Drift — bump counter and try Pro immediately as fallback
+    _FLASH_FAILS_BY_DISCIPLINE[discipline] = _FLASH_FAILS_BY_DISCIPLINE.get(discipline, 0) + 1
+    logger.warning(
+        f"  {model_used} parse failed ({resp.get('parse_error')}); "
+        f"discipline={discipline} consec_fails={_FLASH_FAILS_BY_DISCIPLINE[discipline]}; trying Pro"
+    )
+    try:
+        t1 = time.time()
+        pro_resp = gemini_pro(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM,
+        )
+        pro_ms = int((time.time() - t1) * 1000)
+        _record_usage("gemini-2.5-pro", pro_resp, pro_ms)
+        if pro_resp.get("parse_ok"):
+            return _apply_skeleton_to_response(pro_resp["parsed"], skeleton_rows, discipline)
+    except Exception as e:
+        logger.error(f"  Pro fallback failed: {e}")
+
+    return [_stub_row(r, discipline) for r in skeleton_rows]
+
+
+# ─── R8.6 — async batch + parallel runner ────────────────────────────
+
+
+async def _run_batch_async(
+    skeleton_rows: list[BoQSkeletonRow],
+    project_ctx: ProjectContext,
+    exemplars: list[TechSpecTemplate],
+    discipline: str,
+    *,
+    force_pro: bool = False,
+) -> tuple[list[BoQItemOutput], dict]:
+    """Async sibling of _run_batch. Returns (rows, usage_dict).
+    Wrapped by run_batches_parallel for asyncio.gather concurrency."""
+    from .vertex_client import gemini_flash_async, gemini_pro_async
+    prompt = build_batch_prompt(skeleton_rows, project_ctx, exemplars, discipline)
+    use_pro = force_pro or _FLASH_FAILS_BY_DISCIPLINE.get(discipline, 0) >= _FLASH_DRIFT_THRESHOLD
+
+    t0 = time.time()
+    if use_pro:
+        resp = await gemini_pro_async(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM,
+        )
+        model_used = "gemini-2.5-pro"
+    else:
+        resp = await gemini_flash_async(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM, thinking_budget=0,
+        )
+        model_used = "gemini-2.5-flash"
+    elapsed_ms = int((time.time() - t0) * 1000)
+    usage = {
+        "model": model_used,
         "prompt_tokens":     resp.get("prompt_tokens", 0),
         "completion_tokens": resp.get("completion_tokens", 0),
         "thought_tokens":    resp.get("thought_tokens", 0),
         "elapsed_ms":        elapsed_ms,
-    })
+    }
 
     parsed = resp.get("parsed")
     if resp.get("parse_ok") and isinstance(parsed, BoQBatchResponse) and parsed.rows:
-        # Preserve order by s_no; fill any missing rows with stubs.
-        by_sno = {r.sno: r for r in parsed.rows}
-        out: list[BoQItemOutput] = []
-        for sk in skeleton_rows:
-            if sk.s_no in by_sno:
-                row = by_sno[sk.s_no]
-                # Hard-enforce that input qty / unit / item_name are preserved
-                row = row.model_copy(update={
-                    "item_name": sk.item_name,
-                    "est_qty":   sk.qty,
-                    "uom":       sk.unit,
-                    "sno":       sk.s_no,
-                })
-                out.append(row)
-            else:
-                out.append(_stub_row(sk, discipline))
-        return out
+        _FLASH_FAILS_BY_DISCIPLINE[discipline] = 0
+        return _apply_skeleton_to_response(parsed, skeleton_rows, discipline), usage
 
-    # Parse fail → try Claude Sonnet 4 once as structured-output fallback
-    if _SONNET_SKIP_AFTER_404["skip"]:
-        logger.warning(f"  Flash parse failed ({resp.get('parse_error')}); Sonnet skipped (prior 404)")
-        return [_stub_row(r, discipline) for r in skeleton_rows]
-    logger.warning(f"  Flash parse failed ({resp.get('parse_error')}); falling back to Sonnet")
+    _FLASH_FAILS_BY_DISCIPLINE[discipline] = _FLASH_FAILS_BY_DISCIPLINE.get(discipline, 0) + 1
+    logger.warning(f"  {model_used} parse failed (async, {discipline}); trying Pro")
     try:
-        sonnet = claude_sonnet(
-            prompt,
-            response_schema=BoQBatchResponse,
-            max_tokens=8192,
-            temperature=0.15,
-            system=_BOQ_BATCH_SYSTEM,
+        t1 = time.time()
+        pro_resp = await gemini_pro_async(
+            prompt, response_schema=BoQBatchResponse,
+            max_output_tokens=12288, temperature=0.15,
+            system_instruction=_BOQ_BATCH_SYSTEM,
         )
-        if sonnet.get("parse_ok"):
-            sparsed = sonnet["parsed"]
-            by_sno = {r.sno: r for r in sparsed.rows}
-            out = []
-            for sk in skeleton_rows:
-                if sk.s_no in by_sno:
-                    row = by_sno[sk.s_no].model_copy(update={
-                        "item_name": sk.item_name, "est_qty": sk.qty,
-                        "uom": sk.unit, "sno": sk.s_no,
-                    })
-                    out.append(row)
-                else:
-                    out.append(_stub_row(sk, discipline))
-            return out
+        pro_ms = int((time.time() - t1) * 1000)
+        pro_usage = {
+            "model":             "gemini-2.5-pro",
+            "prompt_tokens":     pro_resp.get("prompt_tokens", 0),
+            "completion_tokens": pro_resp.get("completion_tokens", 0),
+            "thought_tokens":    pro_resp.get("thought_tokens", 0),
+            "elapsed_ms":        pro_ms,
+        }
+        if pro_resp.get("parse_ok"):
+            return _apply_skeleton_to_response(pro_resp["parsed"], skeleton_rows, discipline), pro_usage
     except Exception as e:
-        logger.error(f"  Sonnet fallback also failed: {e}")
-        if "404" in str(e) or "NOT_FOUND" in str(e):
-            _SONNET_SKIP_AFTER_404["skip"] = True
-            logger.warning("  Sonnet 404 — skipping Sonnet for all subsequent batches in this run")
+        logger.error(f"  Pro async fallback failed: {e}")
 
-    # Last resort: stub rows so the BoQ still has the officer's skeleton
-    return [_stub_row(r, discipline) for r in skeleton_rows]
+    return [_stub_row(r, discipline) for r in skeleton_rows], usage
+
+
+def run_batches_parallel(
+    batches: list,
+    project_ctx: ProjectContext,
+    *,
+    max_concurrent: int = 10,
+):
+    """Sync generator that drives async batches concurrently via threading.Queue.
+    Yields (batch_idx, discipline, enriched_rows, usage) tuples AS they complete.
+
+    batches: list of (batch_idx, discipline, skeleton_rows, exemplars) tuples.
+    max_concurrent: cap from M1_BOQ_MAX_CONCURRENT env var (default 10).
+
+    Tenacity exponential backoff on transient errors:
+      stop_after_attempt(3) + wait_exponential(base 2s, min 2, max 30).
+    """
+    import asyncio, queue, threading
+    try:
+        from tenacity import (
+            AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type,
+        )
+        _HAVE_TENACITY = True
+    except ImportError:
+        _HAVE_TENACITY = False
+        logger.warning("  tenacity not installed; using single-attempt async batching")
+
+    q: "queue.Queue[tuple]" = queue.Queue()
+
+    async def _one_batch(batch_idx, discipline, rows, exemplars, sem):
+        async with sem:
+            try:
+                if _HAVE_TENACITY:
+                    async for attempt in AsyncRetrying(
+                        stop=stop_after_attempt(3),
+                        wait=wait_exponential(multiplier=2, min=2, max=30),
+                        retry=retry_if_exception_type((RuntimeError, OSError)),
+                        reraise=True,
+                    ):
+                        with attempt:
+                            enriched, usage = await _run_batch_async(
+                                rows, project_ctx, exemplars, discipline,
+                            )
+                else:
+                    enriched, usage = await _run_batch_async(
+                        rows, project_ctx, exemplars, discipline,
+                    )
+                q.put(("ok", batch_idx, discipline, enriched, usage))
+            except Exception as e:
+                logger.error(f"  batch {batch_idx} ({discipline}) failed after retries: {e}")
+                stubs = [_stub_row(r, discipline) for r in rows]
+                q.put(("err", batch_idx, discipline, stubs, {"error": str(e)}))
+
+    async def _runner():
+        sem = asyncio.Semaphore(max_concurrent)
+        await asyncio.gather(*[
+            _one_batch(bi, disc, rows, exs, sem)
+            for (bi, disc, rows, exs) in batches
+        ])
+        q.put(("done", None, None, None, None))
+
+    def _thread_target():
+        try:
+            asyncio.run(_runner())
+        except Exception as e:
+            logger.exception(f"  parallel runner crashed: {e}")
+            q.put(("done", None, None, None, None))
+
+    t = threading.Thread(target=_thread_target, name="boq-parallel-runner", daemon=True)
+    t.start()
+    while True:
+        item = q.get()
+        if item[0] == "done":
+            break
+        yield item[1], item[2], item[3], item[4]
+    t.join(timeout=60)
 
 
 def _stub_row(sk: BoQSkeletonRow, discipline: str) -> BoQItemOutput:
