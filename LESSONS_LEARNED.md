@@ -1149,6 +1149,96 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L87 — Module 4 M4.4 Sarvam-M Telugu Integration with DPDP Pseudonymisation
+
+**Established in run-2 Sub-block 1** (2026-05-12). Telugu output landed for bidder-facing communications via Sarvam-M `/translate` API. DPDP pseudonymisation layer + filesystem cache ship together: PII never crosses the external API boundary; identical inputs produce identical cached translations.
+
+### Sarvam-M `/translate` endpoint details
+
+```
+POST https://api.sarvam.ai/translate
+Headers: api-subscription-key: <SARVAM_API_KEY>
+Body:
+  {
+    "input": "<text>",
+    "source_language_code": "en-IN",
+    "target_language_code": "te-IN",
+    "mode": "formal",
+    "speaker_gender": "Male"
+  }
+Response: { "translated_text": "<Telugu>" }
+```
+
+Practical observation: input limit ~1000-1500 chars per call. Communication letters run 3000-6500 chars → must chunk on paragraph boundaries (double newline). The shipped client splits on `\n\n` and falls back to sentence-level (`[.!?]\s+`) for paragraphs exceeding `MAX_CHARS_PER_REQUEST=900`.
+
+### DPDP pseudonymisation discipline (per DPDP Act 2023 §7 purpose limitation)
+
+Bidder PII MUST NOT cross the external API boundary. Mechanism:
+
+```
+1. _build_pseudonymisation_map(bidder_props, tender_info) returns:
+     [
+       ("M/s Comprehensive Standard Builders JV ...", "<COMPANY>"),
+       ("Mr. C. Comprehensive",                       "<SIGNATORY>"),
+       ("Plot 27, MVP Colony, Visakhapatnam-530017", "<ADDRESS>"),
+       ("bidder9@example.com",                        "<EMAIL>"),
+       ("AAACJ9999J",                                 "<PAN>"),
+       ("37AAACJ9999J9Z9",                            "<GSTIN>"),
+       ...
+     ]
+2. text_pseudonymised = pseudonymise(text_en, pairs)   # PII → tokens
+3. text_translated_pseudonymised = sarvam_translate(text_pseudonymised, "te-IN")
+4. text_te = restore_pseudonyms(text_translated_pseudonymised, pairs)  # tokens → PII
+```
+
+Pairs sorted **longest-first** so 'GSTIN' substitutes before 'GST' (avoid substring collisions). Restoration relies on Sarvam preserving the literal `<TOKEN>` strings — verified empirically across 78 API calls; zero tokens leaked through (`verify_no_pii_in_text` returns empty list on all 12 translated communications).
+
+### Cache layer (idempotency + cost control)
+
+Cache key = SHA256(target_lang + pseudonymised_chunk)[:32]. Cached files at `/tmp/sarvam_cache/<key>.json` carry source_en + translated_text + cached_at. Re-running the translator hits cache for every chunk → **0 API calls on idempotent re-run**.
+
+Cache hit rate within a single run: 10 of 88 chunks (11%) — chunks at the start of letters that share boilerplate (e.g. "Dear Sir/Madam," "Yours faithfully") cache once and reuse across letters. Higher hit rates expected as more drafters land.
+
+### Bilingual storage + status field
+
+Communication kg_node now carries:
+- `content_en` (always populated)
+- `content_te` (Telugu; populated only for bidder-facing types)
+- `content_te_status` enum: `rendered_via_sarvam_m` / `english_only_internal` / `translation_failed` / `translation_pending`
+- `language` enum: `EN` (internal communications) / `EN+TE` (bidder-facing translated)
+
+Internal types (CARTEL_REVIEW, INTERNAL_ROUTING) stay English-only — addressed to internal officers, not bidders. Marked `content_te_status="english_only_internal"`.
+
+### Sample output (B9×HC AWARD, first 400 chars of content_te)
+
+```
+# అవార్డు లేఖ - టెండర్ **తేదీ:** 2026-05-11 **To:** M/s Comprehensive
+Standard Builders JV (Premier Coastal + Northern Engineering + Southern
+Surveys) చిరునామా దృష్టి: Mr. C. Comprehensive టెక్స్ట్ః ఆంధ్రప్రదేశ్
+హైకోర్టు సముదాయం NIT సంఖ్య: HC/APCRDA/2026/PROC/001 అంచనా ఒప్పందం విలువ
+(ఇసివి): ₹365.16 కోట్లు
+```
+
+PII restored cleanly: "M/s Comprehensive Standard Builders JV..." appears verbatim (English-script company name in Telugu context, which is correct for legal-doc bilinguality).
+
+### Final state after M4.4
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| Communication.content_te populated | 0 | +12 | **12** |
+| Communication.content_te_status field | absent | populated | 12 |
+| Communication.language="EN+TE" | 0 | +12 | 12 |
+| Sarvam-M API calls (this run) | n/a | 78 | n/a |
+| Cache hits (this run) | n/a | 10 of 88 | n/a |
+| PII leaks detected | n/a | 0 | clean ✓ |
+| Module 3 sentinels | clean | unchanged | clean ✓ |
+
+### Forward-applicable
+
+The `_sarvam_client.py` module + DPDP pattern is reusable for any future bilingual communication (M4.5 new types + M4.6 Q&A workflow). Cost: 1 API call per ~900-char chunk per unique pseudonymised content; cached forever per unique input. Per-letter cost ~5-11 API calls (depending on length). At Sarvam's typical pricing (~₹0.5 per call), 100 communications ≈ ₹300-700 — economical for production.
+
+---
+
 ## L86 — Module 4 M4.3 Audit Log Discipline + DOCX Rendering
 
 **Established in autonomous overnight workflow Sub-block 4** (May 2026). M4.3 closes the Communication artifact lifecycle: every Communication kg_node now has both a `.md` AND a `.docx` artifact path populated, and the reverse-drilldown audit-trail query helper is shipped.
