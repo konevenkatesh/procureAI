@@ -1149,6 +1149,149 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L93 — Frontend Polish + Vercel Production Deploy
+
+**Established in run-2 Sub-block 7** (2026-05-12). Sub-block 7 ships About page, stub Module 1/2 views, OpenGraph image, favicon, footer, sitemap-ready meta. Final Vercel production URL: `https://procureai-frontend.vercel.app`.
+
+### About page coverage
+
+10 sections: project background, BIMSaarthi Technologies (DPIIT-registered, Mangalagiri Innovation Hub), 3 reference international systems (ALICE Czech, INACIA Brazil, AIPA Singapore), 5-layer tech stack, compliance posture (DPDP / CVC / AP-State / audit defensibility / bilingual), L65-L89 lessons archive index.
+
+### Module 1 + 2 stubs
+
+- Module 1 (Drafter): shows 3 Phase 1 demo tenders (Kurnool / JA / HC); disabled "Generate New Draft" CTA with "Coming in Phase 2" tooltip.
+- Module 2 (Validator): shows 154 ValidationFinding sentinel + 7 Tier-1 typologies + 3 rule layer breakdown; disabled "Validate New RFP" CTA.
+
+Both stubs render with real sentinel data via `countRows()` REST calls.
+
+### OG image via Next.js ImageResponse
+
+`app/opengraph-image.tsx` renders 1200×630 PNG at build time using `next/og` ImageResponse. Saffron→white→leaf gradient (Indian flag palette). Includes BIMSaarthi attribution + RTGS Hackathon 2026 tagline. Quirk caught: all sibling flex children need explicit `display: flex` set, otherwise ImageResponse throws "Expected <div> to have explicit display: flex". Fixed by wrapping each text block in its own flex div.
+
+### Vercel deploy debugging — environment variable wiring
+
+Significant time investment to debug Vercel env var loading. Root cause: `NEXT_PUBLIC_SUPABASE_URL` was initially set to the PostgreSQL connection string (`postgresql://...pooler.supabase.com:5432/postgres`) instead of the REST API URL (`https://hjhxcmfuivpsbhlagunr.supabase.co`). Browser `fetch()` rejects URLs with embedded credentials, so server-side fetches silently failed and pages rendered empty (0 counts everywhere).
+
+Diagnostic technique that worked:
+1. Created `/debug-env/route.ts` API endpoint returning `process.env.NEXT_PUBLIC_*` lengths + a sample fetch result
+2. Hit the endpoint, saw `env_url_length=114` (way too long for a REST URL)
+3. Saw `test_fetch.error` = "Request cannot be constructed from a URL that includes credentials" — diagnostic gold
+4. Realized I had wired the wrong env var; deleted via Vercel API, re-added with correct REST URL
+5. Pages immediately rendered all real data (12 bidders / 154 validations / 351 evaluations / 75 communications)
+
+Forward-applicable: when integrating Supabase frontend, use `SUPABASE_REST_URL` (the `https://<project>.supabase.co` form) for client REST calls, NOT the PG connection string. Vercel CLI's `vercel env add` is interactive and silently rejects piped stdin — use the Vercel REST API (`POST /v10/projects/<id>/env`) for non-interactive automation.
+
+### Final Vercel production URL
+
+**Production:** `https://procureai-frontend.vercel.app` (stable alias)
+**Deployment-specific URL:** `https://procureai-frontend-g6n2tjt0k-venkateshs-projects-eace5dd9.vercel.app` (current)
+
+All 9 pages return HTTP 200 with real data:
+- `/` Dashboard with 4-module workflow + stat cards
+- `/module1` Drafter (stub)
+- `/module2` Validator (stub)
+- `/module3` Tender index + 3 tender cards
+- `/module3/<tenderId>` Per-tender detail with 9-bidder participation table + 5-row ranking + anomaly findings
+- `/module3/<tenderId>/bidder/<bidderId>` Per-bidder evaluation with 13-criterion table + bidder identity card
+- `/module4` Communications list with type filters
+- `/module4/<communicationId>` Bilingual EN/TE communication detail with EN/TE toggle + source-finding drilldown
+- `/about` Project background + reference systems + tech stack + compliance + lessons index
+
+---
+
+## L92 — Frontend Module 4 View with Bilingual EN/TE Preview
+
+**Established in run-2 Sub-block 6** (2026-05-12). Module 4 communicator UI ships at `/module4` (list with type filters) and `/module4/[communicationId]` (detail with EN/TE toggle).
+
+### Markdown view + bilingual toggle
+
+`components/markdown-view.tsx` is a lightweight server-renderable Markdown parser (~85 LOC, no external deps). Supports the subset our drafters emit: `# / ## / ###` headings, `**bold**`, `*italic*`, `` `code` ``, `- / *` bullets, `1.` ordered, `> quote`, `---` horizontal rules. Drives the .content_en + .content_te rendering.
+
+`components/lang-toggle.tsx` is a client component with `useState` to flip between English and Telugu. Renders only the toggle button if `content_te` is non-null (internal communications stay English-only and skip the toggle). Smooth UX for hackathon demo: clicking toggle re-renders the entire letter in Telugu while preserving scroll position.
+
+### Communication list with type + tender filters
+
+URL params drive filtering: `/module4?type=DISQUALIFICATION` filters to 6 letters; `/module4?tender=tender_synth_hc` filters to all 30 communications for HC tender. Type filter chips show counts per type for fast triage. Visual: bidder-facing types use `outline` badge; internal types use `advisory` badge for clear separation.
+
+### Source findings drilldown UI
+
+Detail page shows `source_finding_node_ids[]` as a vertical card list. Each card shows the node_type badge + UUID prefix + label + optional rule_id + decision_reason. "Drilldown →" link routes to Module 3 view if the source is a BidEvaluationFinding or EligibilityMatrix (where the underlying evaluation lives). RTI-defensible: clicking through proves every claim in the letter ties to a kg_node.
+
+### Q&A threading
+
+For `BIDDER_CLARIFICATION_QA` answers, the detail page shows an "In reply to" callout pointing to the parent question communication (via `parent_communication_id` field from L89). Q→A relationship is preserved across both views.
+
+---
+
+## L91 — Frontend Module 3 View with 5-Layer Drilldown
+
+**Established in run-2 Sub-block 5** (2026-05-12). Module 3 evaluator UI ships at `/module3` (3-tender index), `/module3/[tenderId]` (per-tender detail), and `/module3/[tenderId]/bidder/[bidderId]` (per-bidder evaluation).
+
+### Tender detail layout — 5 sections
+
+1. **Effective L1 callout** — bright green card with crown icon, names winning bidder + award amount + ALB skip rationale (leaf-50 background).
+2. **Bidder participation table** — 9 rows (one per bidder); columns: name + class, aggregate verdict badge (color-coded), QUALIFIED/HARD_BLOCK/WARNING/GAP counts, drilldown link.
+3. **Ranking table** — 5 rows for QUALIFIED bidders; columns: rank, name, bid amount, premium % vs ECV, ALB flag, distance from L1. Effective L1 row highlighted leaf-50 + crown icon.
+4. **Anomaly findings** — 2 cards per tender (1 CARTEL_SUSPECT + 1 ALB_CORROBORATION); shows severity/confidence badges, primary bidders, cross-tender consistency, expandable signals list.
+5. **ComparativeStatement artifact links** — paths to .md, .docx, .pdf (L75 reportlab) + audit_id + drilldown to Module 4 for related communications.
+
+### Bidder detail layout
+
+- Header with bidder identity (company name + class + bidder_type + PAN + GSTIN)
+- Aggregate verdict badge with tender name
+- 5 stat cards: total criteria / QUALIFIED / HARD_BLOCK / WARNING / GAP counts
+- 13-row per-criterion table: verdict + severity + rule + decision basis per criterion
+- Bidder identity card: years in business, turnover (5yr/3yr construction/financial), ABC inputs, key personnel, equipment, blacklist status; for JV bidders, additional fields (lead partner id, partner count, liability)
+
+### Color discipline
+
+Verdict color mapping enforced via `VERDICT_COLORS` const in `lib/utils.ts`:
+- QUALIFIED → leaf (green)
+- FLAGGED_FOR_COMMITTEE_REVIEW → amber
+- MARK_FOR_DOCUMENTATION_REVIEW → blue
+- DISQUALIFIED → red
+- HARD_BLOCK / WARNING / ADVISORY severity badges follow same palette
+
+Crown icon (`lucide-react Crown`) reserved for effective L1 only — single use, high-signal demo-moment indicator.
+
+---
+
+## L90 — Frontend Foundation: Next.js 14 + Tailwind + Supabase Read-Only
+
+**Established in run-2 Sub-block 4** (2026-05-12). Next.js 14 frontend at `frontend/` directory with App Router, Tailwind CSS, hand-built UI primitives (no shadcn install — simpler for hackathon scope), Supabase read-only client.
+
+### Stack choices
+
+- **Next.js 14.2.18** with App Router (server components default, RSC for data fetching at request time)
+- **React 18.3.1** (Next 14 LTS)
+- **Tailwind CSS 3.4** with custom palette (saffron/ink/leaf/mist + verdict colors)
+- **lucide-react** icons
+- **@supabase/supabase-js** for client (used minimally; most queries via `fetch()` to REST endpoint)
+- **TypeScript 5.6** strict mode
+
+UI components (`components/ui/`): Card / Badge / Table built by hand. Avoided shadcn/ui install (depends on Radix + tailwindcss-animate which adds 30+ deps for a hackathon-scale UI). 4 components total covers all use cases.
+
+### lib/supabase.ts — lazy env reads
+
+`fetchAll(table, params)` and `countRows(table, params)` helpers read `process.env.NEXT_PUBLIC_SUPABASE_*` AT CALL TIME (not at module import time). Catch handlers return empty arrays / 0 on error so a missing env doesn't crash the build. Each call uses `cache: "no-store"` for fresh data.
+
+### Government-of-India aesthetic
+
+Palette: saffron (#FF9933) / ink (#0F1B2D dark navy) / leaf (#138808) / mist (greys). Inter sans-serif. Card shadows restrained (shadow-card class). Spacing generous (p-8 md:p-10 page padding). Tables with sticky-header look. SidebarNav fixed left at 256px width, hidden on mobile; main content flex-1.
+
+### Dashboard layout (4-module workflow)
+
+`components/workflow-diagram.tsx` renders 4 cards in horizontal flow (md:grid-cols-4): Draft → Validate → Evaluate → Communicate. Each card carries icon + module number + title + subtitle + sentinel stat. Arrow icons between cards on desktop. Real-time stat cards above show live counts (12 bidders / 154 validations / 351 evaluations / 75 communications).
+
+### Build + deploy
+
+- `next build` validates all 8 routes (1 static + 7 dynamic server-rendered)
+- Vercel deploy via `vercel deploy --prod` (project name auto-detected: `procureai-frontend`)
+- Production alias: `https://procureai-frontend.vercel.app`
+- Standalone output mode for portable deployment
+
+---
+
 ## L89 — Module 4 M4.6 Bidder Clarification Q&A Workflow
 
 **Established in run-2 Sub-block 3** (2026-05-12). 10th Communication type — `BIDDER_CLARIFICATION_QA` — closes the Module 4 corpus. Introduces 2-direction workflow (`BIDDER_INBOUND` / `OFFICER_OUTBOUND`) with Q→A threading via `parent_communication_id`. 3 synthetic Q&A pairs seed the corpus for demo.

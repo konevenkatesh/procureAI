@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: #FAFBFC;
+  color: #1F2D3D;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Top-of-page reveal: gentle gradient under header */
+.page-bg {
+  background:
+    radial-gradient(ellipse 800px 200px at 50% 0%, rgba(255, 153, 51, 0.04), transparent 60%),
+    radial-gradient(ellipse 800px 200px at 100% 0%, rgba(19, 136, 8, 0.03), transparent 60%),
+    #FAFBFC;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* Prose adjustments for markdown rendering */
+.prose-government {
+  max-width: 64rem;
+  line-height: 1.7;
+}
+.prose-government h1 { font-size: 1.5rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #0F1B2D; }
+.prose-government h2 { font-size: 1.25rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #0F1B2D; }
+.prose-government h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.4rem; color: #0F1B2D; }
+.prose-government p { margin-bottom: 0.6rem; }
+.prose-government ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.6rem; }
+.prose-government ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.6rem; }
+.prose-government li { margin-bottom: 0.25rem; }
+.prose-government code { background: #F0F2F5; padding: 0.1rem 0.35rem; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 0.85em; }
+.prose-government strong { color: #0F1B2D; font-weight: 600; }
+.prose-government blockquote { border-left: 3px solid #E1E5EA; padding-left: 1rem; color: #2C3E50; font-style: italic; margin: 0.6rem 0; }
+.prose-government hr { border: none; border-top: 1px solid #E1E5EA; margin: 1.5rem 0; }

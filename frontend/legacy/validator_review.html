@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>procureAI — validator review</title>
+
+  <!-- Tailwind via CDN (no build step) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Supabase JS via CDN (ES module from esm.sh) -->
+  <script type="importmap">
+    { "imports": { "supabase": "https://esm.sh/@supabase/supabase-js@2" } }
+  </script>
+
+  <style>
+    /* Soft inter for body, jetbrains mono for evidence quotes */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    /* Hide elements with hidden attribute reliably even with Tailwind reset */
+    [hidden] { display: none !important; }
+    /* Subtle card hover lift */
+    .doc-card { transition: transform 120ms ease, box-shadow 120ms ease; }
+    .doc-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -10px rgb(0 0 0 / 0.15); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600
+                    flex items-center justify-center text-white font-bold text-sm">p</div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight">procureAI</h1>
+          <p class="text-xs text-slate-500 leading-tight">validator review · v0.3-clean</p>
+        </div>
+      </div>
+      <div id="status-pill"
+           class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 mono">
+        loading…
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8">
+
+    <!-- ═════════ SCREEN 1 — Document list ═════════ -->
+    <section id="screen-list">
+      <div class="mb-6 flex items-end justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold tracking-tight">Documents</h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Click a card to inspect findings, KG stats, and validator coverage.
+          </p>
+        </div>
+        <div id="list-summary" class="text-sm text-slate-600 mono"></div>
+      </div>
+
+      <div id="doc-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- doc cards inserted by render() -->
+        <div class="text-slate-400 text-sm">Loading documents…</div>
+      </div>
+    </section>
+
+    <!-- ═════════ SCREEN 2 — Findings detail ═════════ -->
+    <section id="screen-detail" hidden>
+      <button id="back-btn"
+              class="inline-flex items-center gap-2 text-sm text-slate-600
+                     hover:text-slate-900 mb-5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+        Back to documents
+      </button>
+
+      <header id="detail-header" class="mb-6"></header>
+
+      <!-- Findings list -->
+      <section class="mb-10">
+        <h3 class="text-lg font-semibold mb-3">Validation findings</h3>
+        <div id="findings-list" class="space-y-3"></div>
+      </section>
+
+      <!-- Coverage section (hardcoded — see _coverage_statement() in
+           agents/graphs/validator_graph.py) -->
+      <section class="mb-10">
+        <h3 class="text-lg font-semibold mb-3">Validator coverage</h3>
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="grid grid-cols-1 md:grid-cols-2">
+
+            <!-- Validated -->
+            <div class="p-5 border-b md:border-b-0 md:border-r border-slate-200">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <h4 class="font-semibold text-sm text-slate-700">Checked by regex validator</h4>
+              </div>
+              <ul id="coverage-validated" class="space-y-1.5 text-sm"></ul>
+            </div>
+
+            <!-- Not validated -->
+            <div class="p-5">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                <h4 class="font-semibold text-sm text-slate-700">Not checked (top 5 by rule count)</h4>
+              </div>
+              <ul id="coverage-not-validated" class="space-y-1.5 text-sm"></ul>
+            </div>
+
+          </div>
+          <!-- Footer line -->
+          <div class="bg-slate-50 px-5 py-3 border-t border-slate-200
+                      text-xs text-slate-600 flex items-center gap-2 mono">
+            <span class="font-semibold text-slate-700">Coverage:</span>
+            <span>134 of 936 HARD_BLOCK rules checked (14.3%)</span>
+            <span class="ml-auto">clause_identification: NOT IMPLEMENTED · rule_satisfaction_verified: false</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- KG stats -->
+      <section>
+        <h3 class="text-lg font-semibold mb-3">Knowledge-graph stats</h3>
+        <div id="kg-stats" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+      </section>
+    </section>
+
+  </main>
+
+  <!-- ── App logic ─────────────────────────────────────────────────────── -->
+  <script type="module">
+    import { createClient } from "supabase";
+
+    /* ─── Supabase client ─────────────────────────────────────────────── */
+    // anon key is designed to be embedded in clients; RLS controls access.
+    const SUPABASE_URL = "https://hjhxcmfuivpsbhlagunr.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaHhjbWZ1aXZwc2JobGFndW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjIwOTksImV4cCI6MjA5MjgzODA5OX0.iLazMpShscsF7NUwfus9U23R1guQhMGKl8S_UwXUPYA";
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    /* ─── Static maps ─────────────────────────────────────────────────── */
+    const DOC_ID_TO_NAME = {
+      "vizag_ugss_exp_001":       "Vizag UGSS Package 2",
+      "tirupathi_wte_exp_001":    "Tirupathi WtE PPP",
+      "judicial_academy_exp_001": "Judicial Academy AP",
+    };
+
+    function humanizeDocId(doc_id, fallback_label) {
+      return DOC_ID_TO_NAME[doc_id]
+          || (fallback_label && fallback_label !== "Multi-volume" ? fallback_label : doc_id);
+    }
+
+    // Tailwind utility classes per typology, kept stable across the app
+    const TYPOLOGY_COLORS = {
+      "PBG-Shortfall":               "bg-rose-100 text-rose-800 ring-rose-200",
+      "EMD-Shortfall":               "bg-orange-100 text-orange-800 ring-orange-200",
+      "Bid-Validity-Short":          "bg-amber-100 text-amber-800 ring-amber-200",
+      "Missing-Integrity-Pact":      "bg-purple-100 text-purple-800 ring-purple-200",
+      "Missing-Anti-Collusion":      "bg-indigo-100 text-indigo-800 ring-indigo-200",
+      "Missing-PVC-Clause":          "bg-sky-100 text-sky-800 ring-sky-200",
+      "E-Procurement-Bypass":        "bg-cyan-100 text-cyan-800 ring-cyan-200",
+      "Judicial-Preview-Bypass":     "bg-teal-100 text-teal-800 ring-teal-200",
+      "Criteria-Restriction-Narrow": "bg-pink-100 text-pink-800 ring-pink-200",
+    };
+    const SEVERITY_COLORS = {
+      "HARD_BLOCK": "bg-rose-600 text-white",
+      "WARNING":    "bg-amber-500 text-white",
+      "ADVISORY":   "bg-slate-400 text-white",
+    };
+
+    // Coverage section — mirrors _VALIDATED_BY_REGEX / _NOT_VALIDATED in
+    // agents/graphs/validator_graph.py
+    const VALIDATED_BY_REGEX = [
+      "PBG-Shortfall", "EMD-Shortfall", "Bid-Validity-Short",
+      "Missing-Integrity-Pact", "Missing-Anti-Collusion", "Missing-PVC-Clause",
+      "E-Procurement-Bypass", "Judicial-Preview-Bypass",
+      "Criteria-Restriction-Narrow",
+    ];
+    const NOT_VALIDATED_TOP5 = [
+      ["Missing-Mandatory-Field",     596],
+      ["Single-Source-Undocumented",   51],
+      ["Blacklist-Not-Checked",        41],
+      ["COI-PMC-Works",                34],
+      ["Arbitration-Clause-Violation", 32],
+    ];
+
+    /* ─── Tiny router (hash-based; back button works for free) ────────── */
+    let currentDocCache = null;       // cached findings + edges + node for the open doc
+    let docsCache = null;             // cached doc list
+
+    window.addEventListener("hashchange", route);
+    window.addEventListener("DOMContentLoaded", route);
+
+    async function route() {
+      const hash = (location.hash || "").replace(/^#\/?/, "");
+      if (hash.startsWith("doc/")) {
+        const doc_id = decodeURIComponent(hash.slice(4));
+        await renderDetail(doc_id);
+      } else {
+        await renderList();
+      }
+    }
+
+    /* ─── Screen 1: list ──────────────────────────────────────────────── */
+
+    async function fetchDocs() {
+      // 1. All TenderDocument nodes
+      const { data: docs, error: e1 } = await sb
+        .from("kg_nodes")
+        .select("doc_id,label,properties")
+        .eq("node_type", "TenderDocument");
+      if (e1) throw e1;
+
+      // 2. All ValidationFinding nodes for those doc_ids — single round-trip.
+      const docIds = docs.map(d => d.doc_id);
+      const { data: findings, error: e2 } = await sb
+        .from("kg_nodes")
+        .select("doc_id,properties")
+        .in("doc_id", docIds)
+        .eq("node_type", "ValidationFinding");
+      if (e2) throw e2;
+
+      // 3. Index findings by doc_id, computing block/warn counts (active only).
+      const counts = Object.fromEntries(docIds.map(id => [id, {hard: 0, warn: 0, advisory: 0, defeated: 0}]));
+      for (const f of findings) {
+        const p = f.properties || {};
+        const sev = p.severity;
+        const defeated = p.defeated === true || p.defeated === "true";
+        const c = counts[f.doc_id]; if (!c) continue;
+        if (defeated)         c.defeated++;
+        else if (sev === "HARD_BLOCK") c.hard++;
+        else if (sev === "WARNING")    c.warn++;
+        else if (sev === "ADVISORY")   c.advisory++;
+      }
+      return docs.map(d => ({ ...d, counts: counts[d.doc_id] }));
+    }
+
+    async function renderList() {
+      // Show list, hide detail
+      document.getElementById("screen-list").hidden = false;
+      document.getElementById("screen-detail").hidden = true;
+
+      const grid = document.getElementById("doc-grid");
+      grid.innerHTML = `<div class="text-slate-400 text-sm">Loading documents…</div>`;
+      setStatus("loading");
+
+      let docs;
+      try {
+        docs = docsCache || (docsCache = await fetchDocs());
+      } catch (err) {
+        grid.innerHTML = `<div class="col-span-full bg-rose-50 border border-rose-200
+                          text-rose-800 rounded-lg p-4">
+                          <div class="font-semibold mb-1">Failed to load documents</div>
+                          <div class="text-sm mono">${escapeHtml(String(err.message || err))}</div>
+                        </div>`;
+        setStatus("error");
+        return;
+      }
+      setStatus(`${docs.length} doc${docs.length===1?"":"s"}`);
+
+      docs.sort((a, b) =>
+        humanizeDocId(a.doc_id, a.label).localeCompare(humanizeDocId(b.doc_id, b.label)));
+
+      grid.innerHTML = docs.map(docCardHtml).join("");
+
+      // Summary line
+      const totalBlocks = docs.filter(d => d.counts.hard > 0).length;
+      document.getElementById("list-summary").textContent =
+        `${totalBlocks} BLOCK · ${docs.length - totalBlocks} PASS`;
+    }
+
+    function docCardHtml(doc) {
+      const name = humanizeDocId(doc.doc_id, doc.label);
+      const p = doc.properties || {};
+      const tt = p.tender_type || p.tender_type_classified || "—";
+      const ttReliable = p.tender_type_reliable === true || p.tender_type_reliable === "true";
+      const isAp = p.is_ap_tender === true || p.is_ap_tender === "true";
+      const c = doc.counts;
+      const isBlock = c.hard > 0;
+
+      const status = isBlock
+        ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-rose-600 text-white">BLOCK</span>`
+        : `<span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white">PASS</span>`;
+
+      const ttBadge = `
+        <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50
+                     text-indigo-700 ring-1 ring-inset ring-indigo-200">
+          ${escapeHtml(tt)}${ttReliable ? "" : " <span class='opacity-60'>(?)</span>"}
+        </span>`;
+
+      const apBadge = isAp
+        ? `<span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-50
+                       text-violet-700 ring-1 ring-inset ring-violet-200">AP-State</span>`
+        : `<span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100
+                       text-slate-700 ring-1 ring-inset ring-slate-200">Central</span>`;
+
+      return `
+        <a href="#/doc/${encodeURIComponent(doc.doc_id)}"
+           class="doc-card block bg-white rounded-xl border border-slate-200 p-5
+                  hover:border-slate-300 cursor-pointer">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <h3 class="font-semibold text-slate-900 leading-tight pr-2">${escapeHtml(name)}</h3>
+            ${status}
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 mb-4">
+            ${ttBadge}
+            ${apBadge}
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <span class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span class="font-semibold">${c.hard}</span>
+              <span class="text-slate-500">hard block${c.hard===1?"":"s"}</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span class="font-semibold">${c.warn}</span>
+              <span class="text-slate-500">warning${c.warn===1?"":"s"}</span>
+            </span>
+            ${c.defeated > 0 ? `
+              <span class="flex items-center gap-1.5 text-slate-400 ml-auto">
+                <span>${c.defeated} defeated</span>
+              </span>
+            ` : ""}
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between
+                      text-xs text-slate-400">
+            <span class="mono">${escapeHtml(doc.doc_id)}</span>
+            <span>view findings →</span>
+          </div>
+        </a>`;
+    }
+
+    /* ─── Screen 2: detail ────────────────────────────────────────────── */
+
+    async function fetchDetail(doc_id) {
+      // Tender doc
+      const { data: docs, error: e1 } = await sb
+        .from("kg_nodes")
+        .select("doc_id,label,properties")
+        .eq("doc_id", doc_id)
+        .eq("node_type", "TenderDocument")
+        .limit(1);
+      if (e1) throw e1;
+      const tdoc = docs[0];
+
+      // ValidationFinding nodes for this doc
+      const { data: findings, error: e2 } = await sb
+        .from("kg_nodes")
+        .select("node_id,properties")
+        .eq("doc_id", doc_id)
+        .eq("node_type", "ValidationFinding");
+      if (e2) throw e2;
+
+      // Edge counts by edge_type (one round-trip)
+      const { data: edges, error: e3 } = await sb
+        .from("kg_edges")
+        .select("edge_type")
+        .eq("doc_id", doc_id);
+      if (e3) throw e3;
+      const edgeCounts = {};
+      for (const e of edges) edgeCounts[e.edge_type] = (edgeCounts[e.edge_type] || 0) + 1;
+
+      // Section node count for "sections" stat box
+      const { count: sectionCount } = await sb
+        .from("kg_nodes")
+        .select("node_id", { count: "exact", head: true })
+        .eq("doc_id", doc_id)
+        .eq("node_type", "Section");
+
+      return { tdoc, findings, edgeCounts, sectionCount };
+    }
+
+    async function renderDetail(doc_id) {
+      document.getElementById("screen-list").hidden = true;
+      document.getElementById("screen-detail").hidden = false;
+
+      const findingsList = document.getElementById("findings-list");
+      findingsList.innerHTML = `<div class="text-slate-400 text-sm">Loading findings…</div>`;
+      setStatus("loading");
+
+      let detail;
+      try {
+        detail = await fetchDetail(doc_id);
+        currentDocCache = detail;
+      } catch (err) {
+        findingsList.innerHTML =
+          `<div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-4">
+            <div class="font-semibold mb-1">Failed to load findings</div>
+            <div class="text-sm mono">${escapeHtml(String(err.message || err))}</div>
+           </div>`;
+        setStatus("error");
+        return;
+      }
+
+      const { tdoc, findings, edgeCounts, sectionCount } = detail;
+      if (!tdoc) {
+        findingsList.innerHTML =
+          `<div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-4">
+            No TenderDocument node found for <span class="mono">${escapeHtml(doc_id)}</span>.
+           </div>`;
+        return;
+      }
+
+      // ── Header
+      const name = humanizeDocId(doc_id, tdoc.label);
+      const p = tdoc.properties || {};
+      const tt = p.tender_type || p.tender_type_classified || "—";
+      const isAp = p.is_ap_tender === true || p.is_ap_tender === "true";
+      const isBlock = findings.some(f => {
+        const fp = f.properties || {};
+        const defeated = fp.defeated === true || fp.defeated === "true";
+        return fp.severity === "HARD_BLOCK" && !defeated;
+      });
+      const hardCount = findings.filter(f => {
+        const fp = f.properties || {};
+        const defeated = fp.defeated === true || fp.defeated === "true";
+        return fp.severity === "HARD_BLOCK" && !defeated;
+      }).length;
+      const warnCount = findings.filter(f => {
+        const fp = f.properties || {};
+        const defeated = fp.defeated === true || fp.defeated === "true";
+        return fp.severity === "WARNING" && !defeated;
+      }).length;
+
+      document.getElementById("detail-header").innerHTML = `
+        <div class="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <h2 class="text-2xl font-semibold tracking-tight">${escapeHtml(name)}</h2>
+            <p class="text-sm text-slate-500 mt-1 mono">${escapeHtml(doc_id)}</p>
+          </div>
+          ${isBlock
+            ? `<span class="px-4 py-1.5 rounded-full text-sm font-bold bg-rose-600 text-white">BLOCK</span>`
+            : `<span class="px-4 py-1.5 rounded-full text-sm font-bold bg-emerald-600 text-white">PASS</span>`}
+        </div>
+        <div class="flex flex-wrap items-center gap-2 mt-3">
+          <span class="px-2.5 py-1 rounded text-xs font-medium bg-indigo-50 text-indigo-700
+                       ring-1 ring-inset ring-indigo-200">${escapeHtml(tt)}</span>
+          ${isAp
+            ? `<span class="px-2.5 py-1 rounded text-xs font-medium bg-violet-50 text-violet-700
+                            ring-1 ring-inset ring-violet-200">AP-State</span>`
+            : `<span class="px-2.5 py-1 rounded text-xs font-medium bg-slate-100 text-slate-700
+                            ring-1 ring-inset ring-slate-200">Central</span>`}
+          <span class="px-2.5 py-1 rounded text-xs font-medium bg-rose-100 text-rose-800
+                       ring-1 ring-inset ring-rose-200">${hardCount} hard block${hardCount===1?"":"s"}</span>
+          ${warnCount > 0 ? `
+          <span class="px-2.5 py-1 rounded text-xs font-medium bg-amber-100 text-amber-800
+                       ring-1 ring-inset ring-amber-200">${warnCount} warning${warnCount===1?"":"s"}</span>
+          ` : ""}
+        </div>
+      `;
+      setStatus(`${findings.length} finding${findings.length===1?"":"s"}`);
+
+      // ── Findings cards
+      // Sort: HARD_BLOCK (active) → WARNING (active) → ADVISORY (active) → defeated
+      const sevOrder = { "HARD_BLOCK": 0, "WARNING": 1, "ADVISORY": 2 };
+      findings.sort((a, b) => {
+        const ap = a.properties || {}, bp = b.properties || {};
+        const ad = ap.defeated === true || ap.defeated === "true";
+        const bd = bp.defeated === true || bp.defeated === "true";
+        if (ad !== bd) return ad ? 1 : -1;
+        return (sevOrder[ap.severity] ?? 9) - (sevOrder[bp.severity] ?? 9);
+      });
+
+      if (findings.length === 0) {
+        findingsList.innerHTML = `
+          <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-4">
+            No ValidationFinding nodes for this document. Either every checked typology passed,
+            or no rules in the wired typologies fired on this doc.
+          </div>`;
+      } else {
+        findingsList.innerHTML = findings.map(findingHtml).join("");
+        // Wire up evidence-expand toggles
+        for (const btn of document.querySelectorAll("[data-evidence-toggle]")) {
+          btn.addEventListener("click", () => {
+            const target = document.getElementById(btn.dataset.evidenceToggle);
+            target.classList.toggle("line-clamp-3");
+            btn.textContent = target.classList.contains("line-clamp-3") ? "show more" : "show less";
+          });
+        }
+      }
+
+      // ── Coverage panel (static lists)
+      document.getElementById("coverage-validated").innerHTML =
+        VALIDATED_BY_REGEX.map(t => `
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor"
+                 viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span class="font-medium">${escapeHtml(t)}</span>
+          </li>`).join("");
+      document.getElementById("coverage-not-validated").innerHTML =
+        NOT_VALIDATED_TOP5.map(([t, n]) => `
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" stroke="currentColor"
+                 viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            <span class="font-medium">${escapeHtml(t)}</span>
+            <span class="text-slate-400 mono text-xs">(${n} rules)</span>
+          </li>`).join("");
+
+      // ── KG stats
+      const stats = [
+        { label: "Sections",            value: sectionCount,                         tone: "indigo" },
+        { label: "Validation findings", value: findings.length,                       tone: "rose" },
+        { label: "VIOLATES_RULE",       value: edgeCounts["VIOLATES_RULE"]    || 0,   tone: "rose" },
+        { label: "DEFEATS",             value: edgeCounts["DEFEATS"]          || 0,   tone: "purple" },
+        { label: "HAS_SECTION",         value: edgeCounts["HAS_SECTION"]      || 0,   tone: "slate" },
+        { label: "CROSS_REFERENCES",    value: edgeCounts["CROSS_REFERENCES"] || 0,   tone: "slate" },
+      ];
+      const TONE = {
+        indigo: "bg-indigo-50 text-indigo-900 ring-indigo-200",
+        rose:   "bg-rose-50 text-rose-900 ring-rose-200",
+        purple: "bg-purple-50 text-purple-900 ring-purple-200",
+        slate:  "bg-slate-50 text-slate-900 ring-slate-200",
+      };
+      document.getElementById("kg-stats").innerHTML = stats.map(s => `
+        <div class="rounded-xl ring-1 ring-inset ${TONE[s.tone]} px-4 py-3">
+          <div class="text-2xl font-bold mono">${s.value.toLocaleString()}</div>
+          <div class="text-xs opacity-80 mt-0.5">${s.label}</div>
+        </div>`).join("");
+    }
+
+    function findingHtml(f, idx) {
+      const p = f.properties || {};
+      const typology = p.typology_code || "Unknown";
+      const severity = p.severity || "UNKNOWN";
+      const defeated = p.defeated === true || p.defeated === "true";
+      const evidence = p.evidence || "";
+      const sourceClause = p.source_clause || "";
+      const ruleId = p.rule_id || "";
+
+      const typBadge = TYPOLOGY_COLORS[typology]
+        || "bg-slate-100 text-slate-800 ring-slate-200";
+      const sevBadge = SEVERITY_COLORS[severity] || "bg-slate-500 text-white";
+      const defeatedBadge = defeated
+        ? `<span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-300 text-slate-700">DEFEATED</span>`
+        : "";
+
+      const evId = `ev-${f.node_id}`;
+      const isLong = (evidence || "").length > 200;
+
+      return `
+        <article class="bg-white rounded-xl border border-slate-200 p-5
+                        ${defeated ? "opacity-60" : ""}">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="px-2.5 py-1 rounded text-xs font-semibold ring-1 ring-inset ${typBadge}">
+              ${escapeHtml(typology)}
+            </span>
+            <span class="px-2 py-0.5 rounded text-xs font-bold ${sevBadge}">
+              ${escapeHtml(severity)}
+            </span>
+            ${defeatedBadge}
+            <span class="ml-auto text-xs text-slate-400 mono">${escapeHtml(ruleId)}</span>
+          </div>
+          <div class="text-sm text-slate-700 leading-relaxed">
+            <div id="${evId}" class="${isLong ? "line-clamp-3" : ""}">
+              ${escapeHtml(evidence)}
+            </div>
+            ${isLong ? `
+              <button data-evidence-toggle="${evId}"
+                      class="text-xs text-indigo-600 hover:text-indigo-700 mt-1 underline">
+                show more
+              </button>` : ""}
+          </div>
+          ${sourceClause ? `
+            <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+              <span class="font-semibold text-slate-600">Source authority:</span>
+              <span class="ml-1">${escapeHtml(sourceClause)}</span>
+            </div>` : ""}
+        </article>`;
+    }
+
+    /* ─── Helpers ─────────────────────────────────────────────────────── */
+
+    function setStatus(text) {
+      const el = document.getElementById("status-pill");
+      el.textContent = text;
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return "";
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    /* Back button */
+    document.getElementById("back-btn").addEventListener("click", () => {
+      location.hash = "";
+    });
+  </script>
+
+</body>
+</html>
