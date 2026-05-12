@@ -3120,3 +3120,53 @@ These don't fit the bidding-document-side pattern, are Goods-only, are bidder-si
 | vijayawada | HARD 5.001% | HARD 0.998% | ✓ 180d | ADV absent | ADV ml-only | ✓ 0.1%/d | silence | ✓ 100% | UNV stitch | GAP-VIOL 30d-post-COD | HARD bypass | ADV 2.500× (162.35cr) | silence (PPP) | ✓ Indian Act 1996 | ✓ full Annexure-2F | HARD MPS-182 absent | **ADV-INFO MPG-293 (Appointed Date)** + UNV 148 | ✓ §26.1 DCA |
 
 **Total: 65 ValidationFindings (49 OPEN + 16 UNVERIFIED), 49 VIOLATES_RULE edges.** Seventeen typologies × six documents = one hundred two possible finding slots: 49 OPEN findings (41 violations + 8 informational markers), 16 UNVERIFIED-pending-review, 37 correctly silent. Works-Universal-Mandatory-Fields (L46) added 13 findings: 3 OPEN (Kakinada MPG-148 HARD_BLOCK ABSENCE + MPG-293 ADVISORY ABSENCE; Vijayawada MPG-293 ADVISORY-INFO Appointed-Date marker) + 10 UNVERIFIED (per-sub-check grep promoted absences across vizag/JA/HC/Tirupathi/Vijayawada). The L46 per-sub-check grep verification prevented an estimated 8-10 false-positive ABSENCE findings — without it, multi-sub-check typologies emit ABSENCE for sub-checks the LLM didn't see in top-K despite the keywords being present in other sections. Forward-applicable: every multi-sub-check typology should adopt the `SUB_CHECK_GREP_KEYWORDS` dict pattern. The 5 UNVERIFIED breakdown is unchanged from L42: 1 E-Proc (L35 Kakinada L24-fail) + 3 Blacklist + 1 BG-Validity-Gap. The 3 new findings (typology 14) are all **AP-GO-229 informational markers** with `severity=ADVISORY, marker_kind=informational` — they record the AP-acceptable departure (claims > Rs.50,000 routed to civil court per APSS Clause 61) on JA, HC, and Kakinada. They carry VIOLATES_RULE edges (status=OPEN per L37) but the `marker_kind=informational` audit field distinguishes them from violations in dashboards. The Arbitration-Clause-Violation row introduced the **multi-rule typology shape** (L43 — one LLM call extracting 13 fields, four rule sub-checks, doc may emit 0/1/2 findings per typology run) and the **AP-defeats-Central decision branch** (AP-GO-229's defeats list of 38 Central rules including MPG-304 / MPW-139 explicitly suppresses the absence-violation when the AP value-tier ladder is present). The Judicial-Preview-Bypass row remains unique in the corpus: 6/6 documents trigger the violation, zero APJPA citations anywhere in 12 source markdown files (L38). The Turnover-Threshold-Excess row is the corpus's first two-shape typology (L39): 4 of 6 docs use the bid-capacity formula approach (COMPLIANT); 2 of 6 use NREDCAP's fixed-INR turnover floor calibrated to 2.500× annual contract value (just over the CVC-028 ≤2× cap). The Eligibility-Class-Mismatch row introduced both the **kg_coverage_gap audit category** (L40) and the **gap-filler post-process** (L41 — synthetic Section nodes for any uncovered line range >= 30 lines / 500 chars, automatically applied on every rebuild). Together L40 and L41 form an audit-then-fix loop. L42 hardened the tender_type extractor against silent regressions during rebuilds (graceful-failure shape + commit_to_kg preserve-on-null + Phase 6c snapshot/restore). L43 brings four new patterns: multi-rule typologies, AP-defeats-Central decision branches, OPEN-ADVISORY-INFORMATIONAL markers, and multi-finding cleanup helpers.
+
+
+## L94 — GCP Foundation (Project + Billing + 8 APIs + 2 SAs + AR + GCS + Tasks + 3 Secrets + Budget)
+
+GCP-1 of the 5-sub-block migration. New project `procureai-prod` (number `880020570899`) under `venkatesh-org`. Billing `019E4D-D4499B-540806`. Region: `asia-south1` for every resource (DPDP §16(1)).
+
+What landed in one Cloud Build of foundation work:
+- 8 APIs enabled: run, cloudbuild, artifactregistry, secretmanager, cloudtasks, servicecontrol, pubsub, iamcredentials (+ billingbudgets enabled out-of-band for budget creation).
+- 2 SAs: `procure-ai-deployer` (6 roles: run.developer, artifactregistry.writer, secretmanager.secretAccessor, iam.serviceAccountUser, cloudtasks.enqueuer, cloudbuild.builds.editor) and `procure-ai-runtime` (5 roles: secretmanager.secretAccessor, cloudtasks.enqueuer, storage.objectAdmin, logging.logWriter, aiplatform.user).
+- Artifact Registry `asia-south1-docker.pkg.dev/procureai-prod/procure-ai`, GCS bucket `gs://procure-ai-artifacts-asia-south1` (UBLA, versioning, 180-day lifecycle), Cloud Tasks queue `procure-ai-jobs` (asia-south1, maxConcurrent=10, maxAttempts=3).
+- 3 Secret Manager entries (`SARVAM_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`). User seeded versions before GCP-2.
+- Budget "ProcureAI Monthly Guard" ₹10,000/mo, thresholds 50/80/100%.
+
+Methodology catches (forward-applicable):
+
+1. **`gcloud storage buckets update --lifecycle-file=…` silently no-ops on some CLI versions** — always verify with `gsutil lifecycle get` and fall back to `gsutil lifecycle set` if missing.
+2. **`billingbudgets.googleapis.com` is not in the standard API set** — enable it separately before `gcloud billing budgets create`, or the call returns a confusing "command not found".
+3. **`--condition=None` on `gcloud projects add-iam-policy-binding`** is required when scripting non-interactively to skip the prompt.
+4. **Secrets handling discipline:** read values from local `.env` (`grep -E '^KEY=' .env | sed 's/^KEY=//'`) and pipe via stdin (`printf '%s' "$VAL" | gcloud secrets versions add --data-file=-`). Never echo, never log, never pass as CLI arg (`echo -n` shell history leak).
+5. **Prefer the user's `.env` over inline chat-pasted credentials.** Even when a key is in the prompt, look on disk first.
+
+
+## L95 — Cloud Run Backend Scaffolding (4 services + Cloud Tasks fan-out + Supabase Job persistence)
+
+GCP-2 of the 5-sub-block migration. 4 FastAPI services deployed to Cloud Run asia-south1, each with the same 4-endpoint contract (`/health`, `/<module>/run`, `/worker`, `/jobs/{id}`).
+
+Module status delivered:
+- `m1-drafter`     — stub (real LangGraph drafter is Phase 2)
+- `m2-validator`   — stub (24 tier1 scripts all depend on Qdrant, not in cloud yet)
+- `m3-evaluator`   — stub (14 bid scripts are Supabase-only and wirable in a follow-up)
+- `m4-communicator`— stub (11 m4_drafters Supabase-only and wirable in a follow-up)
+
+Shared scaffolding (`services/_shared/`):
+- `make_app(module, worker_fn)` factory — every service is ~40 LOC of glue.
+- `jobs.py` — Supabase REST CRUD over `kg_nodes[node_type='Job']` + Cloud Tasks dispatcher with inline-execution fallback for local dev.
+- Async pipeline: `/run` persists a QUEUED Job and enqueues a Cloud Task → Cloud Tasks POSTs `/worker` with an OIDC token → `/worker` flips status to RUNNING, runs the worker_fn, flips to DONE/ERROR.
+
+Sentinel preservation: Job is a brand-new `node_type` that none of the existing 17 typology / 11 drafter / 4 aggregator queries match. Verified post-deploy: 154 ValidationFinding / 75 Communication unchanged after 8 smoke-test job inserts.
+
+Methodology catches (forward-applicable):
+
+1. **Cloud Build default Compute SA needs 3 roles to upload context + push images:** `storage.objectAdmin` (the `${PROJECT}_cloudbuild` bucket), `logging.logWriter`, `artifactregistry.writer`. Otherwise every `gcloud builds submit` fails with "does not have storage.objects.get access" — confusing because the error mentions the user's account, not the SA.
+2. **zsh parameter modifier `:l` eats colons after variable names.** `"$svc:latest"` expands to `"$svc"` lowercased (with `:latest` becoming a modifier interpretation). Always use `"${svc}:latest"` with curly braces — `$svc:l` → "${svc:l}" → lowercase modifier. Caused a 4-service mass-deploy failure with image-name "m2-validatoratest". Fix: brace-quote every variable that's followed by a colon.
+3. **`node_id` in `kg_nodes` is a UUID column, not a free-form string.** `uuid.uuid4().hex` (32 char bare hex) is rejected with `invalid input syntax for type uuid`. Always use `str(uuid.uuid4())` to get the canonical 8-4-4-4-12 form. The schema introspection that surfaced this lives in the GCP-2 status report.
+4. **`label` in `kg_nodes` is NOT NULL.** Empty inserts hit `null value in column "label" violates not-null constraint`. Set a human-readable label like `Job: m4 / smoke-test-001 / QUEUED` and refresh it on every status transition.
+5. **Runtime SA needs `iam.serviceAccountUser` on itself** to be allowed to sign OIDC tokens for Cloud Tasks (the API verifies `iam.serviceAccounts.actAs` between the principal calling `CreateTask` and the SA in the `oidc_token.service_account_email` field — and that principal IS the runtime SA itself when invoked from within a Cloud Run revision). Without this binding, `/run` returns 500 from the Cloud Tasks gRPC call and Job rows never advance past QUEUED. Bind with `gcloud iam service-accounts add-iam-policy-binding $SA --member="serviceAccount:$SA" --role=roles/iam.serviceAccountUser`.
+6. **Two-step Cloud Run deploy when self-dispatching via Cloud Tasks.** Step 1: deploy without `SERVICE_URL`. Step 2: capture the assigned `*.run.app` URL and `gcloud run services update --update-env-vars=SERVICE_URL=…`. Avoids the chicken-and-egg between "I need the URL to set the env var" and "I need to deploy to get the URL".
+7. **`.gcloudignore` at repo root** keeps Cloud Build context lean (3.8 MiB instead of 100+ MiB) by skipping `.env`, `.venv`, `node_modules`, `data/`, `source_documents/`, `frontend/.next/`, `experiments/`, large parquet/sqlite files.
+
+End-to-end verified: POST `/m4/run` → 202 + job_id → poll `/jobs/{id}` → DONE in ~2 seconds (Cloud Run cold-start + Cloud Tasks dispatch + Supabase PATCH). All 4 services pass `/health` and full pipeline.
