@@ -24,7 +24,7 @@ const STACK = [
   { layer: "Knowledge graph",       items: ["Supabase PostgreSQL", "kg_nodes (JSONB additive)", "kg_edges + fact_sheets"] },
   { layer: "Validation pipelines",  items: ["BGE-M3 embeddings", "OpenRouter (qwen-2.5-72b)", "Three-valued condition_when", "L24 evidence guards"] },
   { layer: "Module 4 Communicator", items: ["Sarvam-M /translate API", "DPDP pseudonymisation", "Filesystem cache (SHA256)", "EN+TE bilingual output"] },
-  { layer: "Frontend",              items: ["Next.js 14 (App Router)", "Tailwind CSS", "React 18 server components", "Vercel deploy"] },
+  { layer: "Frontend",              items: ["Next.js 14 (App Router)", "Tailwind CSS", "React 18 server components", "Cloud Run asia-south1"] },
   { layer: "Reports",               items: ["python-docx", "reportlab PDF (L75)", "Markdown intermediary", "5-layer drilldown chain"] },
 ];
 

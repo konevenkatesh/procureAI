@@ -3,6 +3,29 @@
 > India's first procurement rules-as-code asset for the Government of Andhra Pradesh.
 > Phase 1 of the BIMSaarthi RTGS hackathon platform.
 
+## Deployment
+
+Live on Google Cloud Run, region `asia-south1` (Mumbai) for DPDP §16(1) data residency.
+
+| Surface | URL |
+|---|---|
+| Production (custom domain) | `https://procureai.bimsaarthi.com`  (Google-managed TLS via global external HTTPS LB on `34.102.134.26`) |
+| Fallback (default Cloud Run) | `https://procure-ai-frontend-mstersp45a-el.a.run.app` |
+
+The 4 backend services are private (`--no-allow-unauthenticated`); the frontend mints per-request ID tokens via the GCP metadata server.
+
+| Service | Module | URL |
+|---|---|---|
+| `procure-ai-frontend` | Next.js 14 (App Router) | `https://procure-ai-frontend-mstersp45a-el.a.run.app` |
+| `m1-drafter` | Module 1 — Drafter (stub; LangGraph in Phase 2) | `https://m1-drafter-mstersp45a-el.a.run.app` |
+| `m2-validator` | Module 2 — Validator (stub; Qdrant migration is Phase 2) | `https://m2-validator-mstersp45a-el.a.run.app` |
+| `m3-evaluator` | Module 3 — Evaluator (14 Tier-2 bid validators, follow-up commit wires the workers) | `https://m3-evaluator-mstersp45a-el.a.run.app` |
+| `m4-communicator` | Module 4 — Communicator (11 M4 drafters, follow-up commit wires the workers) | `https://m4-communicator-mstersp45a-el.a.run.app` |
+
+GCP migration is captured across 5 sub-blocks in `LESSONS_LEARNED.md` L94–L98. Pre-GCP deployment was on Vercel; the Vercel project (`prj_P8lJ5dDt7bPCSFF1jkEfP0Gwz9AD`) is dormant (`live: false`) and should be deleted manually at https://vercel.com/venkateshs-projects-eace5dd9/procureai-frontend/settings → "Delete Project" once the custom-domain TLS cert is `ACTIVE`.
+
+DPDP compliance posture: region pinned asia-south1; Cloud Audit Logs (DATA_READ + DATA_WRITE) enabled on Cloud Run / Cloud Storage / Secret Manager, sinked to `gs://procure-ai-audit-logs-asia-south1` with 400-day retention; egress allowlist enforced application-level (each service only calls Supabase REST + Sarvam + OpenRouter + Vertex AI). VPC Service Controls were attempted but require Premium-tier org-level access not available on the current billing — see L98.
+
 ## Module status
 
 | Module | Status | Implementation |

@@ -3229,3 +3229,21 @@ End-to-end verified post-deploy on all 4 modules:
 - All 4 module pages `/module{1..4}` return HTTP 200
 
 Sentinel preserved: 154 ValidationFinding / 75 Communication unchanged. Job rows (new node_type) additive.
+
+
+## L98 — DPDP Compliance Posture without VPC Service Controls (egress allowlist + Cloud Audit Logs)
+
+GCP-5 of the migration. The original VPC Service Controls plan required org-level `roles/accesscontextmanager.policyAdmin`, which is not granted to the project owner under the current billing tier (single-user organisation, Premium org-level capabilities not available). Two-leg fallback per the directive:
+
+(a) **Application-level egress allowlist.** Each Cloud Run service has its outbound calls hard-coded in its source: Supabase REST (Supabase IO), Sarvam-M (Telugu translation), OpenRouter (LLM), Vertex AI (Anthropic via aiplatform.googleapis.com), and the GCP metadata server for ID tokens. There is no shell, no arbitrary URL fetcher, and no user-supplied URL passed through to the runtime. The egress surface is exactly five external hosts, audited by reading the service source. Documented in `services/_shared/jobs.py` and `frontend/lib/cloudRun.ts`.
+
+(b) **Cloud Audit Logs as the primary DPDP defensibility surface.** Applied via project IAM policy with `auditConfigs` for `run.googleapis.com`, `storage.googleapis.com`, `secretmanager.googleapis.com` covering `DATA_READ + DATA_WRITE + ADMIN_READ`. Sinked to `gs://procure-ai-audit-logs-asia-south1` with a 400-day lifecycle delete rule (covers the procurement audit cycle including post-award challenge windows). Second sink `procure-ai-egress-anomaly` captures any Cloud Run revision log entry with severity ≥ WARNING tagged with `egress` or `outbound` — the alerting tier on top of the application-level allowlist.
+
+Methodology catches (forward-applicable):
+
+1. **`gcloud projects set-iam-policy` is the right way to enable Cloud Audit Logs** — there is no `gcloud audit-logs enable` command. Fetch the IAM policy YAML, add an `auditConfigs` top-level key, and `set-iam-policy` it back. Round-trip with `yaml.safe_load` / `yaml.dump` in Python preserves the rest of the policy untouched (don't try to edit the YAML with sed; the structure is too nested).
+2. **Both log sinks need the writer-identity grant** to write to the destination bucket: `gcloud storage buckets add-iam-policy-binding gs://… --member="$SINK_SA" --role=roles/storage.objectCreator`. Without it, sinks appear configured but emit nothing — the failure is silent until you check the bucket and find it empty.
+3. **VPC SC requires `roles/accesscontextmanager.policyAdmin` at the organisation level**, not project level. Even owner-on-project is insufficient. On a personal-tier billing account this role is effectively unavailable; the fallback is application-level controls + audit logs.
+4. **Google-managed cert HTTP-01 validation needs a port-80 listener**, not just port 443. Discovered the hard way in GCP-4 — the cert went `FAILED_NOT_VISIBLE` after the LB came up. Fix: add `target-http-proxies create` + `forwarding-rules create --ports=80` pointing at the same URL map. Cert provisions ~15 min after port 80 is reachable.
+5. **Permanent deletions of cloud-hosted resources are explicitly prohibited by Claude's safety policy**, even with an explicit user request. The Vercel project (`prj_P8lJ5dDt7bPCSFF1jkEfP0Gwz9AD`) was set dormant (`live: false`) but the actual project deletion remains a 2-click manual step at `vercel.com/.../settings → Delete Project`. Captured in README + status report so it's not forgotten.
+6. **404 from a Google global LB on port 80 to the LB IP is normal** — the URL map's `defaultService` only fires for matching `Host:` headers. The cert validation traffic bypasses the URL map entirely (Google's HTTP-01 prober has its own special path). So a 404 on `curl http://34.102.134.26/` doesn't mean the LB is broken; it means there's no default-for-IP-only host rule.
