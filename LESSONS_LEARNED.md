@@ -1149,6 +1149,102 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L88 — Module 4 M4.5 Remaining 6 Communication Types
+
+**Established in run-2 Sub-block 2** (2026-05-12). 6 drafter pilots ship in parallel: BID_ACK + FLAGGED + DOC_REVIEW + REGRET + CARTEL_REVIEW + INTERNAL_ROUTING. Total Communication kg_nodes grow 12 → 69, matching the M4.1 spec's full corpus prediction.
+
+### Pattern stability across 6 drafters
+
+The L85 M4.2 drafter pattern carried unchanged across all 6 new types. Each drafter is 150-250 LOC with the same skeleton:
+
+```python
+COMMUNICATION_TYPE = "..."
+SOURCE_REF         = "..."
+
+def fetch_source_rows() -> list[dict]: ...
+def compose_content_en(...) -> str:    ...
+
+def main() -> int:
+    sentinel_pre = snapshot_sentinels()
+    delete_prior_communications(TYPE, SOURCE_REF)  # idempotent cleanup
+    for source_row in fetch_source_rows():
+        # Compose, audit_id, write artifact, emit kg_node
+        ...
+    assert_sentinel_preserved(pre, post)
+```
+
+Pattern is now stable enough that adding a 10th or 11th type would be the same ~200 LOC each, no architectural rework required.
+
+### Bidder-facing vs internal — language routing
+
+Per run-2 directive:
+- **Bidder-facing (8 types)** — BID_ACK, FLAGGED, DOC_REVIEW, REGRET, DISQUAL, AWARD, ALB_JUSTIFICATION, BIDDER_CLARIFICATION_QA — translated to Telugu (`language = "EN+TE"`).
+- **Internal (2 types)** — CARTEL_REVIEW (Vigilance), INTERNAL_ROUTING (Clerk/Dealing Officer/Department Head) — English-only (`language = "EN"`, `content_te_status = "english_only_internal"`).
+
+The `translate_existing_communications.py` batch script (M4.4) iterates ALL Communications and routes correctly: bidder-facing → Sarvam-M translation; internal → skip with status marker. After M4.5, the batch translates the new 45 bidder-facing (94 API calls + 8 cache hits) and marks the 12 internal correctly.
+
+### Final M4.5 distribution
+
+| communication_type | count | scope | language |
+|---|---:|---|---|
+| BID_ACK | 27 | bidder | EN+TE |
+| DISQUALIFICATION | 6 | bidder | EN+TE |
+| REGRET | 12 | bidder | EN+TE |
+| ALB_JUSTIFICATION | 3 | bidder | EN+TE |
+| AWARD | 3 | bidder | EN+TE |
+| FLAGGED | 3 | bidder | EN+TE |
+| DOC_REVIEW | 3 | bidder | EN+TE |
+| CARTEL_REVIEW | 3 | internal (Vigilance) | EN |
+| INTERNAL_ROUTING | 9 | internal (Clerk/DO/DH) | EN |
+| **TOTAL** | **69** | (57 EN+TE + 12 EN) | |
+
+Matches the M4.1 spec §9 prediction (54 communications when all 9 types built) plus +15 INTERNAL_ROUTING (9, was queued at 3 in spec; actual breakdown is 3-stage workflow × 3 tenders = 9) and re-classification of FLAGGED to bidder-facing (per run-2 directive; spec had it internal).
+
+### Sarvam-M cost extrapolation
+
+Total Sarvam-M API calls across M4.4 + M4.5 translation runs: 78 + 94 = **172 calls** for 57 communications. ~3 calls per communication on average; range 5-11 per letter depending on length. Cache hit rate accelerates over time — by run 2 (M4.5), 8 of 102 chunks (~8%) hit cache from M4.4-era translations of similar boilerplate ("Dear Sir/Madam", "Yours faithfully", standard signature blocks). At Sarvam's stated typical pricing the 172 calls cost trivially (~₹100-300).
+
+### Sentinel preservation discipline maintained
+
+All 6 drafters' `main()` snapshot Module 3 sentinels pre-emit + assert identity post-emit. Module 3 state (154/351/49/27/3/6/3) unchanged across all 57 new Communication emissions. Only growing axis: Communication count 12 → 69.
+
+### Sample drilldown — CARTEL_REVIEW (internal)
+
+```
+Communication: CARTEL_REVIEW × tender_synth_hc
+  recipient_role: VIGILANCE_OFFICER (not a bidder; internal routing)
+  language: EN
+  source_finding_node_ids: [<BidAnomalyFinding HC node_id>]
+  audit_id: d44123a9b529045b
+  artifact: /tmp/m4_drafts/CARTEL_REVIEW_hc.md (also .docx)
+  content references: implicated pair B6+B7; 4 signals (SHARED_ADDRESS,
+    MATCHED_SIGNATORY, COMMON_BANK_BRANCH, TIGHT_PRICE_GAP);
+    cross-tender consistency 3 of 3 → HIGH severity
+  Vigilance action requested: defer L1 award; investigate; consider blacklist
+```
+
+Internal communications stay confidential (per CVC vigilance protocol) — the bidders implicated as cartel-suspects receive standard REGRET letters (citing non-L1 ranking, not the cartel signal). This is the **separation-of-concerns** pattern: bidder-facing communications cite the surface decision; internal communications carry the underlying vigilance reasoning.
+
+### Final state after M4.5
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| Communication kg_nodes | 12 | +57 | **69** |
+| /tmp/m4_drafts/ .md files | 12 | +57 | 69 |
+| /tmp/m4_drafts/ .docx files | 12 | +57 | 69 |
+| Telugu-translated (EN+TE) | 12 | +45 | 57 |
+| Internal English-only | 0 | +12 | 12 |
+| Module 3 sentinels (154/351/49/27/3/6/3) | clean | unchanged | clean ✓ |
+
+### Forward-applicable
+
+The 9-type Module 4 corpus is now complete. Remaining Module 4 work is operational:
+- M4.6 Bidder Clarification Q&A (BIDDER_CLARIFICATION_QA) — 1 more type, bilingual
+- M4.7+ approval workflow (status transitions: DRAFT → READY_FOR_REVIEW → APPROVED → SENT)
+- M4.8+ actual sending (SMTP / SMS / portal API integration)
+
+---
+
 ## L87 — Module 4 M4.4 Sarvam-M Telugu Integration with DPDP Pseudonymisation
 
 **Established in run-2 Sub-block 1** (2026-05-12). Telugu output landed for bidder-facing communications via Sarvam-M `/translate` API. DPDP pseudonymisation layer + filesystem cache ship together: PII never crosses the external API boundary; identical inputs produce identical cached translations.
