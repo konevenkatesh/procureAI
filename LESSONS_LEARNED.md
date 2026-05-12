@@ -1149,6 +1149,174 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L108 — Reference-SBD Section Classification (Boilerplate / Template+Placeholders / Project-Specific) is Where the M1 Drafter Architecture Lives
+
+**Established in Run 7.1** (2026-05-13). When extending Module 1 from the 30-page template-mode v1 output to a 100-244 page corpus-driven v2, the inflection point is not "use a bigger model" — it's understanding which of the 9 SBD sections are mechanically templated, which are template+placeholders, and which are genuinely project-specific text that must be LLM-adapted from exemplars.
+
+### The measured classification (Jaccard on normalised line-set fingerprints across HOD Towers + LPS Zone-11 reference SBDs)
+
+| Section | Title | Jaccard | Class |
+|--------:|-------|--------:|-------|
+| I       | NIT (Invitation for Bids)        | 0.024 | TEMPLATE+PLACEHOLDERS |
+| II      | Instructions to Bidders          | 0.267 | TEMPLATE+PLACEHOLDERS |
+| III     | Evaluation & Qualification       | 0.065 | TEMPLATE+PLACEHOLDERS |
+| IV      | Bidding Forms                    | 0.86  | BOILERPLATE           |
+| V       | Eligible Countries / Source-of-Funds | 0.91 | BOILERPLATE         |
+| VI      | Works Requirements               | 0.04  | PROJECT-SPECIFIC      |
+| VII     | General Conditions of Contract   | 0.95  | BOILERPLATE           |
+| VIII    | Particular Conditions of Contract| 0.12  | PROJECT-SPECIFIC      |
+| IX      | Annexures (Contract Forms)       | 0.93  | BOILERPLATE           |
+
+### Pre-flight prediction vs measurement
+
+The pre-flight inventory predicted Sections II, III, NIT would be high-similarity TEMPLATE+PLACEHOLDERS (≥0.5 Jaccard). The measurement showed otherwise: NIT 0.024, II 0.267, III 0.065. The structural pattern is still templated (same headings, same paragraph order), but the prose-level token overlap is low because every reference tender swaps in its own project name, GO numbers, eligibility specifics, and dates. The fix is not to abandon the classification — it's to recognise that "TEMPLATE+PLACEHOLDERS" means **deterministic substitution of {{var}} markers on a single chosen exemplar's content_md**, not a high-Jaccard line-set merge.
+
+### Architectural consequence for workflow_v2
+
+This 3-way split locks the 15-node workflow's per-section strategy:
+
+- **BOILERPLATE (IV, V, VII, IX)**: top-1 pgvector retrieval → drop content_md verbatim with placeholder substitution. Zero LLM calls. Fast (< 50ms each).
+- **TEMPLATE+PLACEHOLDERS (I, II, III)**: top-1 retrieval → placeholder substitution. Same code path as BOILERPLATE but the exemplar's content_md has many more `{{vars}}` to fill. Still zero LLM calls.
+- **PROJECT-SPECIFIC (VI, VIII)**: top-3 retrieval → Vertex Gemini 2.5 Pro adaptation with the 3 exemplars in-context. ~30s per call, ~₹2-3 each on a 50-cr tender. This is the *only* place reasoning-tier compute is spent for section drafting.
+
+The BoQ generator is a fourth, separate path (Vertex Gemini 2.5 Flash batches; covered in L110).
+
+### Forward-applicable rule
+
+For any future Module that ingests a templated document corpus (LD/PVC/IP/PCC/SCC anchors across the validator, eligibility lots, communication templates), **measure boilerplate-vs-project-specific Jaccard on normalised line sets BEFORE writing the per-section LLM strategy.** Use ≥0.85 / ≥0.50 / <0.50 as the classification thresholds, but treat <0.50 as "project-specific even if structurally templated" — token similarity isn't the same as structural similarity, and the wrong assumption costs you a Pro call per section that didn't need one.
+
+---
+
+## L109 — Token-Aware Prompt Engineering: thinking_budget=0, Schema Inliner, Batch-Size Sanity (Vertex AI Gemini 2.5 Pitfalls)
+
+**Established in Run 7.4 + 7.6** (2026-05-13). Three sharp edges show up the first time you wire Vertex AI Gemini 2.5 (Flash or Pro) into a structured-output pipeline. None of them are documented in the Vertex docs as gotchas; all of them silently destroy your output unless you find and fix them.
+
+### 1. Flash "thinking" can consume your entire output budget
+
+In R7.4 smoke, a 300-token `max_output_tokens` Flash call returned 11 actual text tokens and 285 `thoughtsTokenCount`. Gemini 2.5's chain-of-thought is on by default and competes with the visible output for the same token budget. For BoQ enrichment (structured output, no reasoning needed), this destroys throughput.
+
+Fix: pass `generationConfig.thinkingConfig.thinkingBudget = 0` on every Flash call. We wired this as the default in `gemini_flash()` (`thinking_budget: Optional[int] = 0`). Pro keeps the default-None ("model decides") since Pro is where we actually want reasoning.
+
+### 2. Vertex AI's responseSchema rejects Pydantic's $defs/$ref output
+
+Pydantic 2's `model_json_schema()` emits JSON Schema with `$defs` + `$ref` for any nested BaseModel. Vertex AI's `generationConfig.responseSchema` is an **OpenAPI 3.0 subset** that explicitly does NOT support these. The result is a 400 with `Unknown name "$defs"` / `Unknown name "$ref"`. We hit this on every Flash batch in the first R7.6 smoke — 100% LLM failure across 12 batches.
+
+Fix: write an inliner (`_pydantic_to_response_schema()` in `vertex_client.py`) that recursively dereferences `$ref` against the local `$defs` dict, drops the `$defs` key, converts `anyOf` with null → `nullable=true`, and strips `title` / `default` / Pydantic-specific metadata. Cap recursion at depth 8 for self-referential types.
+
+### 3. Output-token cap interacts with batch size to cause silent JSON truncation
+
+Flash's default `max_output_tokens=8192` is too small for a 30-row BoQ batch where each row produces ~300 output tokens (spec_text + citations + work_type + apss_cl_no). The response gets cut off mid-row, the `parse_ok` flag returns False with `"Unterminated string starting at line N..."`, and every single batch falls back to the stub-row path.
+
+Fix: empirically right-size. 15 rows × 12288 cap works reliably; 30 rows × 8192 cap does not. **The right rule is `max_output_tokens ≥ N_rows × expected_output_per_row × 1.5`** (50% headroom for verbose model responses). Document the formula in the prompt's docstring so future maintainers don't tighten the cap to "save tokens."
+
+### Cost of the lesson
+
+R7.6 smoke ran 12 Flash batches × ~35s with 100% success after these three fixes. ~₹1.19 total spend, 100% citation-match rate on the 10-row sample, 100% spec_text length pass. Before the fixes: same cost (because failed calls still consume the prompt-tokens charge), 0% success.
+
+### Forward-applicable rule
+
+For every new Vertex AI integration, before any real-LLM smoke, write a 3-line preflight that:
+- Asserts `thinking_budget=0` is set on Flash and any sub-reasoning-tier model.
+- Round-trips your Pydantic response schema through the inliner and asserts no `$ref`/`$defs` keys remain.
+- Logs an upper-bound on `expected_output_tokens × batch_size × 1.5` and asserts `max_output_tokens` ≥ that.
+
+These three fail-fast checks save real LLM-API budget when the smoke runs.
+
+---
+
+## L110 — BoQ Skeleton Is the Officer's Lever: Discipline-Bucketed Flash Batches Beat Per-Row Calls
+
+**Established in Run 7.5 + 7.6** (2026-05-13). Module 1 v2 enriches a Bill of Quantities from an officer-uploaded skeleton (item names + quantities + units, no specifications). Two design decisions in `boq_generator.py` matter:
+
+### Decision 1: Bucket rows by detected discipline before LLM batching
+
+We classify each skeleton row's discipline via regex (16 disciplines: HVAC, Fire, Lifts, PA, BMS, HSD, Plumbing, Electrical, Roads, Bridges, Drains, Sewerage, WaterSupply, Reuse, UtilityDucts, Plantation, Civil-catchall). Each discipline batch gets the same set of exemplar TechSpecTemplates retrieved via pgvector, so the in-context exemplars match the prompt's domain. This avoids the failure mode where an exemplar AHU spec is shown alongside a road WMM line item — the LLM borrows the wrong citation style.
+
+Tie-break ordering matters: HVAC/Fire/Lifts must come BEFORE Electrical in the regex dict, otherwise "AHU panel" gets classified as Electrical (because "panel" matches first) and the BoQ row receives Electrical citations.
+
+### Decision 2: 15-row Flash batches with progressive event yield, not 30-row or per-row
+
+Per-row calls are too slow (1.2s/row × 200 rows = 240s, plus per-call HTTP overhead). 30-row batches overflow `max_output_tokens` (see L109). 15-row batches at 12288 output cap fit reliably, average ~35s each, ~₹0.10 each.
+
+The other half of this decision is **progressive yield**: an earlier implementation queued events into a list inside `_draft_BoQ_node` and yielded them all at the end. With a synchronous-blocking Flash call inside the loop, the SSE consumer saw zero rows for 5+ minutes while batches accumulated, then everything at once. Refactor: the BoQ node yields `boq_batch_started` → 15× `boq_item_complete` → `boq_batch_started` → … as a generator. Wall-clock guards in test drivers and the live SSE view both see partial progress.
+
+### Why this lever exists at all
+
+The directive's input-modality decision was: officer uploads an Excel/CSV skeleton, AI fills the specs. This was the right call because:
+- It keeps the officer in the loop on *which* line items are in scope (the hardest part of BoQ authorship).
+- It frees the LLM from the open-ended "what should this tender include?" problem and lets it specialise on the closed-form "given THIS item name + qty + unit, write the spec_text + citations".
+- It maps to existing officer workflows — every tender already starts with a hand-drafted skeleton spreadsheet that goes through internal review before AP-eGP upload.
+
+### Forward-applicable rule
+
+For any LLM enrichment of a structured tabular input where each row needs ≥150 chars of typed output: bucket by a deterministic upstream classifier first, batch within bucket at a size that fits 1.5× the output budget, and yield events progressively. Don't reach for parallelism until per-bucket serial fits inside the wall-clock SLA — it's a 4× speedup at a 10× code-complexity hit.
+
+---
+
+## L111 — pgvector + Vertex Embeddings: Direct psycopg Wins Over REST PATCH for Bulk Backfills
+
+**Established in Run 7.4** (2026-05-13). Backfilling 1095 768-dim embeddings (30 SBDSection + 993 BoQItemSpec + 72 TechSpecTemplate) initially routed through Supabase REST `PATCH /rest/v1/kg_nodes?node_id=eq.X`. This pattern is fine for occasional single-row writes but fell over here for three reasons:
+
+1. **Per-row HTTP overhead**: 1095 round-trips × ~600ms each = ~11 min minimum, ignoring API rate-limit backoff.
+2. **PostgREST read-timeout under sustained PATCHing**: hit `ReadTimeout` ~700 rows in, no obvious recovery path without resuming from arbitrary mid-stream.
+3. **No bulk-update primitive in PostgREST** for `(node_id, vec_str)` pairs — `UPDATE FROM (VALUES …)` requires raw SQL.
+
+Fix: skip REST entirely for bulk operations. Open a direct `psycopg.connect(settings.supabase_url, sslmode="require")` against the Postgres pooler (port 6543), set `statement_timeout = 300000`, and use `cursor.executemany("UPDATE kg_nodes SET embedding = %s::vector WHERE node_id = %s::uuid", batched_50_at_a_time)`. Total wall-clock for the full 1095-row backfill: 3 minutes 12 seconds.
+
+### Companion lessons captured
+
+- **`psycopg[binary]` not bare `psycopg`** — the wheel without the libpq binding fails to import with `no pq wrapper available`.
+- **Cast strings to pgvector explicitly** — `'%s'::vector` in the UPDATE, with the literal formatted as `'[1.2,3.4,...]'`. No driver coercion exists.
+- **HNSW index with `vector_cosine_ops` + partial WHERE** — `CREATE INDEX … WHERE embedding IS NOT NULL` avoids re-indexing the millions of rows that don't carry embeddings (Module 2-4 corpus). Index build on the 1095-row partial: ~2 seconds.
+- **Service-role key fallback** — Supabase service-role key was empty in `.env`; bulk operations against pgvector tables don't need it if you're going through the Postgres connection string, but the REST path does. Document both code paths so future operators know which to choose.
+
+### Forward-applicable rule
+
+Any kg_nodes-level bulk operation > 100 rows: direct psycopg over the pooler. Any per-action mutation triggered by a user request: REST + service-role key. The boundary is "is this an integration job, or a user-flow operation?" — the former goes psycopg, the latter goes REST. Different consistency / latency / observability expectations.
+
+---
+
+## L112 — Run 7 Wrap: 5 Sub-Blocks, 1095 Embeddings, ₹1.19 Smoke, Sentinel Preserved
+
+**Cumulative summary of Run 7** (2026-05-13). Module 1 capital-scale expansion shipped in 5 commits:
+
+| Sub-block | Commit | Deliverable | Cost |
+|----------:|:-------|:------------|-----:|
+| R7.1+R7.2 | `c7df576` | 9 SBD sections → 30 SBDSection kg_nodes; 380pp MEP BoQ → 993 BoQItemSpec | ~₹0 |
+| R7.3+R7.4 | `3b47dab` | 72 TechSpecTemplate schemas + pgvector + Vertex hybrid clients + 1095 embeddings | ₹0.46 |
+| R7.5      | `e411c4c` | workflow_v2.py (15 nodes) + boq_generator.py + v1↔v2 toggle | ~₹0 (dry-run only) |
+| R7.6      | `1c5fbad` | Mid-scale smoke (90 BoQ rows civil, ALL 5 gates pass) | ₹1.19 |
+| R7.7      | `3ee4286` | BoQ skeleton upload UI (Step 6) + parse endpoint | ~₹0 |
+| R7.8      | this commit | Wrap + status report + L108-L112 docs | — |
+
+### Sentinel preserved
+
+The 18-row sentinel taken at R7.6 start (BidAnomalyFinding=6, BidEvaluationFinding=351, RuleNode=611, ValidationFinding=154, etc.) was unchanged after all 5 sub-blocks. The R7-added types (`SBDSection`, `BoQItemSpec`, `TechSpecTemplate`) are additive — no `defeats`/replacement of existing kg_node types. Job count was excluded from the sentinel (volatile per-run).
+
+### What works end-to-end after Run 7
+
+- POST `/api/m1/draft/parse-boq-skeleton` with .xlsx/.xls/.csv → parsed rows in JSON
+- Step 6 of the new-draft wizard renders a drag/drop uploader; parsed rows are previewed
+- Submit on Step 7 → POST `/api/m1/draft/start` with `boq_skeleton` → worker dispatches to v2 when `M1_DRAFTER_WORKFLOW_V2=1`
+- v2 worker runs 15 nodes including Vertex Pro for Section VI + VIII PCC adaptation
+- 90-row BoQ batched at 15 rows / batch, 12 Flash batches × ~35s, 100% citation match
+- All SSE event types stream live (node_started, section_complete, text_chunk, table_row_added, boq_batch_started, boq_item_complete, llm_call)
+
+### What is deferred to Run 8
+
+- Capital-scale smoke (HOD Towers ₹743cr MEP, 3000+ BoQ rows)
+- Small-scale smoke (Banaganapalli ~30 rows) — ensures the existing v1 backward-compat path still works
+- Mid-scale Civil + MEP mix (LPS Zone-11 ~800 rows)
+- Cloud Build deploy of v2 workflow to production with the `M1_DRAFTER_WORKFLOW_V2` flag flipped
+- Parallelisation of Flash batches when total rows ≥ 200 (currently serial; capital scale will exceed 5-min wall-clock without it)
+- Vertex AI Model Garden Anthropic publisher access enablement (Sonnet 4 fallback currently 404s; we skip after first 404 to save retries)
+
+### Forward-applicable note
+
+Skipping the BoQ upload yields a tender with `state.boq = []` and the workflow_v2 node emits a `no_skeleton_supplied` telemetry field. The artifact renderers tolerate empty BoQ. This is the intended degraded path — the officer can complete the BoQ in the TECHNICAL gate's edit scope and re-publish. Don't gate the workflow on skeleton presence; gate the publish step on a non-empty BoQ at the AUTHORITY gate.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
