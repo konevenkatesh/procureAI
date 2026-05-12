@@ -1,0 +1,60 @@
+# Cloud Build upload exclusion list.
+# Keeps the build context small + prevents secret leakage into images.
+.git
+.gitignore
+
+# Secrets — never bake into Cloud Build context
+.env
+.env.local
+.env.*
+*.key
+*.pem
+*.crt
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / frontend
+node_modules/
+frontend/.next/
+frontend/out/
+procure-ai-frontend/dist/
+procure-ai-frontend/node_modules/
+
+# Heavy data / outputs not needed in any image
+data/
+artifacts/
+/tmp/
+*.parquet
+*.sqlite
+*.db
+source_documents/raw/
+source_documents/extracted/
+experiments/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Docs / dev notes (keep the repo, skip Cloud Build context)
+docs/
+*.md
+!services/**/*.md
+README.md
+LESSONS_LEARNED.md
+
+# Anything ignored by git is also redundant for Cloud Build
+#!include:.gitignore

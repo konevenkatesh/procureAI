@@ -1,0 +1,21 @@
+# Cloud Build: m4-communicator image
+# Run from repo root:
+#   gcloud builds submit --config=services/m4-communicator/cloudbuild.yaml
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m4-communicator:latest
+      - -f
+      - services/m4-communicator/Dockerfile
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m4-communicator:latest
+images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m4-communicator:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s

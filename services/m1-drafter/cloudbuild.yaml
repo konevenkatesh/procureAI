@@ -1,0 +1,21 @@
+# Cloud Build: m1-drafter image
+# Run from repo root:
+#   gcloud builds submit --config=services/m1-drafter/cloudbuild.yaml
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+      - -f
+      - services/m1-drafter/Dockerfile
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s

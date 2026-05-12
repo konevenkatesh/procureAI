@@ -1,0 +1,21 @@
+# Cloud Build: m2-validator image
+# Run from repo root:
+#   gcloud builds submit --config=services/m2-validator/cloudbuild.yaml
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m2-validator:latest
+      - -f
+      - services/m2-validator/Dockerfile
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m2-validator:latest
+images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m2-validator:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s
