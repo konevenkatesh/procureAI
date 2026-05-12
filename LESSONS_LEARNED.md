@@ -1149,6 +1149,174 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L102 — Wrong-Project-Paste Recovery Pattern (Cross-Repo Working Discipline)
+
+**Established in R4-4 wrap** (2026-05-12). Meta-lesson on operating Claude Code across multiple repos in the same workstation: when a directive is pasted into the wrong session, the cheapest detection is a **ledger comparison** of the actual git log against what the directive expects.
+
+### The mismatch
+
+User pasted the R4 directive into the run-2 wrap-up session that had just finished M4.6 + Vercel deploy at commit `2792bcc`. The R4 directive expected pre-flight state:
+- 7 commits from GCP migration on origin/main (`5741d6f` latest)
+- 5 Cloud Run services live in `asia-south1`
+- Custom domain `procureai.bimsaarthi.com` serving HTTP 200
+- Secrets seeded in Secret Manager
+
+The run-2 session's actual state was:
+- Latest commit was Vercel-era `2792bcc`
+- No Cloud Run services
+- No custom domain
+- No Secret Manager
+
+A naïve session would have re-run the GCP migration on top of run-2's work, producing duplicate commits, conflicting Cloud Tasks queues, and divergent Sentinel snapshots.
+
+### The recovery technique that worked
+
+Three commands; under two minutes:
+
+```
+git log --oneline -15        # Did the expected commits already exist?
+git status -sb               # Is the working tree consistent with the directive?
+git log --oneline origin/main..HEAD   # Is local diverged from origin?
+```
+
+The first command surfaced `026f25f` / `770c8d5` / `afa4953` (R4 commits) + `5741d6f` / `0a67c19` / `a07bc3c` / `e1121a8` / `05a62c2` / `66ce76a` / `bdaa8bd` (R3 GCP commits) already on origin/main. The R4 work HAD been done — by another session. The directive paste was retrospective, not prospective.
+
+### Recovery decision tree (forward-applicable)
+
+When a directive's pre-flight expectation doesn't match the actual repo state, three diagnostic questions answer everything:
+
+1. **Are the expected commits already on `origin/main`?**
+   - Yes → the work is done; the directive is a retrospective handoff. Read it for context, don't re-execute.
+   - No → continue to step 2.
+
+2. **Is the working tree consistent with the directive's "what's NOT done" list?**
+   - The R4 handoff said 4 submission docs uncommitted + TECHNICAL_PROPOSAL.md missing + L99-L102 not written. `git status --short` should show those exact loose ends.
+   - Yes → genuine pickup point; the directive is mid-work.
+   - No → re-paste error suspected; ask the user to verify before any action.
+
+3. **Are the LESSONS_LEARNED entries claimed to exist actually in the file?**
+   - The R3 commits claimed L94-L98 were added. `grep -c "^## L94\|^## L95\|^## L96\|^## L97\|^## L98" LESSONS_LEARNED.md` returned 5. Confirmed they exist (even though structurally placed at line 3125 — bottom of file, out of newest-at-top convention).
+   - Yes → trust the handoff; pick up where it stopped.
+   - No → diverge investigation; the commit messages may overstate what shipped.
+
+### Ledger pattern as forward discipline
+
+Every multi-step session should leave a **named ledger artifact** at session end (`/tmp/overnight_status_runN.md` in the procureAI convention). The artifact lists: commits pushed, files modified, files left uncommitted, sentinels final state, what's done vs what's pending. When the next session inherits a handoff, the ledger is the canonical source of truth — git log + working tree + lessons file are independent verifications.
+
+For Claude Code: never trust a pasted handoff at face value. Always cross-verify against the live repo before executing.
+
+### Cross-repo pollution risk
+
+Working across `/Users/venkateshkone/procureAI` + `/Users/venkateshkone/sutra` + `/Users/venkateshkone/BIMSAARTHI-PLATFORM-platform/` simultaneously means a `cd` command can land in the wrong tree. Every session should verify `pwd` + `git remote -v` at start. Lesson L102's diagnostic technique (the 3 git commands) is the rescue path.
+
+---
+
+## L101 — Demo Polish + Architecture Single Source of Truth (R4-3)
+
+**Established in R4-3 sub-block** (commit `026f25f`, 2026-05-12). Three polish items + one source-of-truth doc that together make the platform demo-ready.
+
+### Three polish items shipped
+
+1. **`<RegionBadge />`** — small pill component `"asia-south1 · DPDP-compliant"` rendered on dashboard + Module 4. Communicates regulatory compliance posture at a glance, before any judge clicks into details.
+2. **`<ClarificationLauncher />`** — CTA card on Module 4 page that opens the new `<ClarificationModal />` for live Bidder Clarification Q&A demos. Per L100, the modal accepts EN or TE input, calls Sarvam-M, and creates the threaded Communication.
+3. **Telugu toggle verification** — confirmed EN/TE switch works on all bidder-facing Communications via existing `LangToggle` component (from L92). No new component; smoke test only.
+
+### Single source-of-truth architecture doc
+
+`docs/architecture-gcp.md` (new) carries the canonical GCP deployment description:
+- **Mermaid sequence diagram**: User → LB → procure-ai-frontend (Cloud Run) → /api/m{1,2,3,4} proxy → Cloud Tasks queue → /worker on m{1,2,3,4}-evaluator → Supabase + Sarvam + OpenRouter
+- **Mermaid C4 component diagram**: 5 Cloud Run services + LB + Cloud Tasks + Cloud Audit Logs + Sarvam-M + OpenRouter + Supabase, with `asia-south1` DPDP boundary highlighted
+- **Audit log path**: every action → Cloud Logging → GCS sink @ 400-day retention
+- **Sentinel preservation pattern**: which counts must stay frozen (the 154/351/49/27/3/6/3 hard sentinels) vs which are additive (Communication + Job rows)
+
+### Why "single source of truth"
+
+Three submission docs (EXECUTIVE_SUMMARY, DEMO_SCRIPT, TECHNICAL_PROPOSAL when written) will reference architecture without re-describing it. Each links to `docs/architecture-gcp.md`. If the architecture changes (next session lands Module 1 LangGraph, GKE Qdrant, etc.), one file gets updated and all three submission docs stay consistent.
+
+Forward-applicable: any future modular shift (Module 5, Module 6) updates `docs/architecture-gcp.md` first, then the affected submission docs reference it.
+
+---
+
+## L100 — M4 Communicator Wiring + Live Bidder Clarification Q&A Flow (R4-2)
+
+**Established in R4-2 sub-block** (commits `afa4953` + `770c8d5`, 2026-05-12). Two-part landing: (a) existing 10 communication drafters wired into `/m4/communicate` worker with idempotent skip; (b) NEW `/submit_clarification` + `/respond_clarification` endpoints implementing live bidder Q&A with Sarvam-M translation + DPDP pseudonymisation.
+
+### Part (a) — idempotent drafter dispatch
+
+`services/m4-communicator/app/main.py /worker` accepts `{tender_id, communication_types: [optional]}` and for each type, looks up existing Communication kg_nodes by `(tender_id, communication_type, bidder_id)`. If exists → skip. If missing → invoke drafter, persist, translate to TE (if bidder-facing), render DOCX.
+
+The idempotency guard means a judge can click "Regenerate Communications" on a tender 10 times without growing the Communication sentinel from 75 — every invocation discovers all 75 already exist and skips cleanly. Demonstrates production safety: replay-tolerant operations are required for ANY queue-backed worker (Cloud Tasks can deliver-twice on transient failures).
+
+### Part (b) — live Bidder Clarification Q&A
+
+`POST /submit_clarification` accepts `{tender_id, bidder_id, question_text, language: "en"|"te"}`. Pipeline:
+1. **Pseudonymise PII** in `question_text` (PAN, GSTIN, mobile, bidder names) via regex + caller-supplied identifier list. Tokens like `<PAN>` replace original strings.
+2. **Translate** pseudonymised text via Sarvam-M (cached): if input is TE, output EN; if input is EN, output TE.
+3. **Restore PII** client-side after translation returns (Sarvam never sees real PII).
+4. **Insert Communication kg_node**: `type=BIDDER_CLARIFICATION_QA`, `direction=BIDDER_INBOUND`, `parent_communication_id=null` (root), both `content_en` and `content_te` populated.
+5. **Return** `communication_id` for thread tracking.
+
+`POST /respond_clarification` is symmetric: accepts `{parent_communication_id, response_text, language}`, threads the answer as `direction=OFFICER_OUTBOUND` with `parent_communication_id` populated.
+
+### DPDP pseudonymisation (production posture)
+
+Per DPDP Act 2023 §16(1) cross-border data transfer restrictions and §7 purpose limitation:
+- Bidder PII NEVER leaves `asia-south1` (Sarvam-M is India-hosted, but the pseudonymisation gate is still applied for defence-in-depth).
+- Pseudonymisation map order: longest tokens first (`GSTIN` before `GST`) — prevents substring collisions.
+- Cache key includes language + pseudonymised text (not raw); identical pseudonymised inputs reuse cached translations even across different bidders.
+- Restoration uses the same map; failed restoration logs an audit event but doesn't block the response.
+
+### Q&A threading verified end-to-end
+
+Smoke test: bidder submits Telugu question → 1 Communication created (root, BIDDER_INBOUND, both EN + TE). Officer responds in English → 1 Communication created (child, OFFICER_OUTBOUND, both EN + TE, `parent_communication_id` linking to root). Communication count grew 75 → 77 (additive). Frontend Module 4 list shows the threaded pair. Sentinel preserved: ValidationFinding 154, BidEvaluationFinding 351, ranking + anomaly counts unchanged.
+
+### Forward-applicable
+
+Pattern reusable for any future bidder-facing async interaction:
+- Pseudonymise → external call → restore (DPDP defence-in-depth)
+- Threading via `parent_communication_id` for arbitrary tree depth
+- Idempotent skip via existence check before dispatch
+
+---
+
+## L99 — M3 Aggregator Wiring with Idempotent Re-Runs (R4-1)
+
+**Established in R4-1 sub-block** (commit `afa4953`, 2026-05-12). `services/m3-evaluator/app/main.py` rewritten as verified-read worker that runs the 4 Module 3 aggregators (EligibilityMatrix, TenderRanking, CrossBidAnomalyDetector, ComparativeStatementGenerator) idempotently against a pre-evaluated tender.
+
+### Pattern: aggregators only, validators skipped
+
+The 14 bid validators ran during local Module 3 development and produced the **351 BidEvaluationFinding hard sentinel** that must stay frozen. The 4 aggregators are pure functions OVER findings; safe to re-run.
+
+Worker accepts `{tender_id, mode: "aggregators_only" | "full"}`. Default `"aggregators_only"`: invokes the 4 aggregators in sequence. `"full"` mode adds an idempotency guard — if 351 BidEvaluationFinding for `tender_id` exist, skip bid validators; else run them too.
+
+### Per-aggregator idempotency
+
+| Aggregator | Re-run strategy |
+|---|---|
+| EligibilityMatrix | UPSERT on `(tender_id, bidder_id)`; preserves manual overrides |
+| TenderRanking | REPLACE for `tender_id`; clean rebuild from EligibilityMatrix |
+| CrossBidAnomalyDetector | REPLACE for `tender_id`; recompute cartel + ALB flags |
+| ComparativeStatementGenerator | REPLACE for `tender_id`; regenerate PDF/DOCX/MD artifacts with fresh `audit_id` |
+
+Smoke test: run all 4 aggregators on all 3 tenders sequentially. Result: ValidationFinding 154, BidEvaluationFinding 351, EligibilityMatrix 27, TenderRanking 3, BidAnomalyFinding 6, ComparativeStatement 3 — **all frozen**. The `audit_id` and artifact file timestamps refresh on each run (proving the work happened), but the kg_node counts don't drift.
+
+### Why the audit_id refresh matters
+
+Each ComparativeStatement re-run produces a new `audit_id` (SHA256 of source kg_nodes + timestamp). This proves:
+1. The aggregator actually ran (not a no-op short-circuit).
+2. The judges can verify the pipeline by clicking "Run Aggregators" → seeing audit_id change → confirming the same effective L1 result (B9 across all 3 tenders).
+3. Replay-safety: the new audit_id supersedes the old; no orphaned references.
+
+### Frontend wire-up
+
+Module 3 tender detail page replaces the previous stub "Run Evaluation" button with active form. POST `/api/m3/evaluate` returns 202 + `job_id`. Frontend polls `/api/jobs/<job_id>` every 2 seconds; on DONE, refreshes the tender view to show updated aggregator outputs + new audit_id.
+
+### Forward-applicable
+
+The aggregators-only mode is the **production demo pattern** for procurement evaluation. Re-running validators on existing bids is rarely useful (their input — bidder submissions — doesn't change). Re-running aggregators IS useful: judges may add manual overrides to EligibilityMatrix (e.g. override a FLAGGED to QUALIFIED based on committee discussion), and re-running the aggregator cascade propagates the override through TenderRanking + CrossBidAnomaly + ComparativeStatement.
+
+---
+
 ## L93 — Frontend Polish + Vercel Production Deploy
 
 **Established in run-2 Sub-block 7** (2026-05-12). Sub-block 7 ships About page, stub Module 1/2 views, OpenGraph image, favicon, footer, sitemap-ready meta. Final Vercel production URL: `https://procureai-frontend.vercel.app`.
