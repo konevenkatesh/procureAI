@@ -160,17 +160,67 @@ def _get_db_conn():
         return None
 
 
+# R9.1 — workflow-level embedding cache. The workflow makes ~17 retrieval
+# embeddings per run (9 SBDSection queries + ~8 TechSpecTemplate discipline
+# queries). Pre-computing them in ONE batch call at workflow start eliminates
+# the per-section timeout cascade observed in R8.3 (Vertex saturation hit
+# every retrieval, 1319s wall-clock).
+_EMBED_CACHE: dict[str, list[float]] = {}
+
+
+def _preload_embeddings(queries: list[str]) -> int:
+    """Pre-compute and cache embeddings for the given list of queries.
+    Returns the count successfully cached. Idempotent — re-running with
+    overlapping queries skips the cached ones.
+
+    Uses Vertex AI's batch embed endpoint (up to 250 in a single call),
+    so the entire workflow's retrieval queries cost ~1 round-trip instead
+    of ~17 round-trips.
+    """
+    uncached = [q for q in queries if q and q not in _EMBED_CACHE]
+    if not uncached:
+        return 0
+    try:
+        from .vertex_client import embed_texts_batch
+        vecs = embed_texts_batch(uncached, task_type="RETRIEVAL_QUERY")
+        n = 0
+        for q, v in zip(uncached, vecs):
+            if v:
+                _EMBED_CACHE[q] = v
+                n += 1
+        logger.info(f"  pre-cached {n}/{len(uncached)} embeddings in 1 batch call")
+        return n
+    except Exception as e:
+        logger.warning(f"  _preload_embeddings batch failed: {e}; falling back to per-call")
+        return 0
+
+
 def _embed_query(text: str) -> Optional[list[float]]:
     """Vertex AI 768-dim embedding; returns None on failure.
+
+    R9.1: check workflow-level cache first. Cache populated by
+    _preload_embeddings at workflow start.
+
     R8.3 fix: 12s timeout (down from 60s default) so retrieval fails-soft fast
     when Vertex embedding API is slow. Caller (retrieve_sbd_section /
     retrieve_tech_templates_pgvector) falls through to in-memory registry."""
+    if text in _EMBED_CACHE:
+        return _EMBED_CACHE[text]
     try:
         from .vertex_client import embed_text
-        return embed_text(text, task_type="RETRIEVAL_QUERY", timeout=12)
+        v = embed_text(text, task_type="RETRIEVAL_QUERY", timeout=12)
+        _EMBED_CACHE[text] = v
+        return v
     except Exception as e:
         logger.warning(f"  embed_query failed (fast-fail): {e}")
         return None
+
+
+def _reset_embed_cache() -> None:
+    """Clear the cache between workflow runs (called at workflow start).
+    Different drafts may have different name_of_work → different queries.
+    Caching across runs would bloat memory and risk stale retrieval."""
+    _EMBED_CACHE.clear()
 
 
 def _vector_literal(v: list[float]) -> str:
@@ -592,6 +642,23 @@ def run_workflow_v2(
     tech_templates_cache: list = []
     boq_telemetry: dict = {}
 
+    # R9.1 — pre-cache workflow-level embeddings in ONE batch call.
+    # Eliminates the per-section embedding-timeout cascade observed in R8.3.
+    _reset_embed_cache()
+    if not dry_run:
+        precache_queries: list[str] = []
+        # 9 SBDSection queries — one per section_id (I, II, III, IV, V, VI, VII, VIII, IX)
+        for sid in ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"):
+            precache_queries.append(_query_for_section(sid, state))
+        # 16 TechSpecTemplate discipline queries (one per known discipline; cheap
+        # to over-cache, expensive to under-cache because per-call latency is the
+        # whole problem we're avoiding)
+        for disc in ("HVAC", "Fire", "Lifts", "PA", "BMS", "HSD", "Plumbing",
+                     "Electrical", "Roads", "Bridges", "Drains", "Sewerage",
+                     "WaterSupply", "Reuse", "UtilityDucts", "Plantation", "Civil"):
+            precache_queries.append(disc)
+        n_pre = _preload_embeddings(precache_queries)
+
     for index, node in enumerate(WORKFLOW_V2_NODES, start=1):
         node_start = time.time()
         # node_started uses LangGraphNode (old enum) for back-compat with the
@@ -734,7 +801,9 @@ def run_workflow_v2(
                         BoQSkeletonRow, ProjectContext, classify_discipline,
                         run_batches_parallel,
                     )
-                    max_concurrent = int(os.environ.get("M1_BOQ_MAX_CONCURRENT", "10"))
+                    # R9.1 — default 6 (down from 10) — eases Vertex API pressure
+                    # at capital scale. Override via M1_BOQ_MAX_CONCURRENT env var.
+                    max_concurrent = int(os.environ.get("M1_BOQ_MAX_CONCURRENT", "6"))
                     project_ctx = ProjectContext(
                         project_name=state.enquiry_particulars.name_of_project,
                         discipline_hint=_discipline_hint_for_state(state),
