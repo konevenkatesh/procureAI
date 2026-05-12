@@ -93,10 +93,15 @@ def make_app(
 
         # Enqueue; fall back to inline execution if Cloud Tasks isn't
         # configured (local dev or first boot before SERVICE_URL is set).
+        # tender_id is merged into params so workers receive everything
+        # the original POST body carried (the top-level RunRequest splits
+        # tender_id out for Job persistence, but workers want it inline).
+        merged_params = {**(req.params or {}), "tender_id": req.tender_id} \
+            if req.tender_id else (req.params or {})
         try:
             jobs.enqueue_task(
                 job_id  = job_id,
-                payload = {"job_id": job_id, "params": req.params or {}},
+                payload = {"job_id": job_id, "params": merged_params},
             )
             return {
                 "job_id":   job_id,
@@ -112,7 +117,7 @@ def make_app(
             )
             try:
                 jobs.update_job_status(job_id, status="RUNNING")
-                result = worker_fn(job_id, req.params or {})
+                result = worker_fn(job_id, merged_params)
                 jobs.update_job_status(
                     job_id, status="DONE", result=result,
                 )
