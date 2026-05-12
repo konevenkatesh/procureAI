@@ -31,6 +31,12 @@ table {
   width: 100%;
 }
 
+/* Skeleton shimmer for live-streamed sections */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Prose adjustments for markdown rendering */
 .prose-government {
   max-width: 64rem;
