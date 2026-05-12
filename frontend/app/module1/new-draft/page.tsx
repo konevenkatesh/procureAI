@@ -73,6 +73,9 @@ export default function NewDraftWizard() {
             dates: state.dates,
             enquiry_forms: state.enquiry_forms,
           },
+          // R7.7 — optional BoQ skeleton uploaded in Step 6
+          boq_skeleton: state.boq_skeleton,
+          boq_skeleton_filename: state.boq_skeleton_filename,
         }),
       });
       if (!res.ok) {

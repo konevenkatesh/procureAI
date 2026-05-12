@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
             initiator_role: body.initiator_role,
             initiator_id: body.initiator_id,
             initial_payload: body.initial_payload,
+            // R7.7 — forward optional BoQ skeleton to workflow_v2 draft_BoQ node
+            boq_skeleton: body.boq_skeleton,
+            boq_skeleton_filename: body.boq_skeleton_filename,
           },
         },
       });

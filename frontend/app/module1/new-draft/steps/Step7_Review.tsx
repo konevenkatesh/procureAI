@@ -75,6 +75,25 @@ export default function Step7_Review({ state }: Props) {
         </KV>
       </SummaryCard>
 
+      <SummaryCard title="BoQ Skeleton">
+        {state.boq_skeleton && state.boq_skeleton.length > 0 ? (
+          <>
+            <KV k="File">{state.boq_skeleton_filename || "(uploaded)"}</KV>
+            <KV k="Rows to enrich">
+              <strong className="text-ink-900">{state.boq_skeleton.length}</strong> items
+              <span className="text-ink-500"> — AI will write spec + citations</span>
+            </KV>
+          </>
+        ) : (
+          <KV k="Skeleton" wide>
+            <em className="text-ink-500">
+              Not provided. BoQ will be empty in the AI draft; officer can add it later in the
+              Technical gate.
+            </em>
+          </KV>
+        )}
+      </SummaryCard>
+
       <div className="rounded-md bg-saffron-50 border border-saffron-500 p-4 text-sm text-ink-700">
         <div className="flex items-start gap-2">
           <CheckCircle2 className="h-5 w-5 text-saffron-700 mt-0.5 shrink-0" />

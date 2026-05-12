@@ -1,9 +1,10 @@
 "use client";
 
 import { Field, TextInput, Select } from "@/components/m1/form-fields";
-import type { DraftFormState } from "@/lib/draft-form-state";
+import type { DraftFormState, BoQSkeletonRowFE } from "@/lib/draft-form-state";
 import docTemplates from "@/data/document-templates.json";
 import { CheckCircle2, Plus, Trash2 } from "lucide-react";
+import BoQSkeletonUploader from "./BoQSkeletonUploader";
 
 interface Props {
   state: DraftFormState;
@@ -124,6 +125,23 @@ export default function Step6_DocumentsDates({ state, update, errors }: Props) {
             );
           })}
         </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-bold text-ink-900 mb-2">BoQ Skeleton (optional)</h3>
+        <p className="text-xs text-ink-500 mb-3">
+          Upload an Excel or CSV with your item-level scope. The AI drafter will enrich each row
+          with full APSS-cited specifications via Vertex AI Flash. You can skip this and add the
+          BoQ later in the Technical gate.
+        </p>
+        <BoQSkeletonUploader
+          skeleton={state.boq_skeleton}
+          filename={state.boq_skeleton_filename}
+          onChange={(rows, fname) => {
+            update("boq_skeleton", rows);
+            update("boq_skeleton_filename", fname);
+          }}
+        />
       </div>
 
       <div>

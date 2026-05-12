@@ -96,6 +96,20 @@ function defaultEnquiryForms(): EnquiryForm[] {
   return docTemplates.default_enquiry_forms as EnquiryForm[];
 }
 
+/**
+ * R7.7 — officer-uploaded BoQ skeleton row. Surfaced from
+ * /api/m1/draft/parse-boq-skeleton and threaded into /m1/run as
+ * params.boq_skeleton so the workflow_v2 draft_BoQ node can enrich each
+ * row via Vertex AI Flash batches.
+ */
+export interface BoQSkeletonRowFE {
+  s_no: number;
+  item_name: string;
+  qty: number;
+  unit: string;
+  raw_row_hint?: string;
+}
+
 export type DraftFormState = Omit<
   TenderDraftState,
   | "general_terms"
@@ -107,7 +121,11 @@ export type DraftFormState = Omit<
   | "created_at"
   | "last_updated_at"
   | "created_by"
-> & { draft_id: string };
+> & {
+  draft_id: string;
+  boq_skeleton?: BoQSkeletonRowFE[];          // empty/undefined → no LLM BoQ
+  boq_skeleton_filename?: string;             // for the UI display
+};
 
 export function emptyDraftForm(): DraftFormState {
   const uuid =

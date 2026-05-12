@@ -35,7 +35,7 @@ SERVICES_ROOT = HERE.parent.parent          # services/
 sys.path.insert(0, str(SERVICES_ROOT.parent))  # repo root
 sys.path.insert(0, str(SERVICES_ROOT))         # services/ (for _shared)
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 
 from _shared import make_app  # noqa: E402
@@ -374,6 +374,53 @@ def get_artifacts(draft_id: str) -> dict:
             "size_bytes": p.stat().st_size,
         })
     return {"draft_id": draft_id, "artifacts": files}
+
+
+@app.post("/m1/parse-boq-skeleton")
+async def parse_boq_skeleton_route(file: UploadFile = File(...)) -> dict:
+    """R7.7 — parse an officer-uploaded BoQ skeleton (.xlsx / .xls / .csv).
+
+    Returns the parsed rows so the frontend can preview them before the
+    officer hits "Generate Tender Draft" on Step 7. The same parser is
+    used by the worker downstream, so what the officer sees here is
+    what the LLM enriches.
+
+    Soft cap: 5000 rows per upload (sane upper bound for tender BoQ).
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="filename required")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="empty file")
+    if len(content) > 10 * 1024 * 1024:        # 10 MB cap
+        raise HTTPException(status_code=413, detail="file too large (max 10 MB)")
+
+    try:
+        from .boq_generator import parse_boq_skeleton
+        rows = parse_boq_skeleton(content, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"parse failed: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"parser crashed: {e}")
+
+    if len(rows) > 5000:
+        raise HTTPException(
+            status_code=413,
+            detail=f"skeleton has {len(rows)} rows; max 5000 supported",
+        )
+
+    return {
+        "filename":  file.filename,
+        "n_rows":    len(rows),
+        "rows": [{
+            "s_no":     r.s_no,
+            "item_name": r.item_name,
+            "qty":      r.qty,
+            "unit":     r.unit,
+            "raw_row_hint": r.raw_row_hint,
+        } for r in rows],
+    }
 
 
 @app.delete("/m1/draft/{draft_id}")
