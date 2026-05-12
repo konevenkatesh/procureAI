@@ -1,0 +1,77 @@
+{
+  "mandatory_default": [
+    {
+      "s_no": 1,
+      "document_name": "Registration Certificate",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 2,
+      "document_name": "EMD Using net Banking/RTGS/NEFT The Bidders Should be Pay EMDS from their Registered bank accounts and the Unsuccessful Bidders",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 3,
+      "document_name": "GST Registration Certificate",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 4,
+      "document_name": "Declaration and Critical Equipment Owned or Leased on Judicial Stamp paper of RS 100",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 5,
+      "document_name": "Saral 2025-2026 Submitted to IT Dept with PAN Card",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 6,
+      "document_name": "Key Personal as per Bid Document",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    },
+    {
+      "s_no": 7,
+      "document_name": "Any other Documents Required as per Tender Schedule",
+      "stage": "COMMON",
+      "document_type": "Mandatory"
+    }
+  ],
+  "optional_additional": [
+    {
+      "document_name": "Bank Solvency Certificate (for ECV > 5 Cr)",
+      "stage": "COMMON",
+      "document_type": "Optional"
+    },
+    {
+      "document_name": "EPF / ESI Registration",
+      "stage": "COMMON",
+      "document_type": "Optional"
+    },
+    {
+      "document_name": "Power of Attorney (JV/Consortium)",
+      "stage": "COMMON",
+      "document_type": "Optional"
+    },
+    {
+      "document_name": "Form-14 JV Agreement (Notarised)",
+      "stage": "COMMON",
+      "document_type": "Optional"
+    }
+  ],
+  "default_enquiry_forms": [
+    {
+      "stage": "Commercial Stage",
+      "form_name": "Percentage Wise Rate",
+      "type_of_form": "Secure",
+      "supporting_document_required": "No",
+      "supporting_document_description": "N/A"
+    }
+  ]
+}

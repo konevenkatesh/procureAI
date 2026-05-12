@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FilePen, FileText, Sparkles } from "lucide-react";
+import { FilePen, FileText, Sparkles, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import DrafterForm from "@/components/DrafterForm";
 
 const PHASE_1_DRAFTS = [
@@ -57,19 +58,53 @@ export default function Module1Page() {
         </div>
       </section>
 
+      {/* Primary CTA: full 7-step wizard (M1.2) */}
+      <section className="mb-6">
+        <Card className="border-saffron-500 bg-saffron-50/40">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
+              <div className="flex-1">
+                <CardTitle className="text-base">7-Step Tender Initiation (Dealing Officer)</CardTitle>
+                <CardDescription>
+                  Build a complete eGP-format tender draft via the 7-step wizard: Authority →
+                  Classification → Financial → Geography → Evaluation → Documents & Dates → Review.
+                  On Generate, the 12-node LangGraph workflow composes the full Bid Document
+                  with sections filling in live via SSE. Form state persists in localStorage —
+                  close the tab and resume anytime.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/module1/new-draft"
+              className="inline-flex items-center gap-2 rounded-md bg-saffron-500 hover:bg-saffron-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+            >
+              <Sparkles className="h-4 w-4" />
+              Start New 7-Step Draft <ArrowRight className="h-4 w-4" />
+            </Link>
+            <p className="text-xs text-ink-500 mt-3">
+              Smoke-test target: the Banaganapalli ₹15,97,185 sample (Tender ID 933192). Verifies
+              data model → wizard → LangGraph → 4 approval gates → published BID DOCUMENT artifact.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Quick-test fallback: simple 4-field stub form (Phase 1 R3 wiring) */}
       <section>
         <Card className="bg-mist-50/40">
           <CardHeader>
             <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
+              <Sparkles className="h-5 w-5 text-ink-500 mt-1" />
               <div>
-                <CardTitle className="text-base">Generate New Draft</CardTitle>
+                <CardTitle className="text-base text-ink-700">Quick-Test Cloud Run Wiring</CardTitle>
                 <CardDescription>
-                  Submit a tender spec to the <span className="font-semibold text-ink-700">m1-drafter</span> Cloud Run
-                  service (asia-south1). The job is enqueued via Cloud Tasks and the status panel
-                  below polls every 2&thinsp;seconds. The full LangGraph drafter pipeline lands in
-                  Phase 2; the current backend returns a queued acknowledgement so the
-                  end-to-end wiring is verifiable today.
+                  Submits 4 fields to the Cloud Run <code className="text-xs">m1-drafter</code>{" "}
+                  stub endpoint (asia-south1). Used to verify end-to-end network plumbing;
+                  the full wizard above invokes the same backend with the complete eGP-format
+                  payload.
                 </CardDescription>
               </div>
             </div>

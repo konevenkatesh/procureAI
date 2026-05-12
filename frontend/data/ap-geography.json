@@ -1,0 +1,71 @@
+{
+  "state": "ANDHRA PRADESH",
+  "districts": [
+    {
+      "name": "NANDYAL",
+      "parliament": "Nandyal",
+      "mandals": [
+        { "name": "BANAGANAPALLE", "assembly": "Banaganapalli" },
+        { "name": "NANDYAL", "assembly": "Nandyal" },
+        { "name": "ALLAGADDA", "assembly": "Allagadda" },
+        { "name": "DHONE", "assembly": "Dhone" },
+        { "name": "PANYAM", "assembly": "Panyam" }
+      ]
+    },
+    {
+      "name": "KURNOOL",
+      "parliament": "Kurnool",
+      "mandals": [
+        { "name": "KURNOOL", "assembly": "Kurnool" },
+        { "name": "ORVAKAL", "assembly": "Kurnool" },
+        { "name": "ADONI", "assembly": "Adoni" },
+        { "name": "YEMMIGANUR", "assembly": "Yemmiganur" }
+      ]
+    },
+    {
+      "name": "ANANTAPUR",
+      "parliament": "Anantapur",
+      "mandals": [
+        { "name": "ANANTAPUR URBAN", "assembly": "Anantapur Urban" },
+        { "name": "TADPATRI", "assembly": "Tadpatri" },
+        { "name": "GUNTAKAL", "assembly": "Guntakal" }
+      ]
+    },
+    {
+      "name": "TIRUPATI",
+      "parliament": "Tirupati",
+      "mandals": [
+        { "name": "TIRUPATI URBAN", "assembly": "Tirupati" },
+        { "name": "RENIGUNTA", "assembly": "Tirupati Rural" },
+        { "name": "CHANDRAGIRI", "assembly": "Chandragiri" }
+      ]
+    },
+    {
+      "name": "KRISHNA",
+      "parliament": "Vijayawada",
+      "mandals": [
+        { "name": "VIJAYAWADA URBAN", "assembly": "Vijayawada Central" },
+        { "name": "MACHILIPATNAM", "assembly": "Machilipatnam" },
+        { "name": "PEDANA", "assembly": "Pedana" }
+      ]
+    },
+    {
+      "name": "VISAKHAPATNAM",
+      "parliament": "Visakhapatnam",
+      "mandals": [
+        { "name": "VISAKHAPATNAM URBAN", "assembly": "Visakhapatnam South" },
+        { "name": "GAJUWAKA", "assembly": "Gajuwaka" },
+        { "name": "ANAKAPALLE", "assembly": "Anakapalle" }
+      ]
+    },
+    {
+      "name": "GUNTUR",
+      "parliament": "Guntur",
+      "mandals": [
+        { "name": "GUNTUR URBAN", "assembly": "Guntur East" },
+        { "name": "MANGALAGIRI", "assembly": "Mangalagiri" },
+        { "name": "TADEPALLE", "assembly": "Tadepalle" }
+      ]
+    }
+  ]
+}

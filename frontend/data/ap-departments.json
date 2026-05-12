@@ -1,0 +1,95 @@
+{
+  "departments": [
+    {
+      "code": "PRED",
+      "name": "PRED",
+      "full_name": "Panchayat Raj Engineering Department",
+      "circles": [
+        "PRED-Executive Engineer, PR PIU division, Kurnool",
+        "PRED-Executive Engineer, PR PIU division, Nandyal",
+        "PRED-Executive Engineer, PR PIU division, Anantapur",
+        "PRED-Executive Engineer, PR PIU division, Tirupati",
+        "PRED-Executive Engineer, PR PIU division, Vijayawada"
+      ]
+    },
+    {
+      "code": "RWS",
+      "name": "RWS",
+      "full_name": "Rural Water Supply & Sanitation",
+      "circles": [
+        "RWS-Executive Engineer Circle, Kurnool",
+        "RWS-Executive Engineer Circle, Nandyal",
+        "RWS-Executive Engineer Circle, Anantapur"
+      ]
+    },
+    {
+      "code": "MAUD",
+      "name": "MAUD",
+      "full_name": "Municipal Administration & Urban Development",
+      "circles": [
+        "MAUD-Municipal Engineer, Vijayawada Municipal Corporation",
+        "MAUD-Municipal Engineer, Visakhapatnam Municipal Corporation",
+        "MAUD-Municipal Engineer, Tirupati Municipal Corporation"
+      ]
+    },
+    {
+      "code": "R&B",
+      "name": "R&B",
+      "full_name": "Roads & Buildings Department",
+      "circles": [
+        "R&B-Superintending Engineer, R&B Circle, Kurnool",
+        "R&B-Superintending Engineer, R&B Circle, Vijayawada",
+        "R&B-Superintending Engineer, R&B Circle, Anantapur",
+        "R&B-Superintending Engineer, R&B Circle, Visakhapatnam"
+      ]
+    },
+    {
+      "code": "I&CAD",
+      "name": "I&CAD",
+      "full_name": "Irrigation & Command Area Development",
+      "circles": [
+        "I&CAD-Chief Engineer, Krishna Delta",
+        "I&CAD-Chief Engineer, Godavari Delta",
+        "I&CAD-Chief Engineer, Penna Basin"
+      ]
+    },
+    {
+      "code": "EDU",
+      "name": "Education",
+      "full_name": "School Education / Higher Education",
+      "circles": [
+        "Education-DEO, Kurnool",
+        "Education-DEO, Nandyal",
+        "Education-DEO, Vijayawada"
+      ]
+    },
+    {
+      "code": "HFW",
+      "name": "Health",
+      "full_name": "Health, Medical & Family Welfare",
+      "circles": [
+        "Health-District Medical & Health Officer, Kurnool",
+        "Health-District Medical & Health Officer, Nandyal"
+      ]
+    },
+    {
+      "code": "APCRDA",
+      "name": "APCRDA",
+      "full_name": "AP Capital Region Development Authority",
+      "circles": [
+        "APCRDA-Chief Engineer, Amaravati",
+        "APCRDA-Executive Engineer, Capital City Division"
+      ]
+    },
+    {
+      "code": "APIIC",
+      "name": "APIIC",
+      "full_name": "AP Industrial Infrastructure Corporation",
+      "circles": [
+        "APIIC-Zonal Manager, Visakhapatnam",
+        "APIIC-Zonal Manager, Tirupati",
+        "APIIC-Zonal Manager, Kurnool"
+      ]
+    }
+  ]
+}
