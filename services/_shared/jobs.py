@@ -119,13 +119,22 @@ def create_job(
     tender_id: str | None,
     params: dict,
 ) -> str:
-    """Insert a QUEUED Job kg_node. Returns job_id."""
-    job_id = uuid.uuid4().hex
+    """Insert a QUEUED Job kg_node. Returns job_id.
+
+    kg_nodes schema constraints (verified 2026-05-12):
+      • node_id is a UUID column — must be canonical 8-4-4-4-12 form,
+        not bare hex. We use `str(uuid.uuid4())`.
+      • label is NOT NULL — we set a human-readable string so the
+        Supabase dashboard / KG explorer renders the job sensibly.
+    """
+    job_id = str(uuid.uuid4())
     doc_id = tender_id or JOB_DOC_ID
+    label = f"Job: {module} / {tender_id or 'cross-tender'} / QUEUED"
     row = {
         "node_id":   job_id,
         "doc_id":    doc_id,
         "node_type": "Job",
+        "label":     label,
         "properties": {
             "module":      module,
             "status":      "QUEUED",
@@ -147,13 +156,23 @@ def create_job(
 
 
 def _patch_job(job_id: str, props_patch: dict) -> None:
-    """PATCH the properties JSONB of an existing Job row."""
+    """PATCH the properties JSONB of an existing Job row.
+
+    Also refreshes the `label` column whenever `status` changes so the
+    KG explorer shows the current state at a glance.
+    """
     current = get_job(job_id) or {}
-    merged = {**(current.get("properties") or {}), **props_patch}
+    cur_props = current.get("properties") or {}
+    merged = {**cur_props, **props_patch}
+    patch_body: dict = {"properties": merged}
+    if "status" in props_patch:
+        module = merged.get("module", "?")
+        tender = merged.get("tender_id") or "cross-tender"
+        patch_body["label"] = f"Job: {module} / {tender} / {merged['status']}"
     _req(
         "PATCH",
         f"kg_nodes?node_id=eq.{job_id}",
-        data=json.dumps({"properties": merged}),
+        data=json.dumps(patch_body),
     )
 
 
