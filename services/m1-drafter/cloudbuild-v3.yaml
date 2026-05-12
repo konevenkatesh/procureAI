@@ -1,0 +1,46 @@
+# Cloud Build — m1-drafter v3 image (R8.7)
+#
+# Tags both :v3 and :latest. v3 includes:
+#   - workflow_v2 (15-node retrieval+LLM workflow)
+#   - asyncio parallel BoQ batching (max 10 concurrent)
+#   - tenacity retries on transient 429s
+#   - Gemini Pro fallback for Flash drift (Sonnet path removed)
+#   - httpx async client + psycopg[binary] + python-multipart deps
+#
+# Run from repo root:
+#   gcloud builds submit --config=services/m1-drafter/cloudbuild-v3.yaml
+#
+# Then deploy via:
+#   gcloud run deploy m1-drafter \
+#     --image=asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v3 \
+#     --region=asia-south1 \
+#     --service-account=procure-ai-runtime@procureai-prod.iam.gserviceaccount.com \
+#     --no-allow-unauthenticated \
+#     --memory=4Gi --cpu=2 --timeout=3600 --concurrency=10 \
+#     --min-instances=1 --max-instances=20 \
+#     --set-env-vars=M1_DRAFTER_WORKFLOW_V2=1,M1_BOQ_MAX_CONCURRENT=10
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v3
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+      - -f
+      - services/m1-drafter/Dockerfile
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v3
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v3
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s

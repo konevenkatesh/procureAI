@@ -424,7 +424,8 @@ async def gemini_pro_async(
 # ─── Embeddings ──────────────────────────────────────────────────────
 
 
-def embed_text(text: str, *, task_type: str = "RETRIEVAL_DOCUMENT", location: str = PRIMARY_LOCATION) -> list[float]:
+def embed_text(text: str, *, task_type: str = "RETRIEVAL_DOCUMENT",
+               location: str = PRIMARY_LOCATION, timeout: int = 15) -> list[float]:
     """Vertex AI text-embedding-005 (768 dim)."""
     body = {
         "instances": [{
@@ -433,7 +434,7 @@ def embed_text(text: str, *, task_type: str = "RETRIEVAL_DOCUMENT", location: st
         }],
     }
     url = _vertex_url(location, EMBEDDING_MODEL_ID, action="predict")
-    resp = _post_json(url, body, timeout=60)
+    resp = _post_json(url, body, timeout=timeout)
     return resp["predictions"][0]["embeddings"]["values"]
 
 

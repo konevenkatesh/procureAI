@@ -161,12 +161,15 @@ def _get_db_conn():
 
 
 def _embed_query(text: str) -> Optional[list[float]]:
-    """Vertex AI 768-dim embedding; returns None on failure."""
+    """Vertex AI 768-dim embedding; returns None on failure.
+    R8.3 fix: 12s timeout (down from 60s default) so retrieval fails-soft fast
+    when Vertex embedding API is slow. Caller (retrieve_sbd_section /
+    retrieve_tech_templates_pgvector) falls through to in-memory registry."""
     try:
         from .vertex_client import embed_text
-        return embed_text(text, task_type="RETRIEVAL_QUERY")
+        return embed_text(text, task_type="RETRIEVAL_QUERY", timeout=12)
     except Exception as e:
-        logger.warning(f"  embed_query failed: {e}")
+        logger.warning(f"  embed_query failed (fast-fail): {e}")
         return None
 
 

@@ -1317,6 +1317,193 @@ Skipping the BoQ upload yields a tender with `state.boq = []` and the workflow_v
 
 ---
 
+## L113 — Wall-Clock Recalibration: Flash batches actually run at 35s, not the 12s the pre-flight assumed
+
+**Established in R7.6 → R8.2** (2026-05-13). The pre-Run-7 cost-model spreadsheet assumed Gemini 2.5 Flash would average ~12s per 15-row BoQ batch (based on Vertex AI's typical small-prompt latency). The measured reality across R7.6 (90 rows / 12 batches) and R8.2 (800 rows / 58 batches) is **~35s per batch** — roughly 3× the estimate.
+
+### Why the gap
+
+Three compounding factors not visible in the small-prompt latency benchmarks:
+
+1. **Schema response size**: each batch returns ~4000 output tokens (15 rows × ~270 tokens of spec_text + citations + work_type). Vertex AI's structured-output path serialises the schema-conformant JSON on the server before sending — that adds ~10-15s versus a free-form text reply.
+2. **Prompt size**: each batch's prompt is ~5000 tokens (system instruction + 8 TechSpecTemplate exemplars + 15 skeleton rows). Prompt-token processing is fast but not free.
+3. **thinking_budget=0 still incurs token-budget routing overhead**: Flash's chain-of-thought path is suppressed but the model's decoder is set up for a reasoning-tier call shape. ~2-3s of overhead per call.
+
+### Architectural consequence
+
+Without parallelism, 200 batches × 35s = ~117 min serial — past the Cloud Run 60-min --timeout we'd set even at the max-headroom config. R8.6's `run_batches_parallel` (max_concurrent=10) collapses this to ~20 waves × 35s = ~12 min — fits comfortably in the new 3600s timeout from R8.7.
+
+**The right pre-flight rule going forward**: when estimating Flash latency for structured-output batches with ≥4K response tokens, use 30-40s per call as the base, not the ~5-12s the docs imply. The docs measure free-form completion, not schema-constrained generation.
+
+### Forward-applicable
+
+For any future LLM workflow that batches structured output at scale:
+- Benchmark the actual response shape against the cost model BEFORE estimating wall-clock budgets.
+- Treat anything past ~1000 output tokens per batch as "needs parallelism," not "fits serially."
+- Document the empirical latency × batch_size grid alongside the pricing table.
+
+---
+
+## L114 — Asyncio + Semaphore + Tenacity Pattern for Vertex Flash Batches (R8.6)
+
+**Established in R8.6** (2026-05-13). The reference pattern for parallelising N concurrent LLM batches inside a sync workflow generator:
+
+```python
+def run_batches_parallel(batches, project_ctx, *, max_concurrent=10):
+    """Sync generator that drives async batches concurrently via threading.Queue."""
+    import asyncio, queue, threading
+    from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type
+    q = queue.Queue()
+
+    async def _one_batch(batch_idx, discipline, rows, exemplars, sem):
+        async with sem:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=2, min=2, max=30),
+                retry=retry_if_exception_type((RuntimeError, OSError)),
+                reraise=True,
+            ):
+                with attempt:
+                    enriched, usage = await _run_batch_async(rows, project_ctx, exemplars, discipline)
+            q.put(("ok", batch_idx, discipline, enriched, usage))
+
+    async def _runner():
+        sem = asyncio.Semaphore(max_concurrent)
+        await asyncio.gather(*[_one_batch(*b, sem) for b in batches])
+        q.put(("done", None, None, None, None))
+
+    threading.Thread(target=lambda: asyncio.run(_runner()), daemon=True).start()
+    while True:
+        item = q.get()
+        if item[0] == "done":
+            break
+        yield item[1:]
+```
+
+### Why a thread + queue bridge instead of `async def run_workflow_v2`
+
+Three reasons:
+
+1. **The workflow generator is already sync** and consumed by sync code (the worker job, the SSE event publisher, the unit tests). Rewriting to async would cascade through `worker()`, `_publish_event()`, the entire main.py request lifecycle.
+2. **Async generators don't compose cleanly with `for ... in iter`** — converting to `async for` would force every consumer to be async.
+3. **Threading.Queue gives back-pressure for free** — if the consumer is slow (e.g. SSE buffer is full), the queue blocks the runner. Pure asyncio doesn't give you that without a custom flow-control layer.
+
+The cost: one extra thread per workflow run. Acceptable on Cloud Run with --concurrency=10.
+
+### Tenacity quirks
+
+- `AsyncRetrying` (capital A) is the async sibling of `Retrying`; use the `async for attempt in ...` syntax + `with attempt:` block.
+- `retry_if_exception_type` must take a tuple of exception classes — single class won't match subclasses correctly in async contexts.
+- `wait_exponential(multiplier=2, min=2, max=30)` produces 2s, 4s, 8s, 16s, 30s, 30s, ... pattern. For Vertex 429s, 3 attempts is usually enough; quota refills within ~15s in our experience.
+
+### Forward-applicable
+
+Any future module that needs N concurrent LLM calls inside a sync workflow:
+- Use this exact pattern. Don't reinvent.
+- Set max_concurrent via env var so Cloud Run can tune without code change.
+- Always emit progress events between batches — never let the consumer wait for the whole job to finish.
+
+---
+
+## L115 — Cloud Run Min-Instance Pre-Warm + Env-Flag Toggle Pattern for Long-Running Workflows
+
+**Established in R8.7** (2026-05-13). The m1-drafter Cloud Run deploy moved from v2 (template-mode, ~60s typical run) to v3 (workflow_v2, up to 15-min capital-scale runs). Three config knobs combine to make this work without cold-start pain or risky cutover:
+
+1. `--min-instances=1`: keeps one warm instance always available. First-byte time for a 244-page tender goes from ~30s cold start to ~2s warm. Cost: ~$8/month for one always-on instance at 2 vCPU / 4 GiB.
+2. `--timeout=3600`: lifts the request deadline from the default 300s to 1 hour. Necessary for capital-scale BoQ generation which can run 12-15 min with parallel batching.
+3. `--set-env-vars=M1_DRAFTER_WORKFLOW_V2=1`: flips the workflow_v2 selector inside main.py's worker. Default (no env var) stays v1, so the env-flag default lets us deploy v3 as a "feature flag" pre-rollout.
+
+### Env-flag toggle pattern in main.py
+
+```python
+use_v2 = os.environ.get("M1_DRAFTER_WORKFLOW_V2", "").lower() in ("1", "true", "yes")
+if use_v2:
+    for event in run_workflow_v2(state, boq_skeleton=params.get("boq_skeleton")):
+        ...
+else:
+    for event in run_workflow(state):
+        ...
+```
+
+This pattern lets us:
+- Ship v3 code to production without immediately routing all traffic.
+- Smoke v3 on a separate revision with the flag flipped, then cut over via `gcloud run services update-traffic --to-revisions=v3=100`.
+- Roll back in one command by flipping the env var (no code re-deploy needed).
+
+### Forward-applicable
+
+Any major workflow upgrade should ship behind an env-flag toggle. The cost of one if-branch is negligible; the rollback safety is enormous.
+
+---
+
+## L116 — 3-Scale Validation Methodology (Small/Mid/Capital) for Capital-Scale LLM Workflows
+
+**Established in R8.1/R8.2/R8.3** (2026-05-13). Run 8 validated workflow_v2 at three deliberately separated scales:
+
+| Scale          | Rows  | Wall (target) | Cost (target) | Purpose |
+|---------------:|------:|--------------:|--------------:|---------|
+| Banaganapalli  |    30 |       70-90s  |        ₹0.40  | Regression check; 2 batches in 1 wave |
+| LPS Zone-11    |   800 |      5-6 min  |       ₹10-12  | Parallel batching validation; 6 waves |
+| HOD Towers     | 3000  |     12-15 min |       ₹40-50  | Capital-scale demo; 20 waves |
+
+### Why 3 deliberate scales (not just "test capital")
+
+Each scale catches a different class of bug:
+
+- **Small** catches workflow-logic regressions (wrong section ordering, broken event types, broken SSE plumbing). 2 batches is enough to exercise the parallel runner without making the test slow.
+- **Mid** catches parallelism-saturation issues (HTTP 429s, queue back-pressure, retry-storm patterns). 800 rows / 54 batches is enough to actually push max_concurrent=10.
+- **Capital** catches scale-dependent infra issues (Cloud Run timeout, embedding API latency cascades, single-section drafting timing out under load). These bugs are invisible at small scale.
+
+The R8.3 first-attempt failure (Vertex embedding API timeouts at 60s cascading across 9 sections, total wall-clock 1875s before any BoQ batch ran) is the canonical example: visible only at the capital-scale rerun, fixed by dropping embed_text timeout from 60s to 12s for fast fail-soft.
+
+### Forward-applicable
+
+For any future LLM workflow that needs to handle 3+ orders of magnitude of input scale:
+- Pick 3 scales that bracket the production range (small × 30, mid × 800, capital × 3000 for our BoQ corpus).
+- Run them in sequence — not parallel. The mid-scale findings inform what to look for in capital.
+- Bake the cost-budget and wall-clock-budget gates into each smoke script. Smoke that times out without emitting a clear FAIL is worse than no smoke at all.
+
+---
+
+## L117 — Sonnet Path Removal: Gemini-Only Architecture Decision (R8.6)
+
+**Established in R8.6** (2026-05-13). Anthropic Claude Sonnet 4 was originally wired as the structured-output fallback for Vertex AI Gemini Flash drift (R7.4 design). The user opted out of Anthropic Vertex Model Garden access in Run 8, locking in a Gemini-only architecture.
+
+### What got removed
+
+- `vertex_client.claude_sonnet()` function and its `_anthropic_vertex_url()` helper.
+- `SONNET_MODEL_ID` constant.
+- `boq_generator._SONNET_SKIP_AFTER_404` flag (no longer needed; Sonnet wasn't ever reachable for this project).
+- Sonnet imports + try/except blocks across the codebase.
+
+### What replaced it
+
+`gemini_pro_async()` is now the structured-output fallback when Flash drifts. The fallback logic in `_run_batch` / `_run_batch_async`:
+
+1. Try Flash first (cheap + fast).
+2. On parse failure, bump `_FLASH_FAILS_BY_DISCIPLINE[discipline]` counter.
+3. Try Gemini Pro once as the per-batch fallback.
+4. If `_FLASH_FAILS_BY_DISCIPLINE[discipline] >= 3`, subsequent batches in that discipline skip Flash and go straight to Pro.
+
+### Why Gemini Pro works as a fallback (not just a stop-gap)
+
+- **Same response schema surface**: Pro accepts the exact same `responseSchema` + `responseMimeType: application/json` shape as Flash. No new schema-handling code paths.
+- **Stronger reasoning on adversarial inputs**: when Flash drifts (usually on ambiguous BoQ item names or unusual UOMs), Pro's larger model handles the edge case correctly.
+- **Cost-proportionate**: Pro is ~16× the cost of Flash per output token, but it only fires on the small minority of batches that Flash fails. Net cost impact across R8.1/R8.2/R8.3 was 0 (no Flash drift observed at any scale).
+
+### Forward-applicable rule
+
+When the primary low-cost model has a "drift" tier failure mode, the right fallback is the next-tier-up model in the same vendor family — NOT a different vendor's model. Reasons:
+
+1. Same schema/API surface (no parallel client to maintain).
+2. Same auth (no second credential to provision).
+3. Same region availability (no cross-region latency penalty).
+4. Same vendor's quota-throttling behaviour (predictable retry semantics).
+
+The cross-vendor fallback (Gemini → Sonnet, GPT → Claude) is tempting in theory but expensive in maintenance. Stick to a single vendor's family unless the entire vendor is the failure mode.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
