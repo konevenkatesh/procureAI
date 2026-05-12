@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FilePen, FileText, Lock } from "lucide-react";
+import { FilePen, FileText, Sparkles } from "lucide-react";
+import DrafterForm from "@/components/DrafterForm";
 
 const PHASE_1_DRAFTS = [
   { tender_id: "tender_synth_kurnool", name: "District Hospital, Kurnool",  ecv: "₹85.00 cr",  nit: "100/PROC/APIIC/1/2026",       month: "Phase 1 demo" },
@@ -60,26 +61,21 @@ export default function Module1Page() {
         <Card className="bg-mist-50/40">
           <CardHeader>
             <div className="flex items-start gap-3">
-              <Lock className="h-5 w-5 text-ink-500 mt-1" />
+              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
               <div>
                 <CardTitle className="text-base">Generate New Draft</CardTitle>
                 <CardDescription>
-                  Live drafter pipeline ships in <span className="font-semibold text-ink-700">Phase 2</span>.
-                  When enabled, this CTA will compose a complete RFP from a tender spec form
-                  (sector, ECV, location, contractor class, project methodology) using the
-                  AP-State + Central + CVC rule library.
+                  Submit a tender spec to the <span className="font-semibold text-ink-700">m1-drafter</span> Cloud Run
+                  service (asia-south1). The job is enqueued via Cloud Tasks and the status panel
+                  below polls every 2&thinsp;seconds. The full LangGraph drafter pipeline lands in
+                  Phase 2; the current backend returns a queued acknowledgement so the
+                  end-to-end wiring is verifiable today.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <button
-              disabled
-              className="rounded-md bg-mist-100 px-4 py-2 text-sm font-semibold text-ink-500 cursor-not-allowed"
-              title="Coming in Phase 2"
-            >
-              Generate New RFP (Phase 2)
-            </button>
+            <DrafterForm />
           </CardContent>
         </Card>
       </section>

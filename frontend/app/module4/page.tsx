@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { fetchAll } from "@/lib/supabase";
-import { MessageSquare, ArrowRight } from "lucide-react";
+import { MessageSquare, ArrowRight, Sparkles } from "lucide-react";
+import PipelineLauncher from "@/components/PipelineLauncher";
 
 export const revalidate = 60;
 
@@ -64,6 +65,48 @@ export default async function Module4Page({ searchParams }: { searchParams: Sear
           English-only.
         </p>
       </header>
+
+      <section className="mb-6">
+        <Card className="bg-mist-50/40">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
+              <div>
+                <CardTitle className="text-base">Generate Communications</CardTitle>
+                <CardDescription>
+                  Submit a tender to the <span className="font-semibold text-ink-700">m4-communicator</span> Cloud
+                  Run service (asia-south1). The pipeline runs the 11 drafters (award / regret /
+                  clarification-QA / etc.) with Sarvam-M bilingual rendering. Today's deploy
+                  returns the drafter inventory; full execution lands in a follow-up commit
+                  per the GCP-2 NOT-IN-SCOPE rule.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <PipelineLauncher
+              endpoint="/api/m4/communicate"
+              actionLabel="Generate Communications"
+              runningLabel="Drafting…"
+              tenders={[
+                { id: "tender_synth_kurnool", name: "Kurnool — District Hospital" },
+                { id: "tender_synth_ja",      name: "AP Judicial Academy" },
+                { id: "tender_synth_hc",      name: "AP High Court Complex" },
+              ]}
+              extraField={{
+                key: "language",
+                label: "Language",
+                options: [
+                  { value: "EN",   label: "English only" },
+                  { value: "TE",   label: "Telugu only (Sarvam-M)" },
+                  { value: "BOTH", label: "EN + TE bilingual" },
+                ],
+                defaultValue: "BOTH",
+              }}
+            />
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Type filter chips */}
       <section className="mb-6">

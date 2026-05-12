@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock } from "lucide-react";
+import { Shield, Sparkles } from "lucide-react";
 import { countRows } from "@/lib/supabase";
+import ValidatorForm from "@/components/ValidatorForm";
 
 export const revalidate = 60;
 
@@ -85,26 +86,21 @@ export default async function Module2Page() {
         <Card className="bg-mist-50/40">
           <CardHeader>
             <div className="flex items-start gap-3">
-              <Lock className="h-5 w-5 text-ink-500 mt-1" />
+              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
               <div>
-                <CardTitle className="text-base">Validate a new RFP</CardTitle>
+                <CardTitle className="text-base">Validate an RFP</CardTitle>
                 <CardDescription>
-                  Live validation pipeline ships in <span className="font-semibold text-ink-700">Phase 2</span>.
-                  When enabled, this CTA accepts a draft RFP document and emits ValidationFindings
-                  against the full 3-layer rule library, including absence detection (missing clauses)
-                  and threshold-shape compliance (PBG/EMD/Bid-Validity percentages).
+                  Submit a tender to the <span className="font-semibold text-ink-700">m2-validator</span> Cloud Run
+                  service (asia-south1). The full 24-typology Tier-1 pipeline runs when Qdrant
+                  is migrated to GCP in Phase 2; today the service returns
+                  <span className="font-mono text-xs"> GAP_INSUFFICIENT_DATA</span> with the
+                  inventory of available checks so the wiring is end-to-end testable.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <button
-              disabled
-              className="rounded-md bg-mist-100 px-4 py-2 text-sm font-semibold text-ink-500 cursor-not-allowed"
-              title="Coming in Phase 2"
-            >
-              Validate New RFP (Phase 2)
-            </button>
+            <ValidatorForm />
           </CardContent>
         </Card>
       </section>

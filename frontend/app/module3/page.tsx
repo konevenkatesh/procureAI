@@ -1,8 +1,9 @@
 // Placeholder — Sub-block 5 builds full Module 3 view
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, ArrowRight } from "lucide-react";
+import { BarChart3, ArrowRight, Sparkles } from "lucide-react";
+import PipelineLauncher from "@/components/PipelineLauncher";
 
 const TENDERS = [
   { id: "tender_synth_kurnool", name: "District Hospital, Kurnool",  ecv: "₹85.00 cr",   bidders: 9, effL1: "B9 JV @ ₹79.90 cr" },
@@ -60,6 +61,34 @@ export default function Module3IndexPage() {
             </Card>
           ))}
         </div>
+      </section>
+
+      <section className="mt-8">
+        <Card className="bg-mist-50/40">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-saffron-700 mt-1" />
+              <div>
+                <CardTitle className="text-base">Re-run Evaluation Pipeline</CardTitle>
+                <CardDescription>
+                  Submit a tender to the <span className="font-semibold text-ink-700">m3-evaluator</span> Cloud
+                  Run service (asia-south1). The pipeline runs the 14 Tier-2 bid evaluators
+                  (Supabase-only, no Qdrant) and updates BidEvaluationFindings. Today's deploy
+                  returns the evaluator inventory; full execution lands in a follow-up commit
+                  per the GCP-2 NOT-IN-SCOPE rule.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <PipelineLauncher
+              endpoint="/api/m3/evaluate"
+              actionLabel="Run Evaluation"
+              runningLabel="Evaluating…"
+              tenders={TENDERS.map((t) => ({ id: t.id, name: t.name }))}
+            />
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
