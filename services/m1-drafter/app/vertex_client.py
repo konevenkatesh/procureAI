@@ -129,8 +129,56 @@ def _post_json(url: str, body: dict, timeout: int = 120) -> dict:
 
 
 def _pydantic_to_response_schema(model: Type[BaseModel]) -> dict:
-    """Vertex AI's responseSchema follows OpenAPI 3.0 subset."""
-    return model.model_json_schema()
+    """Vertex AI's responseSchema follows OpenAPI 3.0 subset — NO $ref / $defs.
+
+    Pydantic emits nested `$ref` / `$defs` for any nested BaseModel. We
+    walk the schema, inline-dereference every $ref pointer, drop $defs,
+    and strip unsupported keywords (anyOf+null → nullable=true, title,
+    default, etc.). Recursive types are flattened to one level then
+    truncated with `additionalProperties: true` to avoid infinite loops.
+    """
+    raw = model.model_json_schema()
+    defs = raw.pop("$defs", None) or raw.pop("definitions", None) or {}
+
+    def _inline(node, depth=0):
+        if depth > 8:        # hard cap on recursion
+            return {"type": "object", "additionalProperties": True}
+        if isinstance(node, dict):
+            if "$ref" in node:
+                ref = node["$ref"]
+                # "#/$defs/Foo" → defs["Foo"]
+                name = ref.rsplit("/", 1)[-1]
+                target = defs.get(name)
+                if target is None:
+                    return {"type": "object", "additionalProperties": True}
+                # Inline + merge any sibling keys (rare but valid)
+                merged = _inline(target, depth + 1)
+                for k, v in node.items():
+                    if k == "$ref":
+                        continue
+                    merged[k] = _inline(v, depth + 1)
+                return merged
+            # Convert anyOf with null → nullable
+            if "anyOf" in node:
+                variants = node["anyOf"]
+                non_null = [v for v in variants if not (isinstance(v, dict) and v.get("type") == "null")]
+                has_null = len(non_null) != len(variants)
+                if len(non_null) == 1:
+                    inlined = _inline(non_null[0], depth + 1)
+                    if has_null:
+                        inlined["nullable"] = True
+                    return {**{k: _inline(v, depth + 1) for k, v in node.items() if k != "anyOf"}, **inlined}
+            cleaned = {}
+            for k, v in node.items():
+                if k in ("title", "default", "$defs", "definitions"):
+                    continue
+                cleaned[k] = _inline(v, depth + 1)
+            return cleaned
+        if isinstance(node, list):
+            return [_inline(v, depth + 1) for v in node]
+        return node
+
+    return _inline(raw)
 
 
 def gemini_call(

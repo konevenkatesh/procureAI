@@ -487,22 +487,38 @@ def generate_boq_specs(
                 yield out_row
 
 
+# Module-level skip flag: if Sonnet 404s once (e.g. project lacks
+# Model Garden access for Anthropic publisher), don't retry per-batch.
+_SONNET_SKIP_AFTER_404 = {"skip": False}
+
+
+_LAST_BATCH_USAGE: dict = {}  # mutable holder for the workflow to read
+
+
 def _run_batch(
     skeleton_rows: list[BoQSkeletonRow],
     project_ctx: ProjectContext,
     exemplars: list[TechSpecTemplate],
     discipline: str,
 ) -> list[BoQItemOutput]:
-    """Single Flash call; falls back to Claude Sonnet on parse failure."""
+    """Single Flash call; falls back to Claude Sonnet on parse failure
+    UNLESS Sonnet has already 404'd once in this process (then straight to stubs).
+
+    Token usage from the most recent Flash call is recorded into
+    _LAST_BATCH_USAGE so the workflow generator can emit an accurate
+    llm_call event after each batch (without changing this function's
+    return signature, which is consumed by older code paths).
+    """
     # Lazy-import to avoid circular and to let smoke tests stub it
     from .vertex_client import gemini_flash, claude_sonnet
 
     prompt = build_batch_prompt(skeleton_rows, project_ctx, exemplars, discipline)
     t0 = time.time()
+    # 15-row batch × ~300 output tokens each = ~4500; cap at 12288 for safety
     resp = gemini_flash(
         prompt,
         response_schema=BoQBatchResponse,
-        max_output_tokens=8192,          # 30 rows × ~250 tokens each + headroom
+        max_output_tokens=12288,
         temperature=0.15,
         system_instruction=_BOQ_BATCH_SYSTEM,
         thinking_budget=0,               # R7.4 lesson: hard-disable thinking
@@ -512,6 +528,14 @@ def _run_batch(
         f"  Flash batch ({discipline}, {len(skeleton_rows)} rows) — "
         f"{resp['prompt_tokens']}→{resp['completion_tokens']} tokens, {elapsed_ms}ms"
     )
+    _LAST_BATCH_USAGE.clear()
+    _LAST_BATCH_USAGE.update({
+        "model": "gemini-2.5-flash",
+        "prompt_tokens":     resp.get("prompt_tokens", 0),
+        "completion_tokens": resp.get("completion_tokens", 0),
+        "thought_tokens":    resp.get("thought_tokens", 0),
+        "elapsed_ms":        elapsed_ms,
+    })
 
     parsed = resp.get("parsed")
     if resp.get("parse_ok") and isinstance(parsed, BoQBatchResponse) and parsed.rows:
@@ -534,6 +558,9 @@ def _run_batch(
         return out
 
     # Parse fail → try Claude Sonnet 4 once as structured-output fallback
+    if _SONNET_SKIP_AFTER_404["skip"]:
+        logger.warning(f"  Flash parse failed ({resp.get('parse_error')}); Sonnet skipped (prior 404)")
+        return [_stub_row(r, discipline) for r in skeleton_rows]
     logger.warning(f"  Flash parse failed ({resp.get('parse_error')}); falling back to Sonnet")
     try:
         sonnet = claude_sonnet(
@@ -559,6 +586,9 @@ def _run_batch(
             return out
     except Exception as e:
         logger.error(f"  Sonnet fallback also failed: {e}")
+        if "404" in str(e) or "NOT_FOUND" in str(e):
+            _SONNET_SKIP_AFTER_404["skip"] = True
+            logger.warning("  Sonnet 404 — skipping Sonnet for all subsequent batches in this run")
 
     # Last resort: stub rows so the BoQ still has the officer's skeleton
     return [_stub_row(r, discipline) for r in skeleton_rows]

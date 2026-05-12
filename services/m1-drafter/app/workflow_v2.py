@@ -497,7 +497,7 @@ def _draft_BoQ_node(
 
     for _row in generate_boq_specs(
         rows, project_ctx,
-        batch_size=30,
+        batch_size=15,                  # 15 rows × ~300 tokens fits 12288 output cap
         template_retriever=_retriever,
         on_batch_start=_on_batch_start,
         on_row_complete=_on_row,
@@ -716,54 +716,108 @@ def run_workflow_v2(
 
             elif node == WorkflowNodeV2.DRAFT_BOQ:
                 yield _section_started("boq", node)
-                if dry_run:
+                if dry_run or not boq_skeleton:
+                    if not boq_skeleton:
+                        yield _field_update("_boq_telemetry",
+                                           {"reason": "no_skeleton_supplied", "n_rows": 0}, node)
                     yield _field_update("boq", [], node)
                     yield _section_complete("boq", node)
                 else:
-                    current_batch_idx = {"n": 0, "disc": ""}
-
-                    def _emit_batch_start(idx, disc, n):
-                        current_batch_idx["n"] = idx
-                        current_batch_idx["disc"] = disc
-                        _q.append(_ev_boq_batch_started(idx, disc, n, node))
-
-                    def _emit_row(row):
-                        _q.append(_ev_boq_item_complete(row, current_batch_idx["n"], node))
-                        boq_row = BoQRow(
-                            s_no=row.sno,
-                            item=row.short_desc,
-                            qty=row.est_qty,
-                            unit=row.uom,
-                            rate=(row.rate_inr or None),
-                            amount=None,
-                        )
-                        _q.append({
-                            "type":  "table_row_added",
-                            "table": "boq",
-                            "row":   boq_row.model_dump(),
-                            "node":  node.value,
-                        })
-
-                    _q: list[dict] = []
-                    enriched, telemetry = _draft_BoQ_node(
-                        state,
-                        boq_skeleton=boq_skeleton,
-                        on_row=_emit_row,
-                        on_batch_start=_emit_batch_start,
+                    # Inline the BoQ batching loop so events yield progressively
+                    # (cf. earlier deque-based approach which blocked until all
+                    # batches completed — invisible to SSE consumers + smoke
+                    # wall-clock guards).
+                    from .boq_generator import (
+                        BoQSkeletonRow, ProjectContext, classify_discipline,
+                        _run_batch,
                     )
-                    # Flush queued events
-                    for ev in _q:
-                        yield ev
+                    project_ctx = ProjectContext(
+                        project_name=state.enquiry_particulars.name_of_project,
+                        discipline_hint=_discipline_hint_for_state(state),
+                        tender_category=state.classification.tender_category.value,
+                        state=state.geography.state,
+                    )
+                    # Normalise skeleton input
+                    norm_rows: list[BoQSkeletonRow] = []
+                    for r in boq_skeleton:
+                        if isinstance(r, BoQSkeletonRow):
+                            norm_rows.append(r)
+                        elif isinstance(r, dict):
+                            norm_rows.append(BoQSkeletonRow(
+                                s_no=int(r.get("s_no") or len(norm_rows) + 1),
+                                item_name=str(r.get("item_name") or r.get("item") or ""),
+                                qty=float(r.get("qty") or 1.0),
+                                unit=str(r.get("unit") or "lump sum"),
+                                raw_row_hint=str(r.get("raw_row_hint") or ""),
+                            ))
+                    # Bucket by discipline
+                    buckets: dict[str, list[BoQSkeletonRow]] = {}
+                    for r in norm_rows:
+                        d = classify_discipline(r.item_name, r.raw_row_hint)
+                        buckets.setdefault(d, []).append(r)
+
+                    BATCH_SIZE = 15
+                    enriched_all = []
+                    batch_idx = 0
+                    n_batches_total = sum(
+                        (len(rows) + BATCH_SIZE - 1) // BATCH_SIZE
+                        for rows in buckets.values()
+                    )
+                    yield _field_update("_boq_batch_plan", {
+                        "n_batches": n_batches_total,
+                        "n_rows":    len(norm_rows),
+                        "buckets":   {d: len(r) for d, r in buckets.items()},
+                    }, node)
+
+                    for discipline, rows in buckets.items():
+                        retrieval_disc = discipline if discipline != "Unknown" else "Civil"
+                        exemplars = retrieve_tech_templates_pgvector(
+                            retrieval_disc, retrieval_disc, top_k=8,
+                        )
+                        for start in range(0, len(rows), BATCH_SIZE):
+                            batch = rows[start:start + BATCH_SIZE]
+                            batch_idx += 1
+                            yield _ev_boq_batch_started(batch_idx, discipline, len(batch), node)
+                            t_batch = time.time()
+                            try:
+                                enriched = _run_batch(batch, project_ctx, exemplars, discipline)
+                            except Exception as e:
+                                logger.error(f"  batch {batch_idx} ({discipline}) failed: {e}")
+                                from .boq_generator import _stub_row
+                                enriched = [_stub_row(r, discipline) for r in batch]
+                            batch_ms = int((time.time() - t_batch) * 1000)
+                            from .boq_generator import _LAST_BATCH_USAGE
+                            yield _ev_llm_call(
+                                _LAST_BATCH_USAGE.get("model", "gemini-2.5-flash"),
+                                node, _LAST_BATCH_USAGE, batch_ms,
+                            )
+                            # Yield row events progressively
+                            for er in enriched:
+                                enriched_all.append(er)
+                                yield _ev_boq_item_complete(er, batch_idx, node)
+                                yield {
+                                    "type":  "table_row_added",
+                                    "table": "boq",
+                                    "row":   BoQRow(
+                                        s_no=er.sno, item=er.short_desc, qty=er.est_qty,
+                                        unit=er.uom, rate=(er.rate_inr or None), amount=None,
+                                    ).model_dump(),
+                                    "node":  node.value,
+                                }
 
                     # Persist BoQ on state (downgraded to BoQRow shape)
                     state.boq = [
                         BoQRow(
                             s_no=r.sno, item=r.short_desc, qty=r.est_qty,
                             unit=r.uom, rate=(r.rate_inr or None), amount=None,
-                        ) for r in enriched
+                        ) for r in enriched_all
                     ]
-                    boq_telemetry = telemetry
-                    yield _field_update("_boq_telemetry", telemetry, node)
+                    boq_telemetry = {
+                        "n_rows":     len(enriched_all),
+                        "n_batches":  batch_idx,
+                        "buckets":    {d: len(r) for d, r in buckets.items()},
+                    }
+                    yield _field_update("_boq_telemetry", boq_telemetry, node)
                     yield _section_complete("boq", node)
 
             elif node == WorkflowNodeV2.ASSEMBLE_DOCUMENT:
