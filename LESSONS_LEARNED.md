@@ -1149,6 +1149,77 @@ Everything else (rule selection, condition_evaluator + L27 path, idempotence, cr
 
 ---
 
+## L89 — Module 4 M4.6 Bidder Clarification Q&A Workflow
+
+**Established in run-2 Sub-block 3** (2026-05-12). 10th Communication type — `BIDDER_CLARIFICATION_QA` — closes the Module 4 corpus. Introduces 2-direction workflow (`BIDDER_INBOUND` / `OFFICER_OUTBOUND`) with Q→A threading via `parent_communication_id`. 3 synthetic Q&A pairs seed the corpus for demo.
+
+### Schema extensions on Communication kg_node
+
+| field | type | semantics |
+|---|---|---|
+| `direction` | enum BIDDER_INBOUND / OFFICER_OUTBOUND | who sent it |
+| `parent_communication_id` | UUID \| null | null on initial Q; populated on A (links Q→A thread) |
+| `subject_line` | string | inbox-friendly topic summary |
+| `sender_bidder_profile_id` | string \| null | populated for BIDDER_INBOUND (Q from bidder) |
+
+For BIDDER_INBOUND (Q):
+- `recipient_role` = "PROCUREMENT_AUTHORITY"
+- `sender_role` = "BIDDER"
+- `parent_communication_id` = null
+- `status` = "RECEIVED" (bidder portal-submitted)
+
+For OFFICER_OUTBOUND (A):
+- `recipient_bidder_profile_id` populated (originator of the Q)
+- `sender_role` = "PROCUREMENT_AUTHORITY"
+- `parent_communication_id` = Q's node_id
+- `status` = "DRAFT" (officer drafts; approval workflow in M4.7+ would set to APPROVED → SENT)
+
+### 3 synthetic Q&A seeds — demonstration corpus
+
+| # | Tender | Bidder asking | Subject |
+|---|---|---|---|
+| 1 | Kurnool | B9.lead (JV Lead) | JV partners — shared PAN registration query |
+| 2 | JA | B6 | Class-I contractor PQ floor — JA tender clarification |
+| 3 | HC | B1 | Offsite labour mobilisation in Stage 1 — query |
+
+Each Q+A pair cites real tender/regulatory specifics (Form-14 / Form-15 JV documentation per AP-GO 094/2003; CVC-028 financial standing; APCRDA logistics norms 75km offsite yard; IS 1786:2008 rebar testing). The seed demonstrates the Q&A pattern works for both procedural questions (Q1 about JV docs) and technical methodology questions (Q3 about construction approach).
+
+### Bilingual EN+TE on both Q and A
+
+Per directive, BIDDER_CLARIFICATION_QA is bidder-facing → translated. Both directions (Q from bidder + A from officer) are bilingual:
+- Bidder may submit in either language; system stores English (translated for officer review) + Telugu (preserved for bidder reference)
+- Officer drafts in English; system translates to Telugu for the bidder's portal view
+
+For the 6 Q&A communications: 14 Sarvam API calls + 0 cache hits (subject_line and content patterns are unique, so cache miss expected on first run).
+
+### Final state after M4.6
+
+| metric | before | delta | after |
+|---|---:|---:|---:|
+| Communication kg_nodes | 69 | +6 (3 Q + 3 A) | **75** |
+| Communication types | 9 | +1 | 10 |
+| Bilingual EN+TE | 57 | +6 | 63 |
+| Internal English-only | 12 | 0 | 12 |
+| DOCX artifacts | 69 | +6 | 75 |
+| Module 3 sentinels | clean | unchanged | clean ✓ |
+
+### Module 4 corpus complete
+
+10 communication types now ship. The forward-applicable patterns established across L85-L89:
+- L80 composite-finding semantics (M4.2 drafter source citation depth)
+- audit_id determinism (M4.2 → all subsequent drafters)
+- L86 fetch-modify-patch JSONB merge (M4.3 + M4.4 + M4.6)
+- L87 DPDP pseudonymisation discipline (M4.4 → routed through all bidder-facing types)
+- L88 sentinel preservation across many drafters
+- L89 2-direction workflow with parent_communication_id threading
+
+Future M4.x sub-blocks (deferred) layer on top:
+- M4.7 approval workflow (Clerk → Dealing Officer → Department Head status transitions)
+- M4.8 actual sending (SMTP / SMS / portal API)
+- M4.9 historical archive + reverse drilldown UI
+
+---
+
 ## L88 — Module 4 M4.5 Remaining 6 Communication Types
 
 **Established in run-2 Sub-block 2** (2026-05-12). 6 drafter pilots ship in parallel: BID_ACK + FLAGGED + DOC_REVIEW + REGRET + CARTEL_REVIEW + INTERNAL_ROUTING. Total Communication kg_nodes grow 12 → 69, matching the M4.1 spec's full corpus prediction.
