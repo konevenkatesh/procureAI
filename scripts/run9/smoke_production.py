@@ -130,7 +130,12 @@ def smoke_scale(label: str, state, skeleton, wall_budget: int) -> dict:
     t0 = time.time()
     code, data = _post_json(f"{PROD_URL}/api/m1/draft/start", payload, timeout=60)
     if code != 200:
-        return {"label": label, "ok": False, "reason": f"start returned {code}", "body": data}
+        return {
+            "label": label, "ok": False, "reason": f"start returned {code}", "body": data,
+            "wall_clock_sec": 0, "n_rows": 0, "n_skeleton": len(skeleton),
+            "n_batches": 0, "n_node_complete": 0, "sections": [], "last_event": "start_failed",
+            "row_pct": 0.0, "draft_id": state.draft_id,
+        }
 
     draft_id = data.get("draft_id") or state.draft_id
     stream_url = data.get("stream_url") or f"/api/m1/draft/stream/{draft_id}"

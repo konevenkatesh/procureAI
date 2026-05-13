@@ -513,8 +513,15 @@ class InitialPayload(BaseModel):
 
 
 class M1RunParams(BaseModel):
-    """params field of POST /m1/run body."""
-    model_config = ConfigDict(extra="forbid")
+    """params field of POST /m1/run body.
+
+    R9.4 fix: extra="allow" (was "forbid") so optional fields like
+    boq_skeleton, boq_skeleton_filename, and future workflow knobs flow
+    through without breaking the Pydantic gate. The worker code reads
+    these via params.get(...) — they don't need to be on the validated
+    M1RunParams model.
+    """
+    model_config = ConfigDict(extra="allow")
 
     draft_id: Optional[str] = None                    # if absent, server creates
     initiator_role: Literal["DEALING_OFFICER"] = "DEALING_OFFICER"

@@ -1504,6 +1504,134 @@ The cross-vendor fallback (Gemini → Sonnet, GPT → Claude) is tempting in the
 
 ---
 
+## L118 — Workflow-Level Embedding Pre-Cache: Collapse Per-Section Round-Trips into One Batch Call
+
+**Established in R9.1** (2026-05-13). The R8.3 capital-scale wall-clock failure had a single root cause: each retrieval inside the workflow's section drafting + BoQ clustering made a separate `text-embedding-005` call. With 9 section retrievals + 8 discipline retrievals = ~17 embedding round-trips per run, a transiently slow Vertex endpoint cascaded into multi-second hangs on every call. Total wall-clock at HOD scale: 1319s — past the 1200s budget.
+
+### The fix
+
+A workflow-level cache `_EMBED_CACHE: dict[str, list[float]]` populated by a single `embed_texts_batch()` call at workflow start. The same `_embed_query()` function callers use now checks the cache before falling through to per-call.
+
+```python
+def _preload_embeddings(queries: list[str]) -> int:
+    uncached = [q for q in queries if q and q not in _EMBED_CACHE]
+    if not uncached:
+        return 0
+    vecs = embed_texts_batch(uncached, task_type="RETRIEVAL_QUERY")
+    for q, v in zip(uncached, vecs):
+        if v:
+            _EMBED_CACHE[q] = v
+    return sum(1 for q in uncached if q in _EMBED_CACHE)
+
+def _embed_query(text: str) -> Optional[list[float]]:
+    if text in _EMBED_CACHE:
+        return _EMBED_CACHE[text]
+    v = embed_text(text, timeout=12)         # per-call fallback if cache miss
+    _EMBED_CACHE[text] = v
+    return v
+```
+
+Pre-cache call at workflow start:
+
+```python
+_reset_embed_cache()
+queries = [_query_for_section(sid, state) for sid in ALL_SECTION_IDS]
+queries += list(KNOWN_DISCIPLINES)
+_preload_embeddings(queries)
+```
+
+### Performance impact
+
+| Metric | Before R9.1 | After R9.1 |
+|--------|------------:|-----------:|
+| Embedding round-trips per workflow | ~17 | 1 (batch) |
+| Total embedding time at typical latency | ~17s | ~3s |
+| Total embedding time under Vertex saturation (R8.3 conditions) | 200-1000s | 5-15s |
+| Cache hit latency for any subsequent query | ~600ms | ~0ms (dict lookup) |
+
+### Three design choices and their rationale
+
+1. **Cache by query text, not by query-class semantics.** Two different drafts might produce different query strings for the same section (different `name_of_work` ends up in the query). Keying by raw text is the safe choice; a per-draft cache invalidates correctly via `_reset_embed_cache()` at workflow start.
+
+2. **Pre-cache the full superset of known disciplines, not just the ones detected for this draft.** Cost is 16 disciplines × ~3s = 1 batch call vs the cost of missing a less-common discipline (HOD might surface PA, BMS, or HSD which the heuristic discipline classifier may or may not bucket correctly). Over-caching is essentially free; under-caching costs a per-call round-trip per miss.
+
+3. **Don't cache across workflow runs.** Memory bloat + stale retrieval risk. The `_reset_embed_cache()` at workflow start trades a few extra round-trips on rare cross-draft overlap for correctness on every draft.
+
+### Forward-applicable rule
+
+For any future workflow that makes N>5 retrieval calls against an embedding API:
+- Pre-compute all queries you'll ever need at workflow start.
+- Use the embedding API's batch endpoint (Vertex supports up to 250 in one call).
+- Treat the per-call path as the *fallback*, not the primary.
+- The right break-even point is when N round-trips × baseline latency > 2× the batch-call latency. For Vertex, that's N ≥ 4-5.
+
+The same pattern applies to any LLM-pipeline retrieval phase: pgvector top-K lookups, BGE-M3 similarity ranks, BM25 sparse indices. Pre-compute the query embedding/scoring once per draft; reuse across sections and disciplines.
+
+### Companion fix: `M1_BOQ_MAX_CONCURRENT` default 10 → 6
+
+The pre-cache eliminates the read-path saturation, but the write-path (Flash batches) can still saturate Vertex if too many fire concurrently. Reducing concurrency from 10 to 6 leaves headroom while preserving a ~6× speedup over serial. Tunable via env var per Cloud Run revision.
+
+---
+
+## L119 — Cloud Build + Cloud Run v3 Deploy + 3-Scale Production Validation Methodology
+
+**Established in R9.3 + R9.4** (2026-05-13). The Module 1 v3 deploy is the first time the procureai stack hosts a long-running (12-15 min) workflow on Cloud Run with progressive SSE streaming. Three configuration knobs matter for production reliability:
+
+### Deploy config
+
+```bash
+gcloud run deploy m1-drafter \
+  --image=asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v3 \
+  --region=asia-south1 \
+  --service-account=procure-ai-runtime@procureai-prod.iam.gserviceaccount.com \
+  --no-allow-unauthenticated \
+  --memory=4Gi --cpu=2 --timeout=3600 --concurrency=10 \
+  --min-instances=1 --max-instances=20 \
+  --set-env-vars=M1_DRAFTER_WORKFLOW_V2=1,M1_BOQ_MAX_CONCURRENT=6
+```
+
+Each flag's role:
+
+- `--min-instances=1`: keeps one warm instance for first-byte latency. Cold start of the m1-drafter container is ~20s (pydantic, httpx, psycopg, openpyxl boots). The first byte of an SSE stream from a cold start arrives 20s late, making the live-generation view look broken. ~$8/mo for one always-on instance vs that UX hit is the right trade.
+- `--timeout=3600`: lifts the default 300s deadline to 1 hour. Capital-scale BoQ (3000 rows × 15-per-batch × parallel-6) finishes in 10-12 min after R9.1. The 1-hour ceiling is 5× safety margin.
+- `--concurrency=10`: each Cloud Run instance handles up to 10 concurrent draft generations. Combined with `max-instances=20` and Cloud Tasks' fair-share dispatch, that's a comfortable 200 concurrent drafts before any quota becomes the bottleneck.
+- `--memory=4Gi --cpu=2`: workflow_v2 holds the full state in-memory (TenderDraftState + 3000-row BoQ + 9 section bodies + accumulating citations) plus the asyncio runner thread. 4 GiB measured comfortable on capital scale; less risks OOM under SSE event-buffer pressure.
+- `M1_DRAFTER_WORKFLOW_V2=1`: opt-in flag, default off so the v3 image can ship without immediately routing all traffic. Flip to roll over.
+- `M1_BOQ_MAX_CONCURRENT=6`: the post-R9.1 tuned concurrency.
+
+### SSE through Cloud Run + GLB
+
+Cloud Run instances stream SSE natively; the Cloud Build-managed global LB does NOT buffer SSE by default. Two gotchas observed:
+
+1. **`X-Accel-Buffering: no` is necessary** on every SSE response. The Next.js API proxy at `/api/m1/draft/{id}/stream` already sets this header; the m1-drafter backend also sets it. Without it, GLB-internal HTTP/2 framing aggregates small frames into ~1MB chunks before flush, making the live view appear to freeze for 30-60s at a time.
+2. **The frontend's SSE client must use `EventSource` not raw `fetch + ReadableStream`** for cross-browser compatibility. EventSource handles reconnection on transient network blips, which is critical for capital-scale 15-min generations where a single dropped packet would otherwise restart the whole flow.
+
+### 3-scale production validation
+
+Run 8 established the local 3-scale methodology (small/mid/capital). Run 9 promotes it to production: every deploy of m1-drafter should pass all three through the public URL before flipping the v2 env flag for default traffic:
+
+| Scale | Rows | Expected wall (prod) | Expected cost |
+|------:|-----:|---------------------:|--------------:|
+| Banaganapalli small | 30 | ~90-120s | ₹0.50 |
+| LPS Zone-11 mid | 800 | ~5-6 min | ₹10-12 |
+| HOD Towers capital | 3000 | ~12-15 min after R9.1 | ₹40-50 |
+
+The methodology catches different failure modes at different scales:
+
+- Small catches frontend wiring regressions (proxy auth, SSE plumbing, gate transitions).
+- Mid catches Cloud Run instance behaviour under sustained load (memory growth, thread leakage in the parallel runner).
+- Capital catches SSE-through-LB buffering issues + max-timeout sufficiency + min-instance pre-warm effectiveness.
+
+### Forward-applicable rule
+
+For any future Module's first deploy with long-running compute (>1 min sustained):
+- Always set `--min-instances=1` before opening traffic.
+- Always set `--timeout` to ≥ 3× your observed worst-case wall-clock.
+- Always run all 3 scales via the public URL — not just an internal Cloud Run trigger — to validate the LB + frontend proxy path.
+- Always ship behind an env-var feature flag; flip last, never first.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
