@@ -267,3 +267,399 @@ app = make_app(
     worker_fn  = worker,
     title      = "ProcureAI m3-evaluator",
 )
+
+
+# ─── R11 — Step-wise evaluation endpoints + SSE stream ────────────────
+
+
+import asyncio
+import json
+import uuid
+import threading
+from collections import defaultdict
+from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
+
+
+# Display metadata for the 14 bid validators (used in Step 4 of the wizard)
+VALIDATORS_META = [
+    {"id": "abc",                  "name": "Annual Business Capacity",       "desc": "Verify ABC = 2× annual contract value (CVC-028 financial-standing)"},
+    {"id": "blacklist",            "name": "Blacklist Check",                "desc": "Cross-check bidder against AP/GoI/CVC blacklists"},
+    {"id": "class",                "name": "Contractor Class",               "desc": "Verify registered contractor class matches tender category"},
+    {"id": "compliance_documents", "name": "Compliance Documents",           "desc": "PAN, GSTIN, DSC, PoA — all 7 mandatory submissions"},
+    {"id": "emd_validity",         "name": "EMD Validity",                   "desc": "Bid Security amount + validity span vs MPW25-050 / MPW-079"},
+    {"id": "equipment",            "name": "Equipment Deployment",           "desc": "Statement-V critical equipment availability + owned/leased mix"},
+    {"id": "financial_turnover",   "name": "Financial Turnover",             "desc": "3-yr average turnover ≥ 2× annual contract value"},
+    {"id": "jv_consortium",        "name": "JV / Consortium Eligibility",    "desc": "JV agreement, lead-partner share, joint+several liability"},
+    {"id": "litigation",           "name": "Litigation History",             "desc": "Pending/disposed cases ≥ ₹50L disclosed and assessed"},
+    {"id": "personnel",            "name": "Key Personnel",                  "desc": "Project Manager, Site/QA/Safety/MEP engineers — qualifications + availability"},
+    {"id": "similar_works",        "name": "Similar Works (3/2/1)",          "desc": "MPW-040 + AP-GO-062 similar-works rule for pre-qualification"},
+    {"id": "solvency",             "name": "Solvency Certificate",           "desc": "AP-GO 89/2009 §4(b) — ≥40% ECV, 12-month validity from Tahsildar"},
+    {"id": "turnover",             "name": "Turnover Threshold",             "desc": "Annual turnover meets minimum tender threshold"},
+    {"id": "bg_validity",          "name": "Bank Guarantee Validity",        "desc": "BG outlasts bid validity end_date + unconditional clause"},
+]
+
+
+def _demo_tender_summary() -> list[dict]:
+    """Curated metadata for the 3 demo tenders. Pulled from baseline ingestion;
+    augmented with display fields for the wizard cards."""
+    return [
+        {
+            "tender_id":   "tender_synth_kurnool",
+            "name":        "Kurnool Government Junior College — Annual Maintenance",
+            "ecv_inr":     12_50_000,
+            "ecv_label":   "₹12.50 lakh",
+            "period_months": 12,
+            "discipline":  "Civil Works / Building Maintenance",
+            "bidder_count": 9,
+            "category":    "WORKS",
+            "issued_by":   "PRED — APCRDA",
+        },
+        {
+            "tender_id":   "tender_synth_ja",
+            "name":        "Judicial Academy Vijayawada — New Block Construction",
+            "ecv_inr":     12_55_00_00_000,
+            "ecv_label":   "₹125.50 crore",
+            "period_months": 18,
+            "discipline":  "Civil + RCC + MEP",
+            "bidder_count": 9,
+            "category":    "WORKS",
+            "issued_by":   "AP Judicial Department",
+        },
+        {
+            "tender_id":   "tender_synth_hc",
+            "name":        "High Court of AP, Amaravati — Capital Project",
+            "ecv_inr":     365_16_00_00_000,
+            "ecv_label":   "₹365.16 crore",
+            "period_months": 24,
+            "discipline":  "Civil + Structural + MEP + HVAC",
+            "bidder_count": 9,
+            "category":    "WORKS",
+            "issued_by":   "AP Public Works Department",
+        },
+    ]
+
+
+def _bidder_summary_for_tender(tender_id: str) -> list[dict]:
+    """Returns 9 bidders B1-B9 for the chosen tender, with metadata cards."""
+    # Pull from kg_nodes.BidderProfile + LetterOfBid + EMD_BG matching this tender
+    short = tender_id.replace("tender_synth_", "")
+    bidders = []
+    for i in range(1, 10):
+        doc_id = f"bid_synth_b{i}_{short}"
+        try:
+            # Find profile by reaching LetterOfBid → bidder_profile_id, fall back to label match
+            lob = _supabase_get(
+                "kg_nodes",
+                select="properties",
+                node_type="eq.LetterOfBid",
+                doc_id=f"eq.{doc_id}",
+            )
+            emd = _supabase_get(
+                "kg_nodes",
+                select="properties",
+                node_type="eq.EMD_BG",
+                doc_id=f"eq.{doc_id}",
+            )
+            elig = _supabase_get(
+                "kg_nodes",
+                select="properties",
+                node_type="eq.EligibilityMatrix",
+                doc_id=f"eq.{doc_id}",
+            )
+            lp = (lob[0]["properties"] if lob else {}) if lob else {}
+            ep = (emd[0]["properties"] if emd else {}) if emd else {}
+            elp = (elig[0]["properties"] if elig else {}) if elig else {}
+
+            bidders.append({
+                "bidder_id":     f"b{i}",
+                "doc_id":        doc_id,
+                "company_name":  lp.get("bidder_name") or lp.get("company_name") or f"Bidder B{i}",
+                "is_jv":         bool(lp.get("is_jv") or lp.get("jv_indicator")),
+                "bid_amount":    lp.get("bid_amount_inr") or lp.get("total_bid_inr"),
+                "emd_amount":    ep.get("bg_amount_cr") or ep.get("emd_amount_inr"),
+                "bg_expiry":     ep.get("bg_expiry_date"),
+                "baseline_verdict": elp.get("aggregate_verdict") or elp.get("verdict"),
+            })
+        except Exception as e:
+            logger.warning(f"bidder b{i} fetch failed: {e}")
+            bidders.append({"bidder_id": f"b{i}", "doc_id": doc_id, "company_name": f"Bidder B{i}"})
+    return bidders
+
+
+def _findings_for_bid(doc_id: str) -> list[dict]:
+    """Pull BidEvaluationFinding + ValidationFinding rows matching this bid's doc_id."""
+    finds = []
+    try:
+        bef = _supabase_get(
+            "kg_nodes",
+            select="node_id,properties,label",
+            node_type="eq.BidEvaluationFinding",
+            doc_id=f"eq.{doc_id}",
+        )
+        finds.extend(bef)
+    except Exception:
+        pass
+    try:
+        vf = _supabase_get(
+            "kg_nodes",
+            select="node_id,properties,label",
+            node_type="eq.ValidationFinding",
+            doc_id=f"eq.{doc_id}",
+        )
+        finds.extend(vf)
+    except Exception:
+        pass
+    return finds
+
+
+# ─── In-memory SSE event buffer per evaluation run ───────────────────
+
+
+_run_event_buffers: dict[str, list[dict]] = defaultdict(list)
+_run_done: dict[str, bool] = {}
+
+
+def _publish(run_id: str, event: dict) -> None:
+    _run_event_buffers[run_id].append(event)
+
+
+def _evaluator_thread(run_id: str, tender_id: str, bidder_ids: list[str]) -> None:
+    """Background worker that simulates the 14-validator pipeline per bidder.
+
+    Sentinel-safe by construction: reads existing finding data only; never
+    writes to ValidationFinding/EligibilityMatrix/BidEvaluationFinding tables.
+
+    Demo cadence: validators run with small artificial delays (~150-400ms each)
+    so the SSE stream feels live; total per-bidder ~5s, per-tender 5-25s.
+    """
+    import time as _t
+    t_start = _t.time()
+    _publish(run_id, {"type": "evaluation_started", "run_id": run_id,
+                      "tender_id": tender_id, "bidder_ids": bidder_ids,
+                      "validators": [v["id"] for v in VALIDATORS_META]})
+
+    aggregate_results: dict[str, dict] = {}
+    for bidder_id in bidder_ids:
+        short = tender_id.replace("tender_synth_", "")
+        doc_id = f"bid_synth_{bidder_id}_{short}"
+
+        # Pre-load this bid's existing findings — used to fan out per validator
+        existing = _findings_for_bid(doc_id)
+        findings_by_validator: dict[str, list[dict]] = defaultdict(list)
+        for f in existing:
+            p = f.get("properties") or {}
+            rid = (p.get("rule_id") or "").lower()
+            check_type = (p.get("check_type") or p.get("validator_id") or "").lower()
+            # Bucket by keyword in rule_id / check_type
+            for v in VALIDATORS_META:
+                vid = v["id"]
+                if vid in rid or vid in check_type or vid.replace("_", "") in rid.replace("-", ""):
+                    findings_by_validator[vid].append({
+                        "finding_id": f.get("node_id"),
+                        "rule_id":    p.get("rule_id"),
+                        "severity":   p.get("severity"),
+                        "message":    f.get("label"),
+                        "verdict":    p.get("verdict"),
+                    })
+                    break
+
+        bidder_summary = {"bidder_id": bidder_id, "validators": [], "total_findings": 0}
+        for index, v in enumerate(VALIDATORS_META, 1):
+            vid = v["id"]
+            _publish(run_id, {"type": "validator_started", "bidder_id": bidder_id,
+                              "name": v["name"], "validator_id": vid,
+                              "index": index, "of_total": len(VALIDATORS_META)})
+            _t.sleep(0.25)        # demo cadence — feel of live work
+
+            v_findings = findings_by_validator.get(vid, [])
+            verdict = "PASS"
+            for f in v_findings:
+                if f.get("severity") in ("HARD_BLOCK", "DISQUALIFIED"):
+                    verdict = "FAIL"; break
+                elif f.get("severity") == "WARNING":
+                    verdict = "WARN"
+
+            # Emit findings
+            for f in v_findings[:5]:
+                _publish(run_id, {"type": "validator_finding", "bidder_id": bidder_id,
+                                  "validator_id": vid, **f})
+
+            _publish(run_id, {"type": "validator_complete", "bidder_id": bidder_id,
+                              "validator_id": vid, "name": v["name"],
+                              "verdict": verdict,
+                              "findings_count": len(v_findings),
+                              "elapsed_ms": 250})
+            bidder_summary["validators"].append({
+                "id": vid, "name": v["name"], "verdict": verdict,
+                "findings_count": len(v_findings),
+            })
+            bidder_summary["total_findings"] += len(v_findings)
+
+        # Final per-bidder aggregate
+        elig = _supabase_get(
+            "kg_nodes", select="properties",
+            node_type="eq.EligibilityMatrix",
+            doc_id=f"eq.{doc_id}",
+        )
+        bidder_summary["aggregate_verdict"] = (
+            (elig[0]["properties"].get("aggregate_verdict") if elig else None) or "UNKNOWN"
+        )
+        aggregate_results[bidder_id] = bidder_summary
+        _publish(run_id, {"type": "bidder_complete", "bidder_id": bidder_id,
+                          "aggregate_verdict": bidder_summary["aggregate_verdict"],
+                          "total_findings": bidder_summary["total_findings"]})
+
+    total_ms = int((_t.time() - t_start) * 1000)
+    # Pull TenderRanking + EligibilityMatrix counts
+    ranking = _read_tender_ranking(tender_id)
+    em_summary = _read_eligibility_matrix(tender_id)
+    _publish(run_id, {
+        "type": "evaluation_complete",
+        "run_id": run_id,
+        "tender_id": tender_id,
+        "total_elapsed_ms": total_ms,
+        "bidder_results": aggregate_results,
+        "eligibility_matrix": em_summary,
+        "tender_ranking": ranking,
+    })
+    _run_done[run_id] = True
+
+    # Persist to demo_evaluation_run
+    try:
+        requests.post(
+            f"{SUPABASE_REST_URL}/rest/v1/demo_evaluation_run",
+            headers={**_H, "Prefer": "return=minimal"},
+            json={
+                "run_id":           run_id,
+                "tender_id":        tender_id,
+                "bidder_ids":       bidder_ids,
+                "completed_at":     None,
+                "status":           "complete",
+                "results":          {"bidders": aggregate_results, "eligibility_matrix": em_summary, "tender_ranking": ranking},
+                "total_elapsed_ms": total_ms,
+                "officer_id":       "demo",
+            },
+            timeout=10,
+        )
+    except Exception as e:
+        logger.warning(f"demo_evaluation_run insert failed: {e}")
+
+
+# ─── Routes ───────────────────────────────────────────────────────────
+
+
+@app.get("/m3/tenders")
+def list_demo_tenders() -> dict:
+    return {"tenders": _demo_tender_summary()}
+
+
+@app.get("/m3/tenders/{tender_id}/bidders")
+def list_bidders(tender_id: str) -> dict:
+    if tender_id not in {"tender_synth_kurnool", "tender_synth_ja", "tender_synth_hc"}:
+        raise HTTPException(404, detail="unknown demo tender")
+    return {"tender_id": tender_id, "bidders": _bidder_summary_for_tender(tender_id)}
+
+
+@app.get("/m3/bidders/{bidder_id}/bid/{tender_id}")
+def get_bid_details(bidder_id: str, tender_id: str) -> dict:
+    short = tender_id.replace("tender_synth_", "")
+    doc_id = f"bid_synth_{bidder_id}_{short}"
+    lob = _supabase_get("kg_nodes", select="properties,label", node_type="eq.LetterOfBid",  doc_id=f"eq.{doc_id}")
+    emd = _supabase_get("kg_nodes", select="properties,label", node_type="eq.EMD_BG",      doc_id=f"eq.{doc_id}")
+    boq = _supabase_get("kg_nodes", select="properties,label", node_type="eq.PricedBoQ",   doc_id=f"eq.{doc_id}")
+    elig = _supabase_get("kg_nodes", select="properties,label", node_type="eq.EligibilityMatrix", doc_id=f"eq.{doc_id}")
+    return {
+        "tender_id":   tender_id,
+        "bidder_id":   bidder_id,
+        "doc_id":      doc_id,
+        "letter_of_bid": lob[0] if lob else None,
+        "emd_bg":      emd[0] if emd else None,
+        "priced_boq":  boq[0] if boq else None,
+        "baseline_eligibility": elig[0] if elig else None,
+    }
+
+
+@app.post("/m3/evaluate/start")
+async def start_evaluation(req: dict) -> dict:
+    tender_id = req.get("tender_id")
+    bidder_ids = req.get("bidder_ids") or []
+    if not tender_id or not bidder_ids:
+        raise HTTPException(400, detail="tender_id and bidder_ids[] required")
+    if tender_id not in {"tender_synth_kurnool", "tender_synth_ja", "tender_synth_hc"}:
+        raise HTTPException(400, detail="unknown demo tender")
+    run_id = str(uuid.uuid4())
+    _run_event_buffers[run_id] = []
+    _run_done[run_id] = False
+
+    # Persist queued run
+    try:
+        requests.post(
+            f"{SUPABASE_REST_URL}/rest/v1/demo_evaluation_run",
+            headers={**_H, "Prefer": "return=minimal"},
+            json={"run_id": run_id, "tender_id": tender_id,
+                  "bidder_ids": bidder_ids, "status": "running",
+                  "officer_id": req.get("officer_id", "demo")},
+            timeout=10,
+        )
+    except Exception as e:
+        logger.warning(f"demo_evaluation_run queue failed: {e}")
+
+    threading.Thread(
+        target=_evaluator_thread, args=(run_id, tender_id, bidder_ids),
+        daemon=True, name=f"m3-eval-{run_id[:8]}",
+    ).start()
+    return {"run_id": run_id, "tender_id": tender_id, "bidder_ids": bidder_ids,
+            "stream_url": f"/m3/evaluate/{run_id}/stream"}
+
+
+@app.get("/m3/evaluate/{run_id}/stream")
+async def stream_evaluation(run_id: str) -> StreamingResponse:
+    async def gen():
+        cursor = 0
+        idle = 0
+        while True:
+            buf = _run_event_buffers.get(run_id, [])
+            if cursor < len(buf):
+                for ev in buf[cursor:]:
+                    yield f"data: {json.dumps(ev)}\n\n"
+                    if ev.get("type") == "evaluation_complete":
+                        return
+                cursor = len(buf)
+                idle = 0
+            else:
+                if _run_done.get(run_id):
+                    return
+                idle += 1
+                if idle > 120:    # 60s no events → close
+                    yield 'data: {"type":"error","message":"stream idle timeout"}\n\n'
+                    return
+                await asyncio.sleep(0.5)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+
+@app.get("/m3/evaluate/{run_id}/results")
+def get_results(run_id: str) -> dict:
+    rows = _supabase_get(
+        "demo_evaluation_run",
+        select="*",
+        run_id=f"eq.{run_id}",
+    )
+    if not rows:
+        raise HTTPException(404, detail="run not found")
+    return rows[0]
+
+
+@app.get("/m3/evaluate/recent")
+def list_recent_runs() -> dict:
+    rows = _supabase_get(
+        "demo_evaluation_run",
+        select="run_id,tender_id,bidder_ids,started_at,completed_at,status,total_elapsed_ms",
+        order="started_at.desc",
+        limit="20",
+    )
+    return {"runs": rows}
