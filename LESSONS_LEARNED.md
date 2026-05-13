@@ -1900,6 +1900,138 @@ For any future N-step workflow where each step has clear START / FINDING / COMPL
 
 ---
 
+## L126 — Hybrid Replay+Real-Send Pattern for Communication Threads
+
+**Established in R12.1 + R12.2** (2026-05-13). Module 4's chat UI mixes two flows behind a single code path: historical Communications from the corpus (78 baseline rows) are replayed in the thread view, AND new officer-composed messages get genuinely sent via SMTP and persisted as NEW Communication kg_nodes. The same `MessageBubble` component renders both — the only difference is the underlying row's `created_at` and `sender_role`.
+
+### Architectural shape
+
+```
+Existing Communication (read-only)        New officer reply (write)
+    ↓                                          ↓
+kg_nodes.Communication WHERE          POST /m4/threads/{id}/send
+  tender_id = X AND                    ↓
+  recipient_bidder_profile_id = Y     SMTP outbound + INSERT into
+    ↓                                  kg_nodes.Communication
+GET /m4/threads/{id} returns ALL Communications for (tender, bidder),
+sorted chronologically. The UI doesn't need to know which were
+baseline-ingested vs officer-sent — they're all just messages in the thread.
+```
+
+The new `communication_thread` Postgres table (one row per `(tender_id, bidder_id)`) is the JOIN target; it carries `last_message_at`, `last_message_snippet`, `recipient_email`. Bootstrapped from existing Communications via:
+
+```sql
+INSERT INTO communication_thread (tender_id, bidder_id, ...)
+SELECT DISTINCT
+    properties->>'tender_id',
+    properties->>'recipient_bidder_profile_id',
+    ...
+FROM kg_nodes WHERE node_type = 'Communication'
+GROUP BY 1, 2
+ON CONFLICT (tender_id, bidder_id) DO NOTHING;
+```
+
+This was a single MCP `apply_migration` call. 78 Communications → 28 thread rows.
+
+### Why this works for the demo + production
+
+For the demo: every screenshot shows real bidder names, real tender refs, real correspondence types (BID_ACK, REGRET, ALB_JUSTIFICATION, etc.). For production: the same UI accepts new sends and appends to the same threads. There's no "demo mode" toggle and no fake data.
+
+The sentinel discipline: Communication is **additive-only** — new sends create new rows but never modify or delete existing ones. The 17 frozen node types (RuleNode 611, Section 1577, ValidationFinding 154, etc.) are untouched.
+
+### Forward-applicable rule
+
+For any future feature that mixes "historical data" with "new user actions" on the same surface (Module 1 draft history + new drafts; Module 3 baseline findings + new evaluations; Module 5 future audit-trail browsing): use the same pattern. Don't build separate "history view" + "compose view" pages. The user sees one thread; the code stores rows that look identical regardless of origin.
+
+---
+
+## L127 — Sarvam-M for English↔Telugu in Bidder-Facing Comms (Bounded to Module 4 Only)
+
+**Established in R12.1** (2026-05-13). Telugu translation is part of Module 4's officer composer: officer types in English, clicks "Translate via Sarvam", reviews the Telugu, optionally sends both EN+TE in a single email. The bidder receives the language(s) the officer chose.
+
+### Why Sarvam-M (not Vertex Translation / DeepL / Google Translate)
+
+1. **Already wired**: `SARVAM_API_KEY` was bound in Secret Manager from earlier baseline ingestion (R4 era). No new credential setup needed.
+2. **AP-specific corpus**: Sarvam was trained with Indian-language emphasis; Telugu output is more idiomatic than Vertex Translation for procurement vocabulary.
+3. **Cost**: ~₹0.02 per translation request. Free tier covers demo volume.
+4. **PII guard already built** (`pseudonymise()` + `depseudonymise()` in m4-communicator) — masks PAN/GSTIN/mobile/bidder-name tokens BEFORE the external API call, restores after. DPDP-respectful by construction.
+
+### Scope discipline
+
+Telugu is ONLY in Module 4. The platform's English-everywhere stance (officer wizard, Knowledge Layer, BOT chat, Module 3 evaluations) is unchanged. Bidder-facing emails are the ONE place where Telugu adds compliance value (per AP State Government linguistic-inclusion guidelines).
+
+### The composer pattern
+
+```typescript
+const translate = async () => {
+  setTranslating(true);
+  const r = await fetch(`/api/m4/threads/${threadId}/translate`, {
+    method: "POST",
+    body: JSON.stringify({ text: body, direction: "en_to_te" }),
+  });
+  const d = await r.json();
+  setBodyTe(d.translated || "");
+  setTranslating(false);
+};
+```
+
+UI shows EN + TE side-by-side; officer can edit either; send payload carries both `body_en` and `body_te`; the SMTP email assembles a single multi-part message with both languages clearly demarcated by a `<hr><h3>తెలుగు అనువాదం</h3>` separator.
+
+### Forward-applicable rule
+
+Multi-lingual UX should be additive (officer can choose), not implicit (system always sends both). The "translate this draft" button respects officer intent; the send payload signals which languages to include. Don't auto-translate everything — it inflates costs and confuses recipients who expected English.
+
+---
+
+## L128 — Gmail SMTP via App Password with Graceful DEGRADED Mode
+
+**Established in R12.1 + R12.3** (2026-05-13). The simplest email outbound path for the procureai stack: Gmail SMTP_SSL with an App Password. Requires no SendGrid/Resend account, no DNS verification, no MX records. Costs ₹0/month for under 500 emails/day.
+
+### Production-grade DEGRADED mode
+
+The Run 12 directive offered to attach `GMAIL_SMTP_USER` and `GMAIL_SMTP_APP_PASSWORD` as Secret Manager entries. The user did not provide them. The codebase handles this by construction:
+
+```python
+GMAIL_SMTP_USER         = os.environ.get("GMAIL_SMTP_USER", "")
+GMAIL_SMTP_APP_PASSWORD = os.environ.get("GMAIL_SMTP_APP_PASSWORD", "")
+SMTP_AVAILABLE = bool(GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD)
+
+# In send handler:
+if not SMTP_AVAILABLE:
+    _publish_send(send_id, {"type": "smtp_degraded",
+                            "message": "SMTP credentials not configured — saving as DRAFT"})
+    final_status = "DRAFT"
+else:
+    # ... real SMTP send ...
+    final_status = "SENT"
+
+# Either way: persist Communication kg_node with status=final_status
+```
+
+The UI surfaces this clearly: amber "SMTP outbound: DEGRADED (sends save as DRAFT)" banner at the page header, plus an inline warning under the composer. The "Send" button still works — it just saves as DRAFT instead of throwing.
+
+### Wiring credentials post-deploy
+
+When the user wants to switch from DEGRADED to LIVE:
+
+```bash
+# 1. Create Secret Manager entries
+echo -n "your-email@gmail.com" | gcloud secrets create GMAIL_SMTP_USER --data-file=-
+echo -n "abcd efgh ijkl mnop" | gcloud secrets create GMAIL_SMTP_APP_PASSWORD --data-file=-
+
+# 2. Bind to m4-communicator Cloud Run revision
+gcloud run services update m4-communicator --region=asia-south1 \
+  --update-secrets=GMAIL_SMTP_USER=GMAIL_SMTP_USER:latest,GMAIL_SMTP_APP_PASSWORD=GMAIL_SMTP_APP_PASSWORD:latest
+
+# 3. No code change needed — next request sees SMTP_AVAILABLE=true
+```
+
+### Forward-applicable rule
+
+Every external dependency should have a degraded mode that keeps the UI functional. The Run 12 + Run 10 + Run 8 pattern repeats: stale credentials, missing env, slow API. Don't break the UI — show a clear banner, persist the user's work locally (DRAFT, queued, deferred), and surface the recovery path. The user can attach credentials later without re-running the whole sub-block.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
