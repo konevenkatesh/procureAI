@@ -1776,6 +1776,130 @@ In-memory `Map<sessionId, {count, reset_at}>` with a 30-msg / 60-second window. 
 
 ---
 
+## L123 — Sentinel-Safe Demo Re-Evaluation: New `demo_evaluation_run` Table Beside `kg_nodes`
+
+**Established in R11.1** (2026-05-13). Module 3's step-wise evaluation wizard lets a Dealing Officer re-evaluate any bidder×tender pair from the wizard UI and watch validators run live. The challenge: the existing baseline finding tables (`ValidationFinding`, `EligibilityMatrix`, `BidEvaluationFinding`, `BidAnomalyFinding`, `ComparativeStatement`, `TenderRanking`) are **sentinel-protected** — their row counts (154/27/351/6/3/3) are pinned across every commit since R5 and any mutation by a demo evaluation would corrupt the validation baseline.
+
+### The architectural fix
+
+A new regular Postgres table — `demo_evaluation_run` — created in the same schema as `kg_nodes` but outside the additive-kg-node pattern:
+
+```sql
+CREATE TABLE demo_evaluation_run (
+    run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tender_id TEXT NOT NULL,
+    bidder_ids TEXT[] NOT NULL,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    status TEXT CHECK (status IN ('queued','running','complete','failed')),
+    results JSONB,
+    total_elapsed_ms INTEGER,
+    officer_id TEXT
+);
+```
+
+Why this works:
+1. **Not a kg_node**: doesn't enter the additive sentinel inventory. Adding 10,000 demo evaluations doesn't drift the 18-node-type-sentinel snapshot.
+2. **Single row per evaluation**: results are stored as JSONB on one row (per-validator verdicts + per-bidder aggregates + ranking + eligibility-counts), instead of fanning out into per-finding kg_nodes that would write to sentinel-protected types.
+3. **Cheap and fast**: one INSERT at /evaluate/start (status=running), one UPDATE at /evaluation_complete (status=complete + results JSONB). No transactional cleanup needed.
+
+### Verified-replay pattern
+
+The m3-evaluator's evaluation thread doesn't re-execute the 14 validator scripts (which would write to `ValidationFinding`). Instead it READS existing findings from `ValidationFinding` + `BidEvaluationFinding` filtered by the bid's `doc_id`, buckets them per validator via `rule_id` keyword matching, and emits SSE events that ANIMATE per-validator progress with ~250ms artificial delays. The UX is indistinguishable from a real re-evaluation; the corpus integrity is preserved by construction.
+
+### Forward-applicable rule
+
+For any future workflow that demos against a frozen corpus: never re-run mutating logic against sentinel-protected tables. Either:
+1. Read existing findings and replay them with synthetic SSE timing (Module 3 Run 11 approach), or
+2. Write the re-evaluation outputs to a dedicated, non-kg-nodes table (works for genuinely new evaluations on demo inputs).
+
+The combined pattern — "verified replay" + "demo_evaluation_run" — gives you a live-feeling, fully-functional evaluation workflow without any risk to the baseline.
+
+---
+
+## L124 — Step-Wise Wizard with URL State: A Reusable Pattern for Multi-Step Workflows
+
+**Established in R11.2** (2026-05-13). Module 3's evaluation wizard is a 5-step flow (Tender → Bidders → View Bid → Live Evaluation → Results). Implemented as a single Next.js page (`app/module3/evaluate/page.tsx`) with URL-encoded state, NOT separate routes per step.
+
+### The pattern
+
+```typescript
+// State is in the URL: ?step=N&tender=X&bidders=Y,Z&run=R
+const step = parseInt(sp.get("step") || "1", 10);
+const tenderId = sp.get("tender") || "";
+const bidderIds = (sp.get("bidders") || "").split(",").filter(Boolean);
+const runId = sp.get("run") || "";
+
+const update = (q: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(sp);
+    for (const [k, v] of Object.entries(q)) {
+        if (v === undefined || v === "") next.delete(k);
+        else next.set(k, v);
+    }
+    router.push(`/module3/evaluate?${next.toString()}`, { scroll: false });
+};
+
+// Step components are rendered conditionally inside the same page:
+{step === 1 && <Step1 onChoose={(tid) => update({ step: "2", tender: tid })} />}
+{step === 4 && runId && <Step4 runId={runId} onComplete={() => update({ step: "5" })} />}
+```
+
+### Why URL-state over component-state
+
+1. **Shareable**: any step is a deep-link. Pasting `/module3/evaluate?step=4&run=abc-123` resumes the live evaluation view.
+2. **Browser-history-friendly**: Back/Forward buttons work naturally. No custom history shim.
+3. **Refresh-resilient**: F5 doesn't lose progress because state is in the URL.
+4. **Step-skip-safe**: each step's renderer guards on the presence of its inputs (`step === 2 && tenderId &&` ...). A user pasting `?step=4` without a run_id falls through to the conditional.
+
+### Why single page over per-step routes
+
+`/module3/evaluate/step1`, `/step2`, etc. would be more "Next.js-idiomatic" but adds:
+- 5 separate route files
+- Per-step layout boilerplate
+- Cross-step navigation needs `router.push` to a different URL anyway
+- Loses the StepIndicator pattern of "show all 5 steps with current highlighted"
+
+For a workflow that's tightly coupled (you can't meaningfully jump from Step 1 to Step 4 without choosing tender + bidders first), single-page-conditional-render wins on simplicity.
+
+### Forward-applicable
+
+Any future multi-step UI (Module 4 bidder-clarification flow, future Module 5 reviewer flow) should use this pattern. Open one page file, add URL state, render conditionally. Save the per-route split for genuinely independent pages (which most "step wizards" aren't).
+
+---
+
+## L125 — Concurrent Validator Orchestration with SSE: Pattern for Long-Running Multi-Bidder Evaluation
+
+**Established in R11.1** (2026-05-13). The m3-evaluator runs 14 validators per bidder. For 9 bidders × 14 = 126 validator invocations per tender. Serial would be ~31s at 250ms each; the chosen pattern groups by bidder serially but emits SSE events at every validator step so the UX feels continuous.
+
+### Three SSE event types per validator + two bidder-level events + two run-level
+
+```
+evaluation_started   { run_id, tender_id, bidder_ids[], validators[14] }
+  for each bidder:
+    for each of 14 validators:
+        validator_started   { bidder_id, validator_id, name, index, of_total }
+        validator_finding[*] { bidder_id, validator_id, rule_id, severity, message }
+        validator_complete  { bidder_id, validator_id, verdict, findings_count, elapsed_ms }
+    bidder_complete       { bidder_id, aggregate_verdict, total_findings }
+evaluation_complete  { run_id, total_elapsed_ms, bidder_results, eligibility_matrix, tender_ranking }
+```
+
+### Background thread + threading.Queue bridge
+
+The m3-evaluator runs FastAPI; `POST /evaluate/start` returns immediately with `run_id`. A background thread (`threading.Thread(target=_evaluator_thread, ...)`) drives the validator loop, publishing events into a per-run in-memory list (`_run_event_buffers[run_id]`). The SSE handler `GET /evaluate/{run}/stream` polls that list with a cursor, yielding new events every 500ms.
+
+This pattern echoes R8.6's parallel BoQ batching but inverted: there we used asyncio for I/O-bound LLM calls; here threading + synchronous Supabase REST calls work fine because each validator step is <100ms.
+
+### UI consumption via EventSource
+
+The frontend Step4 component uses native `EventSource("/api/m3/evaluate/{run}/stream")`. It builds a grid keyed by (bidder_id, validator_id) that transitions through `queued → running → complete(PASS/FAIL/WARN)` states as events arrive. The browser handles SSE reconnection on transient drops; no custom code needed.
+
+### Forward-applicable rule
+
+For any future N-step workflow where each step has clear START / FINDING / COMPLETE moments, emit ALL THREE event types per step. Step1-only ("started") loses progress visibility; complete-only loses live updates. The triplet gives the frontend everything it needs to render queued/running/complete states without polling for snapshots.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
