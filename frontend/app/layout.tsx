@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { SidebarNav } from "@/components/sidebar-nav";
+import BotChatFAB from "@/components/chat/BotChatFAB";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://procureai.example.com"),
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SidebarNav />
           <main className="flex-1 min-w-0">{children}</main>
         </div>
+        <BotChatFAB />
       </body>
     </html>
   );

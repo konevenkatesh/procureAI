@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KbDetailModal } from "./KbDetailModal";
@@ -50,6 +51,14 @@ export default function KbListView({
   const [activeChip, setActiveChip] = useState<{ param: string; value: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const sp = useSearchParams();
+
+  // R10.4 — deep-link from BOT chat citations: /knowledge/{tab}?detail=ID
+  // auto-opens the detail modal so citations work as expected.
+  useEffect(() => {
+    const detail = sp?.get("detail");
+    if (detail) setSelectedId(detail);
+  }, [sp]);
 
   // Debounce search
   useEffect(() => {
