@@ -2119,6 +2119,122 @@ Defer complexity when:
 
 ---
 
+## L132 — Verified-Replay vs Live-Execution Disclosure Pattern
+
+**Established across R11/R12/R13** (2026-05-13). The platform's three module wizards (M2 Validator, M3 Evaluator, M4 Communicator) all use the same verified-replay-vs-live disclosure pattern. The honest framing matters for judges + auditors + future operators.
+
+### The shape of the disclosure
+
+For each module, the docs and demo script explicitly state:
+1. **What's replay** (reads existing baseline rows, animates via SSE) — labelled clearly in the UI ("baseline" badge, "replay" mode chip)
+2. **What's live** (runs real logic against new inputs, persists to sentinel-safe tables) — also explicit
+3. **What's the Phase 2 swap point** (where verified-replay becomes real live execution against uploaded content)
+
+For TECHNICAL_PROPOSAL.md's hackathon-judge audience, this is captured in a 6-row capability matrix:
+
+```
+| Module | Replay path | Live path |
+|--------|-------------|-----------|
+| M1 Drafter | N/A | ✅ FULL |
+| M2 Validator | ✅ FULL | ⏸ PARTIAL (templated; Phase 2 = real subprocess) |
+| M3 Evaluator | ✅ FULL | ⏸ PARTIAL (no new-bid intake yet) |
+| M4 Communicator | ✅ FULL replay + ✅ FULL AI draft + ⏸ DEGRADED SMTP |
+| Knowledge Layer | ✅ FULL (read-only) | N/A |
+| BOT chat | N/A | ✅ FULL |
+```
+
+### Why this matters
+
+Without the disclosure, three failure modes:
+1. **Judge mistakes replay for live**, leading to expectations that don't match the architecture (e.g., "what happens if I upload 10 PDFs and the system processes them in parallel?" — currently it's templated for live mode in M2, so 10 PDFs all get the same template).
+2. **Future operator inherits the project and corrupts the sentinel** by trying to "make it real" without understanding which tables are baseline-protected.
+3. **CAG audit** asks "show me a reproducible run" — without the disclosure, the auditor doesn't know that re-running an existing tender's validation produces identical output by construction (replay reads same rows, animates same way).
+
+### Forward-applicable rule
+
+For any AI-augmented compliance system: be explicit about which surfaces show historical data vs new computation. Use ✅/⏸ icons in capability matrices, "baseline" chips in UI, and inline comments in code that point at the swap point. The credibility cost of "we lied about being live" is much higher than the credibility cost of "we labelled this as replay, here's the migration trigger to make it live."
+
+---
+
+## L133 — Phase 2 Architecture Roadmap as a Trigger-Based Decision Matrix
+
+**Established in R14.1** (TECHNICAL_PROPOSAL.md). For the 8 documented Phase 2 enhancements, each has a *measurable trigger* — not a date or vague "when we have time." This is the discipline that prevents Phase 1 platforms from drifting into "we should add X" debt without justification:
+
+| Enhancement | Measurable trigger |
+|-------------|-------------------|
+| Qdrant migration | Corpus >50K vectors OR pgvector top-K p99 >500ms sustained |
+| BGE-Reranker-v2 cross-encoder | Corpus >50K vectors OR Module 2 recall complaint from officer feedback |
+| Gemini Pro multi-clause reasoning | New Tier-3 validators surface OR officer requests deeper rule-conflict explanation |
+| Tier-2 / Tier-3 validator subprocess invocation | After Tier-1 stabilises on live mode + corpus subprocess footprint is measured |
+| WhatsApp Business outbound | Officer feedback shows email open-rate <60% |
+| apeprocurement.gov.in API integration | After 6-month pilot data validates spec |
+| Multi-tenant isolation (RLS + namespace) | Second state government adopts |
+| On-prem H100 cluster | State decision to in-source AI workloads |
+
+### Why trigger-based vs date-based
+
+Date-based roadmaps drift:
+- "Q3 2026" arrives → the trigger condition isn't actually met → we add complexity preemptively → maintenance debt
+- "Q3 2026" arrives → the trigger condition IS met → we already planned for Q4 → we ship late → embarrassment
+
+Trigger-based roadmaps fire when reality demands:
+- p99 latency exceeds 500ms → migrate to Qdrant (regardless of date)
+- Recall complaint surfaces → add Reranker (regardless of date)
+- 50K vector milestone hit → reassess (might also need Qdrant)
+
+Each trigger is observable in a dashboard. No subjective judgment required to decide "is it time?"
+
+### Forward-applicable rule
+
+When you document a deferred enhancement, ALWAYS pair it with a measurable trigger. "Deferred to Phase 2" without a trigger is just procrastination dressed up in planning language. Triggers turn deferrals into hands-off conditional logic: "If X measured > Y, then do Z." This is the only kind of roadmap that survives team turnover.
+
+---
+
+## L134 — Hackathon Submission Readiness Checklist
+
+**Established in R14.5** (this commit). For the BIMSaarthi RTGS hackathon submission, here's the actual checklist used to verify readiness — applicable to any future submission of similar scope:
+
+### Code repository
+- [x] Top-level README.md with screenshots, quickstart, contact (`README.md`)
+- [x] TECHNICAL_PROPOSAL.md covering architecture, capability, roadmap, economics, prior art (`docs/TECHNICAL_PROPOSAL.md`)
+- [x] DEMO_SCRIPT.md with 10-min walkthrough + anticipated Q&A (`docs/DEMO_SCRIPT.md`)
+- [x] LESSONS_LEARNED.md with all architectural decisions documented (`LESSONS_LEARNED.md` — 134 entries)
+- [x] LICENSE file (or placeholder noting MIT/Apache choice at submission time)
+- [x] All commits follow conventional-commits with rationale in body
+- [x] No secrets / API keys / SMTP credentials committed to git history
+
+### Live demo readiness
+- [x] All 4 modules reachable + HTTP 200 at production URL
+- [x] Knowledge Layer + BOT chat reachable
+- [x] Each module's primary workflow rehearsed in <2 min for the demo
+- [x] Backup talking points if any service is slow
+- [x] DevTools Network tab usable to show SSE on request
+- [x] Curl commands ready as terminal backup
+
+### Cost + sentinel discipline
+- [x] Cumulative LLM spend documented per run
+- [x] Hard sentinel verified preserved across all commits
+- [x] Sentinel-safe table discipline (demo_*_run tables outside kg_nodes)
+- [x] Budget cap explicit (₹100) and current spend tracked (₹63 of 100)
+
+### Architecture disclosure
+- [x] Verified-replay-vs-live capability matrix (per L132)
+- [x] Phase 2 trigger-based roadmap (per L133)
+- [x] DPDP compliance positioning explicit
+- [x] Prior art comparison table (ALICE / INACIA / ADELE / AIPA)
+
+### Operations
+- [x] Cloud Run min-instances=1 on critical services for pre-warm
+- [x] All API routes have `X-Accel-Buffering: no` for SSE passthrough
+- [x] DEGRADED mode documented for every external dependency
+- [x] Smoke test commands documented for each surface
+
+### Forward-applicable rule
+
+Use this checklist as a template for future submissions. Items 1-3 above (code, demo, cost) are the absolute minimum for judge-ready credibility. Items 4-5 (architecture + ops) elevate the submission from "demo" to "production-grade pilot."
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.

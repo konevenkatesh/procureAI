@@ -1,331 +1,156 @@
-# AP Procurement — Knowledge Layer + Validator + Drafter
+# ProcureAI
 
-> India's first procurement rules-as-code asset for the Government of Andhra Pradesh.
-> Phase 1 of the BIMSaarthi RTGS hackathon platform.
+> **AI procurement compliance platform for Andhra Pradesh State Government tenders.**
+> 4 modules · Knowledge Layer · BOT chat · End-to-end lifecycle coverage.
 
-## Deployment
-
-Live on Google Cloud Run, region `asia-south1` (Mumbai) for DPDP §16(1) data residency.
-
-| Surface | URL |
-|---|---|
-| Production (custom domain) | `https://procureai.bimsaarthi.com`  (Google-managed TLS via global external HTTPS LB on `34.102.134.26`) |
-| Fallback (default Cloud Run) | `https://procure-ai-frontend-mstersp45a-el.a.run.app` |
-
-The 4 backend services are private (`--no-allow-unauthenticated`); the frontend mints per-request ID tokens via the GCP metadata server.
-
-| Service | Module | URL |
-|---|---|---|
-| `procure-ai-frontend` | Next.js 14 (App Router) | `https://procure-ai-frontend-mstersp45a-el.a.run.app` |
-| `m1-drafter` | Module 1 — Drafter (stub; LangGraph in Phase 2) | `https://m1-drafter-mstersp45a-el.a.run.app` |
-| `m2-validator` | Module 2 — Validator (stub; Qdrant migration is Phase 2) | `https://m2-validator-mstersp45a-el.a.run.app` |
-| `m3-evaluator` | Module 3 — Evaluator (14 Tier-2 bid validators, follow-up commit wires the workers) | `https://m3-evaluator-mstersp45a-el.a.run.app` |
-| `m4-communicator` | Module 4 — Communicator (11 M4 drafters, follow-up commit wires the workers) | `https://m4-communicator-mstersp45a-el.a.run.app` |
-
-GCP migration is captured across 5 sub-blocks in `LESSONS_LEARNED.md` L94–L98. Pre-GCP deployment was on Vercel; the Vercel project (`prj_P8lJ5dDt7bPCSFF1jkEfP0Gwz9AD`) is dormant (`live: false`) and should be deleted manually at https://vercel.com/venkateshs-projects-eace5dd9/procureai-frontend/settings → "Delete Project" once the custom-domain TLS cert is `ACTIVE`.
-
-DPDP compliance posture: region pinned asia-south1; Cloud Audit Logs (DATA_READ + DATA_WRITE) enabled on Cloud Run / Cloud Storage / Secret Manager, sinked to `gs://procure-ai-audit-logs-asia-south1` with 400-day retention; egress allowlist enforced application-level (each service only calls Supabase REST + Sarvam + OpenRouter + Vertex AI). VPC Service Controls were attempted but require Premium-tier org-level access not available on the current billing — see L98.
-
-## Module status
-
-| Module | Status | Implementation |
-|---|---|---|
-| **Knowledge Layer** | complete | 1,223 rules, 700 clause_templates (499 DRAFTING_CLAUSE + 201 procedural), 200+ SHACL shapes, 1,669 vector points |
-| **Validator (Module 2)** | 24 typologies live; 73 ValidationFindings on the 6-doc corpus; review portal at `frontend/portal.html` | `scripts/tier1_*_check.py` × 24 — see LESSONS_LEARNED.md L1-L54 |
-| **Drafter (Module 3)** | skeleton-driven render of canonical AP Works tender (NIT + ToC + 27-row NIT body + ITB + BDS overrides + Eval + Forms + Fraud + Works' Reqs + GCC + PCC + Contract Forms) | `templates/ap_works_tender_skeleton.md.tmpl` + `scripts/draft_tender.py` |
-| **Post-RFP Evaluator (Module 4)** | not built — blocked on missing bid-submission data | future |
-| **Communication Mgmt (Module 5)** | not built — blocked on missing corrigendum docs | future |
-
-## Drafter — known limitations
-
-The Drafter (Module 3) composes a draft tender by filling the canonical AP Works skeleton with parameter-substituted DRAFTING_CLAUSE templates and a compliance-anchored BDS override table. Three known coverage gaps:
-
-1. **Section IV — Bidding Forms (49 in real JA → 30 currently)**: 13 standard proformas were seeded into `clause_templates` (Statement-I to VI bidder-data tables, PBG / APG / Bid Security bank-guarantee proformas, LoA / Contract Agreement / Manufacturer's Authorisation / Sub-Contractor Declaration). Closed via `scripts/seed_works_forms_clauses.py`. ~19 project-specific declarations remain (e.g. specific compliance certificates per project type) — these are deliberately project-customised by the procurement officer rather than seeded.
-
-2. **Section VI — Works' Requirements (project-specific scope)**: pass `--scope-description "<text>"` or `--scope-file <path.md>` to populate the scope of work verbatim. If neither is provided, a `[SCOPE OF WORK TO BE SPECIFIED BY PROCUREMENT OFFICER]` placeholder is rendered. The Drafter does NOT auto-generate construction scope — that requires project-specific architectural / engineering inputs the system has no source for.
-
-3. **Volume-II/Section-4 — Technical Specifications (49 sections in real JA → 0 in knowledge layer)**: detailed civil / electrical / MEP technical specifications (concrete grades, structural steel grades, finishes, plumbing fixtures, HVAC equipment, electrical switchgear, IT cabling) are not present in the current knowledge layer. The only Specifications-typed clause is `CLAUSE-DI-K9-PIPE-SPEC-001` (Vizag UGSS sewerage). **Closing this gap requires importing Andhra Pradesh Standard Specifications (APSS), MoRTH for roads, or CPWD General Specifications for buildings** as a separate knowledge-layer ingestion phase. Documented as a forward-applicable enhancement; not in scope for the current hackathon iteration.
-
-> Original scope (knowledge-layer only): build **400+ verified rules, 750+ clause
-> templates, 200+ SHACL shapes, 200+ vector concepts**. Application modules
-> (Drafter, Validator, Evaluator, Communicator) READ from these stores.
+🌐 **Live demo**: https://procureai.bimsaarthi.com
+📄 **Technical proposal**: [`docs/TECHNICAL_PROPOSAL.md`](docs/TECHNICAL_PROPOSAL.md)
+🎬 **Demo script**: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+📚 **134 lessons learned**: [`LESSONS_LEARNED.md`](LESSONS_LEARNED.md)
 
 ---
 
-## Architecture in one diagram
+## What's live
 
-```
- ┌──────────────────────┐    ┌────────────────────────────┐    ┌─────────────────────────┐
- │ source PDFs (you)    │ →  │ Docling → Markdown sections │ →  │ data/extraction_batches │
- └──────────────────────┘    └────────────────────────────┘    └────────────┬────────────┘
-                                                                            │
-                                              ┌─────────────────────────────┘
-                                              ▼
-                              ┌──────────────────────────────────┐
-                              │ Claude Code (you, in chat)       │
-                              │   reads batch → emits JSON rules │
-                              └────────────┬─────────────────────┘
-                                           ▼
-                              ┌──────────────────────────────────┐
-                              │ data/extraction_results/*.json   │
-                              └────────────┬─────────────────────┘
-                                           ▼
-                              ┌──────────────────────────────────┐
-                              │ load_extracted_rules.py          │
-                              │ → Postgres (status: PENDING)     │
-                              └────────────┬─────────────────────┘
-                                           ▼
-                              ┌──────────────────────────────────┐
-                              │ review_cli.py (human approval)   │
-                              │ → status: APPROVED               │
-                              └────────────┬─────────────────────┘
-                                           ▼
-              ┌────────────────────────────┼─────────────────────────────┐
-              ▼                            ▼                             ▼
-     [Clause generation]          [SHACL generation]            [Test-case generation]
-     same batch/result loop       same loop (P1 only)            same loop
-              ▼                            ▼                             ▼
-     ClauseTemplate (Postgres)    SHACL .ttl + Postgres + Fuseki  TestCase (Postgres)
-              ▼
-     [Telugu translation]
-              ▼
-     text_telugu populated
-```
-
-**Key idea:** every LLM step is done by Claude Code in conversation, not by an
-SDK call. The repo ships batch-prep + result-loader scripts. There is no
-`ANTHROPIC_API_KEY` anywhere in this codebase.
+| Module | URL | Status |
+|--------|-----|--------|
+| **1. Drafter** | https://procureai.bimsaarthi.com/module1 | ✅ 7-step wizard + workflow_v2 + parallel BoQ generation |
+| **2. Pre-RFP Validator** | https://procureai.bimsaarthi.com/module2/validate | ✅ 4-step wizard + 24 Tier-1 validators + file upload |
+| **3. Bid Evaluator** | https://procureai.bimsaarthi.com/module3/evaluate | ✅ 5-step wizard + 14 Tier-2 evaluators + SSE live |
+| **4. Bidder Communicator** | https://procureai.bimsaarthi.com/module4/conversations | ✅ Chat threads + AI draft + Telugu translate + SMTP (DEGRADED until creds wired) |
+| **Knowledge Layer** | https://procureai.bimsaarthi.com/knowledge | ✅ 611 rules + 1577 clauses + 102 templates browsable |
+| **BOT chat** | FAB on every page | ✅ RAG over corpus with clickable citations |
 
 ---
 
-## One-time setup
+## At a glance
 
-```bash
-# 1. Start services
-docker-compose up -d
-
-# 2. Install Python deps
-pip install -e ".[dev]"
-
-# 3. Initialise DB (creates tables + loads risk typology seed)
-python scripts/setup_db.py
-
-# 4. Read the source-doc checklist and download what you need
-cat source_documents/SOURCES.md
-# → drop downloaded PDFs/DOCX into the matching raw_pdf/ folders
-```
+- **5 Cloud Run services** in `asia-south1` (Mumbai) for DPDP-2023 data residency
+- **Supabase Postgres + pgvector** with 3,283 768-dim embeddings (Vertex AI text-embedding-005)
+- **Vertex AI Gemini 2.5 Flash + Pro** for content generation
+- **Sarvam-M** for English↔Telugu (Module 4 only)
+- **134 lessons documented** across 14 development runs (R3 through R14)
+- **Cumulative LLM spend**: ~₹63 across all 7 dev runs (R7-R13), well within the ₹100 hackathon cap
+- **Hard sentinel preserved**: 18 tracked node_types pinned at `154/351/49/27/3/6/3/611/1577/30/72/8/3/27/27/27/27/12/6` since baseline ingestion
 
 ---
 
-## The build pipeline (run in this order)
+## Architecture
 
-### Step 1 — Convert raw documents to Markdown
-```bash
-python scripts/process_all_documents.py
-# → source_documents/**/processed_md/*.md
 ```
-Idempotent. Re-run any time you add new source documents.
-
-### Step 2 — Prepare extraction batches
-```bash
-python scripts/prepare_extraction_batches.py
-# → data/extraction_batches/batch_0001.json, batch_0002.json, ...
-```
-
-### Step 3 — Extract rules (this is where Claude Code does the work)
-Open a Claude Code session and ask:
-
-> Read `data/extraction_batches/batch_0001.json`. Follow the embedded
-> `system_prompt`. Write the result to `data/extraction_batches/../extraction_results/batch_0001.json`.
-
-Repeat for each batch. (Or ask: "process batches 1–10 in sequence.")
-
-### Step 4 — Load extraction results into Postgres
-```bash
-python scripts/load_extracted_rules.py
-# → rows in `rules` table with human_status='pending'
-```
-
-### Step 5 — Human review
-```bash
-python builder/review_cli.py review --batch 30
-python builder/review_cli.py stats
-```
-Approve / reject / modify each candidate. Approval rate is the leading indicator
-of extraction quality — if it drops below ~60%, refine the extraction prompt
-in `builder/rule_extractor.py` and re-run a sample batch.
-
-### Step 6 — Clause-template generation
-```bash
-python scripts/prepare_clause_batches.py        # build batches from APPROVED rules
-# → ask Claude Code to fill data/clause_results/*.json
-python scripts/load_clause_results.py
+                          procureai.bimsaarthi.com (Global HTTPS LB)
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  ▼                                          ▼
+       procure-ai-frontend (Cloud Run, Next.js 14)    [browser UI surfaces]
+                  │
+                  │  Cloud Run ID-token OIDC over runtime SA
+                  │
+         ┌────────┼────────┬────────────┬───────────┐
+         ▼        ▼        ▼            ▼           ▼
+       m1-     m2-      m3-          m4-      (BOT chat
+     drafter validator evaluator communicator   served from
+                                                  frontend)
+         │        │        │            │
+         └────────┴────────┴────────────┘
+                  │
+                  ▼
+          Supabase Postgres
+                  ├─ kg_nodes (18 tracked types, sentinel-pinned)
+                  ├─ kg_edges (typed relationships)
+                  ├─ demo_evaluation_run (sentinel-safe demo runs)
+                  ├─ demo_validation_run (sentinel-safe demo runs)
+                  ├─ communication_thread (sentinel-safe threading)
+                  ├─ uploaded_draft (sentinel-safe draft uploads)
+                  └─ pgvector ANN index (HNSW + cosine)
 ```
 
-### Step 7 — Telugu translation
-```bash
-python scripts/prepare_telugu_batches.py
-# → ask Claude Code to fill data/telugu_results/*.json
-python scripts/load_telugu_results.py
-```
-
-### Step 8 — SHACL shape generation (P1 rules only)
-```bash
-python scripts/prepare_shacl_batches.py
-# → ask Claude Code to fill data/shacl_results/*.json
-python scripts/load_shacl_results.py            # validates Turtle, writes .ttl files
-python scripts/load_shacl_to_fuseki.py          # uploads to Jena Fuseki
-```
-
-### Step 9 — Test cases (5 per approved rule)
-```bash
-python scripts/prepare_testcase_batches.py
-# → ask Claude Code to fill data/testcase_results/*.json
-python scripts/load_testcase_results.py
-```
-
-### Step 10 — Vector concepts (P2 rules)
-```bash
-python scripts/prepare_concept_batches.py
-# → ask Claude Code to fill data/concept_results/*.json
-python scripts/load_vectors.py                  # BGE-M3 embed + Qdrant upsert
-```
-
-### Step 11 — Verify
-```bash
-python scripts/verify_knowledge_layer.py
-# → progress dashboard against production targets
-```
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture document and [`docs/architecture-gcp.md`](docs/architecture-gcp.md) for the GCP-specific deployment topology.
 
 ---
 
-## How to ask Claude Code to process a batch
+## Quickstart for evaluators
 
-The exact prompt that works best:
+### Just want to see the demo
 
-> Process `data/extraction_batches/batch_0007.json`. Read the file in full,
-> follow its `system_prompt` and `instructions_for_operator` exactly, and
-> write the JSON result to `data/extraction_results/batch_0007.json`. Validate
-> against the schema before writing. Report the count per section.
+1. Open https://procureai.bimsaarthi.com
+2. Click any module in the sidebar
+3. Each wizard is self-explanatory; click around
 
-For bulk:
+For a guided 10-minute walkthrough, see [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
-> Process `batch_0001.json` through `batch_0010.json` from
-> `data/extraction_batches/`. For each, write the result file with the same
-> name into `data/extraction_results/`. Stop and report if any batch produces
-> fewer than 2 rules per section on average — that signals the extractor is
-> being too conservative.
+### Want to read the technical details
 
----
+Start with [`docs/TECHNICAL_PROPOSAL.md`](docs/TECHNICAL_PROPOSAL.md) — covers architecture, per-module capability, verified-replay-vs-live disclosure, Phase 2 roadmap with migration triggers, cost economics from production runs, hardware projections, DPDP compliance positioning, and prior-art comparison (ALICE / INACIA / ADELE / AIPA).
 
-## Production-ready targets
-
-| Asset            | Target | Where to check |
-|------------------|--------|----------------|
-| Approved rules   | 400+   | `verify_knowledge_layer.py` → Approved row |
-| Clause templates | 750+   | `verify_knowledge_layer.py` → Total templates |
-| Clauses w/ Telugu | 750+  | `verify_knowledge_layer.py` → With Telugu |
-| SHACL shapes (production-ready) | 200+ | `verify_knowledge_layer.py` |
-| Vector concepts in Qdrant | 200+ | `verify_knowledge_layer.py` |
-| Risk typologies  | 45     | seeded by `setup_db.py` from `data/risk_typology.json` |
-
----
-
-## Repo map
+### Want to dive into the code
 
 ```
 procureAI/
-├── README.md                      ← this file
-├── docker-compose.yml             ← Postgres + Qdrant + Fuseki
-├── pyproject.toml                 ← Python deps
-├── alembic.ini                    ← DB migration config
-├── .env                           ← local config (gitignored)
-├── .env.example                   ← template
-│
-├── source_documents/
-│   ├── SOURCES.md                 ← download checklist for the operator
-│   ├── central/{raw_pdf,processed_md}/
-│   ├── ap_state/{raw_pdf,processed_md}/
-│   └── sample_tenders/{raw,processed_md}/
-│
-├── builder/                       ← pipelines (no LLM SDK)
-│   ├── config.py                  ← settings via pydantic-settings
-│   ├── document_processor.py      ← Docling pipeline
-│   ├── section_splitter.py        ← Markdown → sections
-│   ├── rule_extractor.py          ← extraction batch prep + loader
-│   ├── clause_generator.py        ← clause batch prep + loader
-│   ├── telugu_generator.py        ← Telugu batch prep + loader
-│   ├── shacl_generator.py         ← SHACL batch prep + loader
-│   ├── test_case_generator.py     ← test-case batch prep + loader
-│   ├── vector_loader.py           ← VectorConcept batch + BGE-M3 + Qdrant
-│   └── review_cli.py              ← Rich/Typer human review
-│
-├── knowledge_layer/               ← Pydantic schemas + DB models + stores
-│   ├── schemas.py                 ← LOCKED contract (Rule, ClauseTemplate, …)
-│   ├── models.py                  ← SQLAlchemy ORM
-│   ├── database.py                ← engine + session
-│   ├── rule_store.py              ← rule CRUD
-│   ├── clause_store.py            ← clause CRUD
-│   ├── shacl_store.py             ← Postgres + Fuseki helpers
-│   └── vector_store.py            ← Qdrant helpers
-│
-├── ontology/
-│   ├── ap_procurement_base.ttl    ← OWL base (Tender / Bid / properties)
-│   └── shacl_shapes/              ← generated .ttl files (one per shape)
-│
-├── scripts/                       ← entry points
-│   ├── setup_db.py
-│   ├── process_all_documents.py
-│   ├── prepare_extraction_batches.py
-│   ├── load_extracted_rules.py
-│   ├── prepare_clause_batches.py
-│   ├── load_clause_results.py
-│   ├── prepare_telugu_batches.py
-│   ├── load_telugu_results.py
-│   ├── prepare_shacl_batches.py
-│   ├── load_shacl_results.py
-│   ├── load_shacl_to_fuseki.py
-│   ├── prepare_testcase_batches.py
-│   ├── load_testcase_results.py
-│   ├── prepare_concept_batches.py
-│   ├── load_vectors.py
-│   └── verify_knowledge_layer.py
-│
-├── data/
-│   ├── risk_typology.json         ← 45 seed categories
-│   ├── extraction_batches/        ← I/O pairs for each pipeline phase
-│   ├── extraction_results/
-│   ├── clause_batches/
-│   ├── clause_results/
-│   ├── telugu_batches/
-│   ├── telugu_results/
-│   ├── shacl_batches/
-│   ├── shacl_results/
-│   ├── testcase_batches/
-│   └── testcase_results/
-│
-├── migrations/                    ← Alembic
-└── tests/
+├── services/                  # 4 Cloud Run backend services
+│   ├── _shared/               # FastAPI + Cloud Tasks + Supabase scaffolding
+│   ├── m1-drafter/            # Module 1: tender drafting
+│   ├── m2-validator/          # Module 2: pre-RFP validation
+│   ├── m3-evaluator/          # Module 3: bid evaluation
+│   └── m4-communicator/       # Module 4: bidder communications
+├── frontend/                  # Next.js 14 App Router
+│   ├── app/                   # routes (modules, api/, knowledge, etc.)
+│   ├── components/            # shared UI + per-module
+│   └── lib/                   # client+server helpers
+├── builder/                   # corpus build pipeline (rule/clause extraction)
+├── scripts/                   # 80+ Python scripts (ingestion, smokes, validators)
+│   ├── run7/                  # R7 corpus build + pgvector
+│   ├── run8/                  # R8 3-scale smokes
+│   ├── run9/                  # R9 pre-cache + parallel batching
+│   ├── run10/                 # R10 rule elaboration
+│   ├── tier1_*_check.py       # 24 Tier-1 validators
+│   └── bid_*_check.py         # 13 Tier-2 evaluators
+├── docs/                      # technical proposal, demo script, architecture
+├── LESSONS_LEARNED.md         # 134 lessons across 14 runs
+└── README.md                  # this file
 ```
 
 ---
 
-## Hard rules — what NOT to do
+## Key design patterns
 
-- ❌ Do not call any external LLM SDK from this codebase. All LLM work is
-  performed by Claude Code reading/writing batch files in conversation.
-- ❌ Do not modify `knowledge_layer/schemas.py` once data is in Postgres
-  without writing a migration.
-- ❌ Do not commit `.env`, raw PDFs, or anything in `source_documents/**/raw*/`.
-- ❌ Do not skip human review — only `human_status in ('approved', 'modified')`
-  rules should ever flow into clause/SHACL/test generation.
-- ❌ Do not load SHACL shapes into Fuseki until their test-case pass rate is 100%.
-- ❌ Do not load vectors into Qdrant unless `len(embedding) == 1024` (BGE-M3 dim).
+These are documented in detail in `LESSONS_LEARNED.md`; here are the headlines:
+
+1. **Hybrid replay+live** (L130) — Modules 2, 3, 4 all use the same pattern: read existing finding/Communication rows from kg_nodes, animate via SSE timing for the demo; new actions write to sentinel-safe regular Postgres tables (`demo_*_run`).
+2. **Sentinel discipline** (L123) — Hard sentinel of 18 node-type counts pinned at baseline; every commit verifies; new tables for new actions, never mutations to baseline.
+3. **Step-wise wizards with URL state** (L124) — All 4 modules use a single-page wizard with URL-encoded state for shareability + browser-history support.
+4. **SSE triplet pattern** (L125) — Every multi-step operation emits 3 event types per step (started / finding / complete) so frontends can render queued/running/complete without polling.
+5. **Sarvam-M with PII pseudonymiser** (L127) — PAN/GSTIN/mobile/bidder-name masking before every external API call, restoration after.
+6. **DEGRADED mode for every external dep** (L128) — Stale credentials, missing env, slow API all show clear banners; UI stays functional.
+7. **pgvector beats premature Qdrant** (L129) — At <50K vectors, pgvector + HNSW + cosine handles ANN search well. Migration triggers documented.
+8. **Workflow-level embedding pre-cache** (L118) — ~17 retrieval queries per workflow batched into 1 Vertex API call at startup. Caught the R8.3 capital-scale wall-clock regression.
 
 ---
 
-## Token-budget estimate (for context)
+## Repository
 
-Building the full knowledge layer end-to-end takes ~10.4M Claude tokens spread
-across ~100 turns of focused work. See `PROJECT_OVERVIEW.md` for the per-phase
-breakdown if you have one. No external API spend.
+🐙 **GitHub**: https://github.com/konevenkatesh/procureAI
+✉️ **Maintainer**: konevenkatesh92@gmail.com (BIMSaarthi Technologies)
+📋 **License**: see [`LICENSE`](LICENSE) (or this section will be filled at submission time)
+
+---
+
+## Development history
+
+| Run | Scope | Status |
+|----:|-------|--------|
+| R3-R6 | Backend services + Cloud Run deploy + first cloud production | Done |
+| R7 | M1 corpus build (1095 embeddings) + 9 SBD sections + 993 BoQItemSpec + 72 TechSpecTemplate | Done |
+| R8 | M1 3-scale smokes — Banaganapalli + LPS + HOD Towers | Done (R8.3 partial; fixed in R9) |
+| R9 | M1 fixes — pre-cache + concurrency tune + capital scale ✓ | Done |
+| R10 | Knowledge Layer + BOT chat + 611-rule AI elaboration | Done |
+| R11 | Module 3 step-wise evaluation | Done |
+| R12 | Module 4 chat threads + Telugu + SMTP DEGRADED | Done |
+| R13 | Module 2 Pre-RFP validator (replay + live) | Done |
+| R14 | TECHNICAL_PROPOSAL.md + demo script + README polish | Done (this commit) |
+
+134 lessons captured in [`LESSONS_LEARNED.md`](LESSONS_LEARNED.md).
+
+---
+
+*Last updated: 2026-05-13 (R14 wrap)*
