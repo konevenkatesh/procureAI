@@ -118,6 +118,25 @@ def worker(job_id: str, params: dict) -> dict:
 
     Returns {draft_id, current_gate, version, n_events_emitted}.
     """
+    # R10.0 — diagnostic: log what arrived from Cloud Tasks. This is the
+    # one place we can ground-truth that boq_skeleton survived the trip.
+    # Using print() (not logger.info) so it reaches Cloud Logging via stdout
+    # regardless of root-logger level configuration.
+    try:
+        bs_raw = params.get("boq_skeleton") if isinstance(params, dict) else None
+        bs_type = type(bs_raw).__name__
+        bs_len = len(bs_raw) if isinstance(bs_raw, list) else (
+            len(bs_raw) if isinstance(bs_raw, str) else None
+        )
+        print(
+            f"R10.0 worker entry: job_id={job_id} "
+            f"params_keys={list(params.keys()) if isinstance(params, dict) else 'NOT_DICT'} "
+            f"boq_skeleton_type={bs_type} boq_skeleton_len={bs_len}",
+            flush=True,
+        )
+    except Exception as _e:
+        print(f"R10.0 worker entry diag failed: {_e}", flush=True)
+
     try:
         m1_params = M1RunParams.model_validate(params)
     except Exception as e:

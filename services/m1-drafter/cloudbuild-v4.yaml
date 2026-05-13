@@ -1,0 +1,30 @@
+# Cloud Build — m1-drafter v4 image (R10.0)
+#
+# v4 includes everything in v3 plus:
+#   - Dockerfile COPY builder /app/builder (fixes 'No module named builder')
+#   - worker entry diagnostic log (traces boq_skeleton arrival via Cloud Tasks)
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v4
+      - -t
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+      - -f
+      - services/m1-drafter/Dockerfile
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v4
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+images:
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:v4
+  - asia-south1-docker.pkg.dev/procureai-prod/procure-ai/m1-drafter:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s

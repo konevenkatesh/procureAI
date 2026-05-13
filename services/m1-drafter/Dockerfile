@@ -24,5 +24,11 @@ COPY services/_shared /app/_shared
 # m1-drafter app package at /app/app (so `from .schemas import` resolves)
 COPY services/m1-drafter/app /app/app
 
+# R10.0 fix: builder/ holds builder.config.settings (Supabase URL + keys)
+# used by workflow_v2's pgvector path. Without this COPY the R9.4 production
+# logs showed `pgvector DB unavailable: No module named 'builder'`, forcing
+# retrieval to the in-memory registry fallback.
+COPY builder /app/builder
+
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
