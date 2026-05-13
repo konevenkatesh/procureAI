@@ -439,3 +439,352 @@ def respond_clarification(req: RespondClarification) -> dict:
         "text_te":          text_te,
         "thread_status":    "RESOLVED",
     }
+
+
+# ─── R12 — Chat-thread + AI-draft + Email outbound endpoints ──────────
+
+
+from fastapi.responses import StreamingResponse as _SR
+import asyncio as _asyncio
+import smtplib as _smtplib
+from email.mime.multipart import MIMEMultipart as _MIME
+from email.mime.text import MIMEText as _MIMEText
+from email.utils import formataddr as _formataddr
+import threading as _threading
+
+GMAIL_SMTP_USER         = os.environ.get("GMAIL_SMTP_USER", "")
+GMAIL_SMTP_APP_PASSWORD = os.environ.get("GMAIL_SMTP_APP_PASSWORD", "")
+SMTP_AVAILABLE = bool(GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD)
+
+
+@app.get("/m4/threads")
+def list_threads(tender_id: str | None = None) -> dict:
+    """List all communication threads, optionally filtered by tender."""
+    params: dict[str, str] = {"select": "*", "order": "last_message_at.desc.nullslast"}
+    if tender_id:
+        params["tender_id"] = f"eq.{tender_id}"
+    rows = _supabase_get("communication_thread", **params)
+    return {"threads": rows, "smtp_available": SMTP_AVAILABLE}
+
+
+@app.get("/m4/threads/{thread_id}")
+def get_thread(thread_id: str) -> dict:
+    """Get a single thread + all its Communications in chronological order."""
+    threads = _supabase_get("communication_thread", select="*", thread_id=f"eq.{thread_id}")
+    if not threads:
+        raise HTTPException(404, detail="thread not found")
+    thread = threads[0]
+    msgs = _supabase_get(
+        "kg_nodes",
+        select="node_id,properties,created_at",
+        node_type="eq.Communication",
+        order="created_at.asc",
+    )
+    # Filter in Python — JSONB filter on nested keys is awkward via PostgREST URL params
+    filtered = [
+        m for m in msgs
+        if (m.get("properties") or {}).get("tender_id") == thread["tender_id"]
+        and (m.get("properties") or {}).get("recipient_bidder_profile_id") == thread["bidder_id"]
+    ]
+    return {
+        "thread": thread,
+        "messages": filtered,
+        "smtp_available": SMTP_AVAILABLE,
+    }
+
+
+@app.post("/m4/threads/{thread_id}/draft")
+async def ai_draft_reply(thread_id: str, req: dict) -> dict:
+    """AI-drafted reply for an officer composing a message.
+
+    Uses Vertex AI Gemini Flash with the thread context + officer intent.
+    Falls back to a templated reply if Vertex is unavailable.
+    """
+    officer_intent = (req.get("officer_intent") or "").strip()
+    if not officer_intent:
+        raise HTTPException(400, detail="officer_intent required")
+    # Pull thread + last 5 messages for context
+    threads = _supabase_get("communication_thread", select="*", thread_id=f"eq.{thread_id}")
+    if not threads:
+        raise HTTPException(404, detail="thread not found")
+    t = threads[0]
+    msgs = _supabase_get(
+        "kg_nodes",
+        select="properties",
+        node_type="eq.Communication",
+        order="created_at.desc",
+        limit="5",
+    )
+    msgs_for_this = [
+        m for m in msgs
+        if (m.get("properties") or {}).get("tender_id") == t["tender_id"]
+        and (m.get("properties") or {}).get("recipient_bidder_profile_id") == t["bidder_id"]
+    ]
+    context_lines = [
+        f"- {(m['properties'].get('communication_type') or '?')}: {(m['properties'].get('content_en') or '')[:200]}"
+        for m in msgs_for_this[:3]
+    ]
+    context_block = "\n".join(context_lines) if context_lines else "(no prior messages)"
+
+    prompt = (
+        f"Thread context:\n"
+        f"  Tender: {t.get('tender_id')}\n"
+        f"  Bidder: {t.get('bidder_name') or t.get('bidder_id')}\n"
+        f"  Recipient: {t.get('recipient_email')}\n"
+        f"Recent messages:\n{context_block}\n\n"
+        f"Officer's intent: {officer_intent}\n\n"
+        f"Draft a professional reply (120-220 words). Plain English; no markdown. "
+        f"Open with 'Dear Sir/Madam' and close with 'Regards, Procurement Officer'."
+    )
+    system = (
+        "You are an Andhra Pradesh Government procurement officer drafting a formal "
+        "reply in a bidder correspondence thread. Tone: respectful, precise, "
+        "regulation-aware. Reference rule_ids (e.g. GFR-G-049, AP-GO-094) only if "
+        "the officer's intent makes them directly relevant. Never invent facts."
+    )
+
+    # Call Vertex Gemini Flash via the m1-drafter Vertex pattern (uses metadata server)
+    try:
+        import urllib.request, urllib.error, subprocess, json as _json
+        PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "procureai-prod")
+        LOC = os.environ.get("VERTEX_LOCATION", "us-central1")
+        url = f"https://{LOC}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOC}/publishers/google/models/gemini-2.5-flash:generateContent"
+
+        # Token: metadata server first, gcloud fallback
+        token = None
+        try:
+            req_m = urllib.request.Request(
+                "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+                headers={"Metadata-Flavor": "Google"},
+            )
+            with urllib.request.urlopen(req_m, timeout=2) as r:
+                token = _json.loads(r.read())["access_token"]
+        except Exception:
+            try:
+                token = subprocess.run(
+                    ["gcloud", "auth", "print-access-token"],
+                    capture_output=True, text=True, timeout=10, check=True,
+                ).stdout.strip()
+            except Exception:
+                token = None
+        if not token:
+            raise RuntimeError("no Vertex token")
+
+        body = {
+            "contents":          [{"role": "user", "parts": [{"text": prompt}]}],
+            "systemInstruction": {"parts": [{"text": system}]},
+            "generationConfig": {
+                "maxOutputTokens": 600,
+                "temperature":     0.3,
+                "thinkingConfig":  {"thinkingBudget": 0},
+            },
+        }
+        req_v = urllib.request.Request(url, data=_json.dumps(body).encode("utf-8"),
+                                       headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req_v, timeout=30) as r:
+            data = _json.loads(r.read())
+        text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+        return {"suggested_reply": text.strip(), "source": "gemini-flash"}
+    except Exception as e:
+        logger.warning(f"AI draft fallback: {e}")
+        return {
+            "suggested_reply": (
+                "Dear Sir/Madam,\n\nThank you for your submission to "
+                f"{t.get('tender_id')}. Regarding {officer_intent}, kindly provide the "
+                "necessary clarification within seven (7) working days from the date "
+                "of this notice to enable timely evaluation.\n\nRegards,\n"
+                "Procurement Officer"
+            ),
+            "source": "fallback_template",
+        }
+
+
+@app.post("/m4/threads/{thread_id}/translate")
+async def translate_message(thread_id: str, req: dict) -> dict:
+    """Translate text between EN and TE via Sarvam-M."""
+    text = (req.get("text") or "").strip()
+    direction = req.get("direction", "en_to_te")
+    if not text:
+        raise HTTPException(400, detail="text required")
+    if not SARVAM_API_KEY:
+        return {"translated": text, "status": "sarvam_unavailable"}
+    src, tgt = ("en-IN", "te-IN") if direction == "en_to_te" else ("te-IN", "en-IN")
+    try:
+        r = requests.post(
+            "https://api.sarvam.ai/translate",
+            headers={"api-subscription-key": SARVAM_API_KEY, "Content-Type": "application/json"},
+            json={
+                "input":            text[:1000],
+                "source_language_code": src,
+                "target_language_code": tgt,
+                "speaker_gender":   "Male",
+                "mode":             "formal",
+                "model":            "mayura:v1",
+                "enable_preprocessing": True,
+            },
+            timeout=20,
+        )
+        if r.ok:
+            return {"translated": r.json().get("translated_text", text), "status": "ok"}
+    except Exception as e:
+        logger.warning(f"Sarvam translate failed: {e}")
+    return {"translated": text, "status": "translation_failed"}
+
+
+# ─── Email send (DEGRADED if no SMTP credentials) ─────────────────────
+
+
+_send_buffers: dict[str, list[dict]] = {}
+_send_done: dict[str, bool] = {}
+
+
+def _publish_send(send_id: str, ev: dict) -> None:
+    _send_buffers.setdefault(send_id, []).append(ev)
+
+
+def _send_email_thread(send_id: str, thread_id: str, payload: dict) -> None:
+    """Background sender. Emits SSE events; persists Communication on success.
+
+    DEGRADED mode (no SMTP credentials): emits events as if sending, but ends
+    with `send_degraded` instead of `send_complete`. New Communication row is
+    still created with status=DRAFT so the message is captured.
+    """
+    _publish_send(send_id, {"type": "send_started", "thread_id": thread_id, "to": payload.get("to")})
+
+    to_addr   = payload.get("to") or ""
+    subject   = payload.get("subject") or "Procurement correspondence"
+    body_en   = payload.get("body_en") or ""
+    body_te   = payload.get("body_te") or ""
+    body_html = body_en.replace("\n", "<br>")
+    if body_te:
+        body_html += f"<hr><h3>తెలుగు అనువాదం</h3>{body_te.replace(chr(10), '<br>')}"
+
+    # Always: persist Communication first (DRAFT if degraded, SENT if real)
+    threads = _supabase_get("communication_thread", select="*", thread_id=f"eq.{thread_id}")
+    if not threads:
+        _publish_send(send_id, {"type": "send_failed", "error": "thread not found"})
+        _run_done_mark(send_id)
+        return
+    t = threads[0]
+    final_status = "DRAFT" if not SMTP_AVAILABLE else "SENT"
+
+    if not SMTP_AVAILABLE:
+        _publish_send(send_id, {"type": "smtp_degraded",
+                                "message": "SMTP credentials not configured — saving as DRAFT"})
+    else:
+        _publish_send(send_id, {"type": "smtp_connecting", "host": "smtp.gmail.com"})
+        try:
+            msg = _MIME("alternative")
+            msg["Subject"] = subject
+            msg["From"]    = _formataddr(("ProcureAI", GMAIL_SMTP_USER))
+            msg["To"]      = to_addr
+            msg.attach(_MIMEText(body_en + ("\n\n--- తెలుగు ---\n\n" + body_te if body_te else ""), "plain"))
+            msg.attach(_MIMEText(body_html, "html"))
+
+            _publish_send(send_id, {"type": "smtp_authenticating"})
+            with _smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+                smtp.login(GMAIL_SMTP_USER, GMAIL_SMTP_APP_PASSWORD)
+                _publish_send(send_id, {"type": "smtp_sending"})
+                smtp.sendmail(GMAIL_SMTP_USER, [to_addr], msg.as_string())
+        except Exception as e:
+            logger.error(f"SMTP send failed: {e}")
+            _publish_send(send_id, {"type": "send_failed", "error": str(e)[:200]})
+            final_status = "FAILED"
+
+    # Persist new Communication kg_node (additive — Communication sentinel grows by 1)
+    node_id = str(uuid.uuid4())
+    new_props = {
+        "tender_id":                  t["tender_id"],
+        "recipient_bidder_profile_id": t["bidder_id"],
+        "bidder_name":                t.get("bidder_name"),
+        "recipient_email":            to_addr,
+        "channel":                    "EMAIL",
+        "communication_type":         payload.get("communication_type") or "OFFICER_REPLY",
+        "subject":                    subject,
+        "content_en":                 body_en,
+        "content_te":                 body_te,
+        "language":                   "EN+TE" if body_te else "EN",
+        "sender_role":                "PROCUREMENT_OFFICER",
+        "status":                     final_status,
+        "ai_drafted":                 bool(payload.get("ai_drafted")),
+        "audit_id":                   hashlib.sha256(node_id.encode()).hexdigest()[:12],
+        "extracted_by":               "module4:officer_reply_v1",
+    }
+    try:
+        _supa_insert("kg_nodes", {
+            "node_id":    node_id,
+            "node_type":  "Communication",
+            "doc_id":     t["tender_id"],
+            "label":      f"OfficerReply · {t['tender_id']} · {t['bidder_id']} · {final_status}",
+            "properties": new_props,
+            "source_ref": "module4:officer_reply_v1",
+        })
+        # Update thread metadata
+        requests.patch(
+            f"{SUPABASE_REST_URL}/rest/v1/communication_thread",
+            headers=_H,
+            params={"thread_id": f"eq.{thread_id}"},
+            json={
+                "last_message_at":      datetime.now(timezone.utc).isoformat(),
+                "last_message_snippet": body_en[:240],
+            },
+            timeout=10,
+        )
+    except Exception as e:
+        logger.error(f"persist new Communication failed: {e}")
+
+    if final_status == "SENT":
+        _publish_send(send_id, {"type": "send_complete", "message_id": node_id,
+                                "sent_at": datetime.now(timezone.utc).isoformat()})
+    elif final_status == "DRAFT":
+        _publish_send(send_id, {"type": "send_degraded", "communication_id": node_id})
+    _run_done_mark(send_id)
+
+
+def _run_done_mark(sid: str) -> None:
+    _send_done[sid] = True
+
+
+@app.post("/m4/threads/{thread_id}/send")
+def send_message(thread_id: str, req: dict) -> dict:
+    """Kick off email send (background). Returns send_id + stream_url."""
+    if not req.get("to"):
+        raise HTTPException(400, detail="recipient `to` required")
+    send_id = str(uuid.uuid4())
+    _send_buffers[send_id] = []
+    _send_done[send_id]    = False
+    _threading.Thread(
+        target=_send_email_thread, args=(send_id, thread_id, req),
+        daemon=True, name=f"m4-send-{send_id[:8]}",
+    ).start()
+    return {"send_id": send_id, "thread_id": thread_id,
+            "stream_url": f"/m4/send/{send_id}/stream",
+            "smtp_available": SMTP_AVAILABLE}
+
+
+@app.get("/m4/send/{send_id}/stream")
+async def stream_send(send_id: str) -> _SR:
+    async def gen():
+        cursor = 0; idle = 0
+        while True:
+            buf = _send_buffers.get(send_id, [])
+            if cursor < len(buf):
+                for ev in buf[cursor:]:
+                    yield f"data: {_json_dumps(ev)}\n\n"
+                cursor = len(buf)
+                idle = 0
+            else:
+                if _send_done.get(send_id): return
+                idle += 1
+                if idle > 60:
+                    yield 'data: {"type":"error","message":"send idle timeout"}\n\n'
+                    return
+                await _asyncio.sleep(0.5)
+
+    return _SR(gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+    })
+
+
+def _json_dumps(d: dict) -> str:
+    return json.dumps(d, default=str)
