@@ -2,15 +2,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FilePen, Shield, BarChart3, MessageSquare, Info } from "lucide-react";
+import { Home, FilePen, Shield, BarChart3, MessageSquare, Info, BookOpen } from "lucide-react";
 
 const NAV = [
-  { href: "/",         label: "Dashboard",    icon: Home,         desc: "Overview" },
-  { href: "/module1",  label: "1. Drafter",   icon: FilePen,      desc: "Tender drafting" },
-  { href: "/module2",  label: "2. Validator", icon: Shield,       desc: "RFP validation" },
-  { href: "/module3",  label: "3. Evaluator", icon: BarChart3,    desc: "Bid evaluation" },
-  { href: "/module4",  label: "4. Communicator", icon: MessageSquare, desc: "Bidder communication" },
-  { href: "/about",    label: "About",        icon: Info,         desc: "Project info" },
+  { href: "/",          label: "Dashboard",       icon: Home,           desc: "Overview" },
+  { href: "/module1",   label: "1. Drafter",      icon: FilePen,        desc: "Tender drafting" },
+  { href: "/module2",   label: "2. Validator",    icon: Shield,         desc: "RFP validation" },
+  { href: "/module3",   label: "3. Evaluator",    icon: BarChart3,      desc: "Bid evaluation" },
+  { href: "/module4",   label: "4. Communicator", icon: MessageSquare,  desc: "Bidder communication" },
+  { href: "/knowledge", label: "Knowledge",       icon: BookOpen,       desc: "Rules · clauses · templates" },
+  { href: "/about",     label: "About",           icon: Info,           desc: "Project info" },
 ];
 
 export function SidebarNav() {
