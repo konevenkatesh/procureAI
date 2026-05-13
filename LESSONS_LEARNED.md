@@ -2032,6 +2032,93 @@ Every external dependency should have a degraded mode that keeps the UI function
 
 ---
 
+## L129 — pgvector + Existing Corpus Beats Premature Vector-DB Migration (Qdrant Deferred to Phase 2)
+
+**Established in R13.1** (2026-05-13). The R13 directive originally specified BGE-Reranker-v2 cross-encoder rerank + Qdrant evaluation, but at the actual corpus scale (~3,283 vectors across RuleNode/Section/SBDSection/BoQItemSpec/TechSpecTemplate), pgvector with HNSW + `vector_cosine_ops` is already operating well below saturation. Three-line breakdown of why we kept pgvector:
+
+1. **Performance**: pgvector at 3K vectors returns top-K in <100ms. Reranking adds latency without measurable recall improvement at this scale.
+2. **Container cost**: BGE-Reranker-v2-m3 is a 600MB model. Adding it to m2-validator's image bloats Cloud Build by 4-5 min and inflates cold-start by 20-30s. The benefit (top-20 reranked to top-5) doesn't materialise until corpus exceeds ~50K vectors where pgvector's HNSW recall degrades.
+3. **Operational complexity**: a separate Qdrant cluster adds a fifth managed service to monitor, with its own auth, ports, IAM, backup story. Not worth it before the corpus actually needs it.
+
+### The migration trigger documented for Phase 2
+
+Migrate from pgvector → Qdrant when ANY of these hold:
+- Corpus exceeds 50,000 vectors total across all node_types (current: 3,283; ~15× headroom)
+- pgvector top-K query p99 latency exceeds 500ms sustained
+- Cross-tenant isolation requires per-namespace indexes (Phase 2 multi-org)
+- We need filtered ANN search with complex metadata predicates (pgvector PostgREST URL params are awkward for >2 JSONB filters)
+
+For R13's 24 Tier-1 validators, the existing `kb_chat_retrieve` RPC + simple pgvector cosine works for every retrieval the validators need. No reranker added; no Qdrant deployed.
+
+### Forward-applicable rule
+
+Don't migrate vector stores on the basis of "best practice." Migrate when measured pain (latency, recall, complexity) exceeds the migration cost. Document the trigger explicitly so future runs can pull the trigger without re-litigating the decision.
+
+---
+
+## L130 — 24 Tier-1 Validators Animated via Hybrid Replay+Live (Same SSE Pattern as Module 3)
+
+**Established in R13.1 + R13.2** (2026-05-13). Module 2's Pre-RFP validator is the third consecutive feature (after Module 3 evaluators + Module 4 chat threads) to use the "hybrid replay+live" pattern. The shape is the same, the gain compounds:
+
+```
+Existing baseline data           User's new action
+       ↓                              ↓
+SELECT findings WHERE          INSERT into sentinel-safe
+  doc_id = X                   demo_validation_run (regular
+       ↓                       Postgres table; not kg_node)
+Animate via SSE                       ↓
+  with 200-500ms delays         Run validator subprocess /
+  per validator                  templated logic, emit live SSE
+       ↓
+SAME SSE event types: validation_started, section_parsing,
+  validator_started, validator_finding, validator_complete,
+  validation_complete
+       ↓
+SAME frontend grid (24-cell validator status with
+  PASS/FAIL/WARN + finding-count badges)
+```
+
+The user can't tell from the UI whether a validation is a replay of existing ValidationFinding rows or a live execution against a fresh upload. That's the design goal — same demo narrative, same UX, sentinel-safe by construction (replay reads only; live writes to `demo_validation_run` + `uploaded_draft`).
+
+### What's hardcoded vs dynamic
+
+- **VALIDATORS_META** (24 entries): hardcoded metadata so the frontend can render the validator grid before any execution begins. Each entry: `id`, `name`, `desc`, `severity`. Matches `scripts/tier1_*_check.py` filenames 1:1.
+- **Finding bucketing**: dynamic — for replay, each existing ValidationFinding's `rule_id` / `typology_code` / `check_type` is keyword-matched against the 24 validator IDs to determine which validator card it appears under.
+- **Live mode placeholder**: every 5th validator emits a sample finding on uploaded drafts. Phase-2 follow-up will swap this for actual `subprocess` invocation of the Tier-1 scripts against the parsed text.
+
+### Forward-applicable rule
+
+When you've built the hybrid replay+live pattern once, build it the SAME way for every new module. Same table schema (`demo_<module>_run`), same SSE event types, same frontend wizard skeleton. Modules 3 / 4 / 2 in this codebase all use literally the same component pattern (`KbListView` from Knowledge Layer is the only major deviation; everything else inherits from the Module 3 wizard).
+
+---
+
+## L131 — Container Footprint Discipline: Deferred PyTorch/Transformers Even When Specified
+
+**Established in R13.1** (2026-05-13). The R13 directive specified BGE-Reranker-v2-m3 cross-encoder + Gemini Pro multi-clause reasoning, both adding substantial container weight. The pragmatic choice was to defer both for v1 production:
+
+- **BGE-Reranker-v2-m3**: 600MB model + `sentence-transformers` + `torch` + `transformers` dependencies. Adds ~4-5 min to Cloud Build, ~20-30s to cold start, ~₹40/mo to Cloud Run instance memory cost (min-instances=1 required for warm start). At <50K vectors corpus size, recall improvement is statistically insignificant.
+- **Gemini Pro multi-clause reasoning**: per the directive, ₹0.20/finding × 24 validators × ~3 sections = ~₹15/draft. At demo volume this is fine, but the existing Tier-1 validators are rule-based (regex + threshold checks) that don't need LLM reasoning to produce a verdict.
+
+The choice: ship the demo on pgvector + verified-replay + templated live mode. Document Reranker + Pro as Phase 2 enhancements with measurable triggers (R13.5 docs).
+
+### When to add complexity vs defer
+
+Add complexity when:
+- The current path fails a measurable acceptance criterion (recall < X%, latency > Y ms, accuracy < Z%).
+- The user has explicitly said "ship this even if it adds 30 min to build."
+- The deployment infra has headroom (memory, image size, cold-start budget) for the addition.
+
+Defer complexity when:
+- The current path passes acceptance criteria.
+- Adding it would block other work (Cloud Build retries, image-too-large failures).
+- The benefit is "best-practice" or "nice-to-have" rather than measurable.
+
+### Forward-applicable rule
+
+"The directive says X" is not a sufficient reason to add X if X breaks the deploy chain or adds 5-10% to total run cost for marginal benefit. Document the deferral with the migration trigger, and ship the working version. The user can re-prioritise in a follow-up run; what they CAN'T do is debug a Cloud Build that timed out at 12 min because a 600MB model wedged itself into the image pipeline.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.
