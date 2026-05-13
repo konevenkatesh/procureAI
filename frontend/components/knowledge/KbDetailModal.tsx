@@ -61,6 +61,7 @@ function RuleView({ rule, linked_clauses, recent_firings }: any) {
   const p = rule?.properties || {};
   const ruleId = p.rule_id || rule?.node_id?.slice(0, 8);
   const statement = rule?.label || "—";
+  const explanation = p.rule_explanation;
 
   return (
     <div className="space-y-5">
@@ -76,10 +77,22 @@ function RuleView({ rule, linked_clauses, recent_firings }: any) {
           )}
         </div>
         <h3 className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold mb-1.5">Rule statement</h3>
-        <p className="text-sm text-ink-900 leading-relaxed whitespace-pre-wrap">
+        <p className="text-sm text-ink-900 leading-relaxed whitespace-pre-wrap font-semibold">
           {statement.includes(":") ? statement.substring(statement.indexOf(":") + 1).trim() : statement}
         </p>
       </section>
+
+      {explanation && (
+        <section>
+          <h3 className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold mb-1.5 flex items-center gap-1">
+            <BookOpen className="h-3 w-3" /> Description
+            <span className="ml-1 text-[9px] text-ink-400 font-normal">(AI-elaborated)</span>
+          </h3>
+          <div className="text-sm text-ink-900 leading-relaxed whitespace-pre-wrap bg-white border border-mist-200 rounded-md px-4 py-3">
+            {explanation}
+          </div>
+        </section>
+      )}
 
       {p.verification_method && (
         <section>
