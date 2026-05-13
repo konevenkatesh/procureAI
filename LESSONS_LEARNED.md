@@ -1632,6 +1632,150 @@ For any future Module's first deploy with long-running compute (>1 min sustained
 
 ---
 
+## L120 — Frontend Image Staleness as a Production-Only Bug Category (R9.4 → R10.0)
+
+**Established in R10.0** (2026-05-13). The R9.4 "BoQ skeleton never reaches worker" failure was not a code bug at all — the m1-drafter backend was upgraded across v2→v3→v4 over multiple runs, but the procure-ai-frontend Cloud Run image hadn't been rebuilt since the original Run 6 cloud deploy (2026-05-12 15:22). The stale frontend's `/api/m1/draft/start` proxy didn't have R7.7's `boq_skeleton` forwarding, so the field was dropped before it ever left the Next.js layer. Diagnostic `print()` statements in the worker showed `params_keys=['draft_id','initiator_role','initiator_id','initial_payload']` — exactly the 4 keys that pre-dated R7.7.
+
+### Why this kind of bug is hard to spot
+
+1. **Mental model gap**: deploys feel atomic at the per-service level, but the system has 5 deploy units (m1/m2/m3/m4 backends + frontend). Each can drift independently.
+2. **Backend logs lie by omission**: the worker log shows what it received, not what the frontend should have sent. The bug looks like a payload-truncation issue (Cloud Tasks size limit, JSON serialization, Pydantic strip) when it's actually upstream.
+3. **The fix is invisible in code review**: the frontend repo had the right code on disk; only the Cloud Run image was stale.
+
+### The diagnostic pattern that broke through
+
+Adding a single `print(f"R10.0 worker entry: params_keys=...", flush=True)` at the top of the worker function was the entire fix-path: 
+- See keys actually arriving → spot what's missing
+- Cross-reference what each layer SHOULD send (frontend route, backend dispatcher)
+- Identify the wire-up gap
+
+Diagnostic prints are cheaper than commit-level instrumentation. Worth keeping in production for fresh-deploy debugging windows.
+
+### Forward-applicable rules
+
+1. **For any multi-service stack, deploy chain order matters**: backend changes that add NEW request fields require frontend rebuilds before the field reaches production. Even if the frontend repo code is current, the deployed image may not be.
+2. **`print(..., flush=True)` over `logger.info`** in Cloud Run worker entry points. Cloud Run captures stdout regardless of logger config; `logger.info` requires root-logger setup that's easy to miss.
+3. **`gcloud run services update --update-env-vars` not `--set-env-vars`**: `--set-env-vars` REPLACES the full env, dropping anything not in the list. Always use `--update-env-vars` for incremental changes to a live revision.
+4. **Image-level `COPY` checks**: the Dockerfile needs to copy every directory imported at runtime. `services/m1-drafter/Dockerfile` was missing `COPY builder /app/builder`; production logs threw `No module named 'builder'` for every workflow run since Run 6. Easy to miss because local dev imports work via sys.path additions.
+5. **Build dependency completeness**: `pydantic-settings` was a transitive runtime requirement of `builder.config` but wasn't in `requirements.txt`. The Dockerfile builds fine; the runtime import fails. Add a CI smoke check that imports every top-level module from inside the built image.
+
+---
+
+## L121 — Knowledge Layer Architecture: Read-Only Next.js API Routes Over Supabase Corpus
+
+**Established in R10.1 + R10.2** (2026-05-13). The Knowledge Layer (corpus browser at `/knowledge` with 5 sub-views) is implemented as Next.js API routes proxying directly to Supabase REST with the service-role key. No new microservice. No new kg_node types. Pure read-only on the existing 611-rule / 1577-clause / 102-template corpus.
+
+### Architecture rationale
+
+- **The corpus is already authoritative in Supabase** — adding a microservice between Next.js and Supabase would be a passthrough with no value-add. Direct fetch is simpler.
+- **The auth model is per-route, not per-service** — `runtime: "nodejs"` + `SUPABASE_SERVICE_ROLE_KEY` in env gives full SELECT on kg_nodes without exposing the key to the browser.
+- **PostgREST handles pagination + filters via URL params** — no SQL writing needed. `?node_type=eq.RuleNode&properties->>severity=eq.WARNING&order=label.asc` with `Range: 0-24` + `Prefer: count=exact` yields paginated rows with Content-Range total.
+- **JSONB-path filters work natively** — `properties->>severity=eq.WARNING` queries inside the JSONB blob without ALTER TABLE. The corpus stays additive-only; sentinel intact.
+
+### The shared library + per-tab page pattern
+
+```typescript
+// frontend/lib/kb-supabase.ts (server-only)
+export async function listNodes(opts): Promise<ListResult> { ... }
+export async function getNode(nodeId): Promise<KgNodeRow | null> { ... }
+export async function countByType(nodeType): Promise<number> { ... }
+
+// 10 thin routes: /api/kb/{stats,rules,clauses,templates,typologies,recent-executions}
+// + /api/kb/{rules,clauses,templates,typologies}/[id]
+// Each route is ~30 LOC: parse query, call listNodes/getNode, return JSON.
+```
+
+Frontend reuse is similar:
+```typescript
+// frontend/components/knowledge/KbListView.tsx + KbDetailModal.tsx
+// Generic shared components. Per-tab page just declares columns:
+<KbListView
+  endpoint="/api/kb/rules"
+  columns={[{key:"severity",render:r=>...}, ...]}
+  filterChips={[{label:"WARNING",value:"WARNING",param:"severity"}]}
+/>
+```
+
+5 sub-views, 4 distinct column definitions, 1 generic list+modal pair. ~30 LOC per page; the heavy lifting is in 2 shared components.
+
+### Pgvector RPC for the BOT chat use case
+
+The chat retrieval (L122) needs cosine-similarity search across multiple node_types simultaneously. PostgREST's auto-generated API doesn't expose pgvector operators directly. Solution: a single Supabase RPC function:
+
+```sql
+CREATE FUNCTION kb_chat_retrieve(query_embedding vector(768), top_k int)
+RETURNS TABLE (node_id, node_type, label, snippet, distance)
+AS $$
+    SELECT node_id, node_type, label,
+           COALESCE(properties->>'content_md', properties->>'spec_text', ..., label)::text,
+           (embedding <=> query_embedding)::float
+    FROM kg_nodes
+    WHERE node_type IN ('RuleNode','Section','TechSpecTemplate','SBDSection')
+      AND embedding IS NOT NULL
+    ORDER BY embedding <=> query_embedding ASC
+    LIMIT top_k;
+$$;
+```
+
+PostgREST exposes RPC functions automatically at `POST /rest/v1/rpc/<name>`. One MCP `apply_migration` call ships this; no service redeploy needed to add similarity search to the Knowledge Layer.
+
+### Forward-applicable rule
+
+Any future read-only feature over the kg_nodes corpus (search-as-you-type, advanced filtering, time-range aggregations) belongs as a Next.js API route + Supabase RPC if it needs custom SQL. Don't reach for a microservice unless the feature does WRITES + business logic that can't be expressed in SQL.
+
+---
+
+## L122 — BOT Chat UX Pattern: FAB + SSE + Inline Clickable Citations
+
+**Established in R10.3 + R10.4** (2026-05-13). The procure-ai BOT chat is a single 350-line component (`BotChatFAB.tsx`) mounted at the root layout. It does five things, all visible on every page:
+
+1. **Bottom-right FAB** (56px, ink-900 bg, MessageSquare icon, pulse-dot indicator)
+2. **Slide-in overlay** (420px desktop / full-width mobile) — backdrop closes
+3. **SSE consumer** — parses `event: chunk|sources|done|error` from `/api/kb/chat`
+4. **Inline citation parser** — regex tokens `[Rule:NODE_ID]` / `[Clause:NODE_ID]` / `[Template:NODE_ID]` rendered as small clickable saffron chips
+5. **Deep-link round-trip** — chip click → `/knowledge/{tab}?detail=ID` → `KbListView` reads `?detail` param → opens `KbDetailModal` with full content
+
+### Why non-streaming Gemini behind a streaming wire format
+
+R10.3 v1 used Vertex AI's `:streamGenerateContent?alt=sse` for true token streaming. The SSE parser worked locally but on Cloud Run it consistently received the response without ever emitting deltas. Same prompt, same code, same model — locally fine, production blank.
+
+R10.3 v2 (shipped) uses `:generateContent` for one-shot answers, then word-chunks the full text back to the client over the SSE wire format. UX feels identical (words arrive progressively) and reliability is 100%.
+
+The lesson: don't fight Cloud Run + HTTP/2 + GLB streaming when a 1-2-second pause + word-chunk delivery achieves the same user experience without infrastructure-layer mystery.
+
+### Citation discipline through prompt engineering
+
+The system prompt is short and prescriptive:
+
+> CRITICAL RULES:
+> 1. Answer ONLY using the retrieved context below. Do NOT invent facts.
+> 2. Cite sources inline using the format [Rule:NODE_ID] or [Clause:NODE_ID] or [Template:NODE_ID]
+>    where NODE_ID is the exact node_id from the retrieved context.
+> 3. If the retrieved context does not contain the answer, say so explicitly:
+>    "I don't have enough information in the corpus to answer that confidently."
+> ...
+
+Gemini Flash respects the cite-or-decline pattern reliably. Sample answer from production:
+
+> Based on the provided context, the Standard Bidding Document for AP works tenders includes:
+> - **Section II - Bid Data Sheet (BDS)** [Template:0fefd48d-15c3-45e3-a514-37a42c1c7d2c, Template:a8faa31e-3f4c-4ef6-8e0c-64c7dfb1a25e]
+> - **Section IV - Bidding Forms** [Template:ab5655ce-84c6-44d3-ae23-55e145f600c8, ...]
+
+Each `[Template:...]` chip in the rendered answer links to `/knowledge/templates?detail=<id>`, which auto-opens the detail modal showing the full template content.
+
+### Rate limiting as a single hashmap
+
+In-memory `Map<sessionId, {count, reset_at}>` with a 30-msg / 60-second window. No Redis, no DB. Cloud Run scales horizontally — each instance has its own bucket, but that's fine because session IDs are crypto.randomUUID per browser tab. A determined adversary could rotate sessions, but for a hackathon demo this is plenty.
+
+### Forward-applicable rules
+
+1. **Bottom-right FAB is the right surface for an assistant-style chatbot.** Sidebar entries compete with navigation; persistent inline bars eat vertical space. FAB stays out of the way until clicked.
+2. **Deep-link from chat → detail-modal is a high-leverage UX pattern.** It turns one-shot answers into self-service exploration without round-tripping back to the chat.
+3. **Word-chunk the response for streaming feel** when the underlying API doesn't stream reliably through your infrastructure. Users don't care if the model finished thinking; they care that text appears as if it's being typed.
+4. **Citation format must be machine-parseable.** `[Type:ID]` is a one-line regex. Markdown links would require parser + sanitizer + URL encoding. Use the simple format and render it client-side.
+
+---
+
 ## L107 — Banaganapalli Sample as Canonical Smoke Test (Real eGP Tender as Ground Truth)
 
 **Established in Run 5 + Run 6** (2026-05-12). The AP eGP Tender Details page for Tender ID 933192 (Banaganapalli Kitchen Shed, ₹15,97,185, NIT 52/2026-27) is the canonical ground-truth smoke test target for Module 1.

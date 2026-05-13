@@ -1,8 +1,17 @@
 "use client";
 
+import { Suspense } from "react";
 import KbListView from "@/components/knowledge/KbListView";
 
 export default function TemplatesPage() {
+  return (
+    <Suspense fallback={<div className="text-xs text-ink-500">Loading templates…</div>}>
+      <Inner />
+    </Suspense>
+  );
+}
+
+function Inner() {
   return (
     <KbListView
       endpoint="/api/kb/templates"

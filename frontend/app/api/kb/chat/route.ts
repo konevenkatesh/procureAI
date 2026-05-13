@@ -12,7 +12,7 @@
  * Response: SSE stream with event types: chunk | sources | done | error
  */
 import { NextRequest } from "next/server";
-import { embedQuery, streamGemini } from "@/lib/vertex-rest";
+import { embedQuery, generateGemini, streamGemini } from "@/lib/vertex-rest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -158,29 +158,31 @@ export async function POST(req: NextRequest) {
               `    snippet: ${(d.snippet || "").slice(0, 600)}`
             ).join("\n\n");
 
-        // Stream a thinking dot while we await Vertex
-        controller.enqueue(encoder.encode(sse("chunk", { delta: "" })));
-
-        // 4) Gemini Flash streaming
+        // 4) Gemini Flash generation (non-streaming for reliability through Cloud Run).
+        // We simulate streaming by chunking the full response back to the client so
+        // the SSE consumer's progressive-render UX is preserved.
         const prompt =
           `RETRIEVED CONTEXT (top-${docs.length} matches):\n${contextBlock}\n\n` +
           `USER QUESTION:\n${userMsg.content}\n\n` +
           `Answer using ONLY the retrieved context. Cite sources inline as [Rule:NODE_ID] / [Clause:NODE_ID] / [Template:NODE_ID].`;
 
-        let usage: any = undefined;
-        for await (const ev of streamGemini(prompt, {
+        const { text, usage, error } = await generateGemini(prompt, {
           systemInstruction: SYSTEM_INSTRUCTION,
           maxOutputTokens: 1024,
           temperature: 0.2,
-        })) {
-          if (ev.delta) {
-            controller.enqueue(encoder.encode(sse("chunk", { delta: ev.delta })));
+        });
+        if (error) {
+          controller.enqueue(encoder.encode(sse("error", { message: error })));
+        } else if (text) {
+          // Chunk by words for a progressive feel
+          const words = text.split(/(\s+)/);
+          for (const w of words) {
+            if (w) controller.enqueue(encoder.encode(sse("chunk", { delta: w })));
           }
-          if (ev.usage) usage = ev.usage;
-          if (ev.error) {
-            controller.enqueue(encoder.encode(sse("error", { message: ev.error })));
-            break;
-          }
+        } else {
+          controller.enqueue(encoder.encode(sse("chunk", {
+            delta: "I don't have enough information in the retrieved corpus to answer that confidently.",
+          })));
         }
 
         // 5) Sources event

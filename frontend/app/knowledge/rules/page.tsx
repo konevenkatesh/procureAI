@@ -1,8 +1,17 @@
 "use client";
 
+import { Suspense } from "react";
 import KbListView from "@/components/knowledge/KbListView";
 
 export default function RulesPage() {
+  return (
+    <Suspense fallback={<div className="text-xs text-ink-500">Loading rules…</div>}>
+      <Inner />
+    </Suspense>
+  );
+}
+
+function Inner() {
   return (
     <KbListView
       endpoint="/api/kb/rules"

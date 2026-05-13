@@ -70,6 +70,47 @@ export async function embedQuery(text: string): Promise<number[] | null> {
   }
 }
 
+/**
+ * Non-streaming Gemini call. Returns the full text in one shot.
+ * Simpler than streamGemini; more reliable through Cloud Run.
+ */
+export async function generateGemini(
+  prompt: string,
+  options: { systemInstruction?: string; maxOutputTokens?: number; temperature?: number } = {},
+): Promise<{ text: string; usage?: any; error?: string }> {
+  const token = await getAccessToken();
+  if (!token) return { text: "", error: "GCP token unavailable" };
+  const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${FLASH_MODEL_ID}:generateContent`;
+  const body: any = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      maxOutputTokens: options.maxOutputTokens ?? 1024,
+      temperature: options.temperature ?? 0.2,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
+  if (options.systemInstruction) {
+    body.systemInstruction = { parts: [{ text: options.systemInstruction }] };
+  }
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      return { text: "", error: `Vertex HTTP ${r.status}: ${t.slice(0, 200)}` };
+    }
+    const data = await r.json() as any;
+    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") || "";
+    return { text, usage: data?.usageMetadata };
+  } catch (e: any) {
+    return { text: "", error: `generateGemini failed: ${e?.message || e}` };
+  }
+}
+
 export async function* streamGemini(
   prompt: string,
   options: { systemInstruction?: string; maxOutputTokens?: number; temperature?: number } = {},
